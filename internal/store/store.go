@@ -8,14 +8,18 @@
 package store
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/gitcmd"
+	"github.com/sharkusk/side-quest/internal/quest"
 )
 
 const (
@@ -252,4 +256,88 @@ func (s *Store) Init() error {
 		tx.put(configPath, cfgBytes)
 		return nil
 	})
+}
+
+// allocID picks the next free id for the snapshot's strategy and returns it
+// together with the config to persist (seq_next advanced, for sequential). The
+// existence check guarantees the id collides with no current file — so even a
+// fluke all-numeric random id can never clash with a sequential one (spec §7).
+func allocID(snap *Snapshot) (string, config.Config, error) {
+	cfg := snap.Config
+	existing := make(map[string]bool, len(snap.IDs))
+	for _, id := range snap.IDs {
+		existing[id] = true
+	}
+	switch cfg.IDStrategy {
+	case config.Random:
+		for i := 0; i < 100; i++ {
+			id, err := randomID(cfg.IDPrefix)
+			if err != nil {
+				return "", cfg, err
+			}
+			if !existing[id] {
+				return id, cfg, nil
+			}
+		}
+		return "", cfg, errors.New("could not find a free random id in 100 tries")
+	default: // sequential
+		n := cfg.SeqNext
+		for {
+			id := fmt.Sprintf("%s-%0*d", cfg.IDPrefix, cfg.SeqWidth, n)
+			if !existing[id] {
+				cfg.SeqNext = n + 1
+				return id, cfg, nil
+			}
+			n++
+		}
+	}
+}
+
+// randomID returns prefix + "-" + 6 lowercase hex chars (3 random bytes).
+func randomID(prefix string) (string, error) {
+	var b [3]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return prefix + "-" + hex.EncodeToString(b[:]), nil
+}
+
+// Create allocates an id and writes a new open quest. The quest file and the
+// (possibly advanced) config are written in the SAME commit, so id allocation
+// is atomic under the CAS loop: two racing lanes can never mint the same id —
+// the loser's CAS fails and its rebuild sees the advanced counter / new files.
+func (s *Store) Create(title, context string, tags map[string]string) (*quest.Quest, error) {
+	now := time.Now().UTC().Truncate(time.Second)
+	var created *quest.Quest
+	err := s.mutate("side-quest: new quest", func(snap *Snapshot, tx *txn) error {
+		id, cfg, err := allocID(snap)
+		if err != nil {
+			return err
+		}
+		q := &quest.Quest{
+			ID:      id,
+			Title:   title,
+			Status:  quest.StatusOpen,
+			Created: now,
+			Commits: []string{},
+			Context: context,
+			Tags:    tags,
+		}
+		data, err := quest.Marshal(q)
+		if err != nil {
+			return err
+		}
+		tx.put(questPath(id), data)
+		cfgBytes, err := config.Marshal(cfg)
+		if err != nil {
+			return err
+		}
+		tx.put(configPath, cfgBytes)
+		created = q
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return created, nil
 }
