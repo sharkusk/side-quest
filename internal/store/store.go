@@ -452,6 +452,29 @@ func (s *Store) SetStrategy(st config.Strategy) error {
 	})
 }
 
+// Config returns the on-ref configuration, or Default() when the store is empty.
+func (s *Store) Config() (config.Config, error) {
+	snap, err := s.snapshot()
+	if err != nil {
+		return config.Config{}, err
+	}
+	return snap.Config, nil
+}
+
+// SetRequireQuest flips the require_quest enforcement flag on the ref.
+func (s *Store) SetRequireQuest(v bool) error {
+	return s.mutate("side-quest: set require_quest", func(snap *Snapshot, tx *txn) error {
+		cfg := snap.Config
+		cfg.RequireQuest = v
+		data, err := config.Marshal(cfg)
+		if err != nil {
+			return err
+		}
+		tx.put(configPath, data)
+		return nil
+	})
+}
+
 func contains(xs []string, x string) bool {
 	for _, v := range xs {
 		if v == x {

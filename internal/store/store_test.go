@@ -362,6 +362,41 @@ func TestConcurrentUpdateSameQuest(t *testing.T) {
 	}
 }
 
+func TestSetRequireQuestPersists(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := s.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.RequireQuest {
+		t.Fatal("fresh store should have require_quest=false")
+	}
+	if err := s.SetRequireQuest(true); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = s.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.RequireQuest {
+		t.Fatal("SetRequireQuest(true) did not persist")
+	}
+}
+
+func TestConfigEmptyStoreIsDefault(t *testing.T) {
+	s := newStore(t) // not initialized
+	cfg, err := s.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IDPrefix != "SQ" || cfg.RequireQuest {
+		t.Fatalf("empty-store Config should be Default(): %+v", cfg)
+	}
+}
+
 // TestStrategySwitchRoundTripResumesCounter verifies the spec §7 promise: after
 // switching sequential -> random -> sequential, sequential ids resume from the
 // preserved counter rather than restarting.

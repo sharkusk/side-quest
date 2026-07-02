@@ -34,6 +34,10 @@ type Config struct {
 	SeqWidth    int      `yaml:"seq_width"`
 	Tone        Tone     `yaml:"tone"`
 	AutoTrailer bool     `yaml:"auto_trailer"`
+	// RequireQuest, when true, makes the commit-msg hook REJECT commits that
+	// carry no Quest:/Completes: trailer (and no explicit `Quest: none`).
+	// Default false = assisted mode (warn only).
+	RequireQuest bool `yaml:"require_quest"`
 }
 
 // Default returns the configuration a freshly-initialized project starts with.

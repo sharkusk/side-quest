@@ -40,3 +40,36 @@ func TestUnmarshalFillsMissingFromDefault(t *testing.T) {
 		t.Errorf("missing keys not defaulted: %+v", out)
 	}
 }
+
+func TestRequireQuestDefaultsFalse(t *testing.T) {
+	if Default().RequireQuest {
+		t.Fatal("require_quest should default to false")
+	}
+}
+
+func TestRequireQuestRoundTrips(t *testing.T) {
+	c := Default()
+	c.RequireQuest = true
+	data, err := Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Unmarshal(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.RequireQuest {
+		t.Fatalf("require_quest did not round-trip: %+v", got)
+	}
+}
+
+func TestRequireQuestAbsentKeyIsFalse(t *testing.T) {
+	// A config file written before this key existed must default it to false.
+	got, err := Unmarshal([]byte("id_prefix: SQ\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RequireQuest {
+		t.Fatal("absent require_quest must default to false")
+	}
+}
