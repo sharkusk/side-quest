@@ -318,9 +318,16 @@ hooks rather than clobbering them):
 - **`prepare-commit-msg`** — if a current quest is set for this worktree **and** the
   `auto_trailer` config flag is on (default on), inject `Quest: <current>` into the message.
   No-op when no current quest.
-- **`commit-msg`** — if no `Quest:`/`Completes:` trailer is present, print a **warning**
-  (in the configured voice) and allow the commit. Never blocks. An explicit `Quest: none`
-  silences the warning for genuine chores.
+- **`commit-msg`** — if no `Quest:`/`Completes:` trailer is present, the behavior depends on
+  the **`require_quest`** config flag (on-ref `_config.yaml`; default `false`):
+  - `require_quest: false` (default, *assisted*) — print a **warning** (in the configured
+    voice) and allow the commit.
+  - `require_quest: true` (*enforced*) — **reject** the commit (non-zero exit from
+    `commit-msg`) with a message explaining how to add a trailer.
+  In both modes an explicit `Quest: none` is the escape hatch for genuine chores (silences the
+  warning / passes the enforcement check). `require_quest` is a new `config.Config` field
+  (added in the Phase 2 hooks work; `config.Unmarshal` starts from `Default()`, so existing
+  on-ref configs default it to `false` with no migration).
 - **`post-commit`** — call `side-quest link <new-hash>`: read the just-made commit's
   trailers and, for each referenced quest, append the (now-known) hash and close any
   `Completes:` targets. **This is where the chicken-and-egg is resolved** — the hash exists
