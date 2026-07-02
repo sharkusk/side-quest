@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -98,19 +99,42 @@ func TestLinkNoTrailerIsNoop(t *testing.T) {
 
 // TestLinkIgnoresInheritedIndexFile proves the Task 1 hardening in the real
 // hook scenario: even if GIT_INDEX_FILE is set in the environment (as git does
-// inside hooks), Link's mutation uses its own scratch index and succeeds
-// without touching that index.
+// inside hooks), Link's internal buildCommit uses its own scratch index and
+// never touches the inherited one.
+//
+// A prior version of this test pointed GIT_INDEX_FILE at a NONEXISTENT temp
+// path and only checked that Link succeeded and the quest closed. That
+// assertion passes with or without the dedupe-env protection, because
+// buildCommit does `read-tree --empty` and reconstructs the tree from
+// scratch regardless of which index git ends up using — a missing file just
+// means "start empty" either way. To actually discriminate, the test needs a
+// REAL, populated index standing in for "the user's real index during a
+// post-commit hook", and must prove Link never wrote to it.
 func TestLinkIgnoresInheritedIndexFile(t *testing.T) {
 	s := newStore(t)
 	_ = s.Init()
 	q, _ := s.Create("hooked", "", nil)
-	// Make the commit BEFORE setting the bogus index (git add/commit need the
-	// real index).
+	// Make the commit BEFORE swapping in the inherited-index copy (git
+	// add/commit need the real index). commitInWorktree runs `git add`, so
+	// the repo's real index file is guaranteed to exist and be non-empty
+	// afterward.
 	commitInWorktree(t, s, "e.txt", "work\n\nCompletes: "+q.ID+"\n")
 
-	bogus := filepath.Join(t.TempDir(), "nonexistent-index")
-	os.Setenv("GIT_INDEX_FILE", bogus)
-	err := s.Link("HEAD")
+	// Copy the repo's real, populated index so we can hand Link a stand-in
+	// for the user's real index without risking the actual repo state.
+	realIndexPath := filepath.Join(s.gitDir, "index")
+	before, err := os.ReadFile(realIndexPath)
+	if err != nil {
+		t.Fatalf("reading real index: %v", err)
+	}
+	inherited := filepath.Join(t.TempDir(), "inherited-index")
+	if err := os.WriteFile(inherited, before, 0o644); err != nil {
+		t.Fatalf("writing inherited-index copy: %v", err)
+	}
+
+	t.Cleanup(func() { os.Unsetenv("GIT_INDEX_FILE") })
+	os.Setenv("GIT_INDEX_FILE", inherited)
+	err = s.Link("HEAD")
 	os.Unsetenv("GIT_INDEX_FILE")
 	if err != nil {
 		t.Fatalf("Link failed under inherited GIT_INDEX_FILE: %v", err)
@@ -118,5 +142,13 @@ func TestLinkIgnoresInheritedIndexFile(t *testing.T) {
 	got, _ := s.Get(q.ID)
 	if got.Status != quest.StatusDone {
 		t.Fatalf("link did not apply under inherited index: %+v", got)
+	}
+
+	after, err := os.ReadFile(inherited)
+	if err != nil {
+		t.Fatalf("reading inherited-index copy after Link: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatalf("Link mutated the inherited index copy; it must only use its own scratch index")
 	}
 }
