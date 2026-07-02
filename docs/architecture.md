@@ -137,6 +137,37 @@ advanced, and takes `SQ-0002`.
   can never collide at the file level, and switching strategies preserves `seq_next` so you can
   switch back later and resume the sequence.
 
+## Commit linking & hooks (Phase 2)
+
+Quests link to the commits that address them through **git trailers**, applied
+by thin hook shims that call the `side-quest` binary. All logic lives in Go.
+
+- `Quest: SQ-0001` — this commit worked on SQ-0001 (append its hash).
+- `Completes: SQ-0001` — append the hash **and** close the quest.
+- `Quest: none` — explicit escape hatch: a genuine chore, not linked.
+
+Three hooks, installed by `side-quest install-hooks` (which writes/composes
+marker-guarded shims and adds a `refs/side-quest/*` push/fetch refspec to
+`origin`):
+
+| Hook | Does | Blocks the commit? |
+|---|---|---|
+| `prepare-commit-msg` | If a current quest is set and `auto_trailer` is on, inject `Quest: <current>`. | Never |
+| `commit-msg` | No trailer present → **warn** (assisted) or **reject** (when `require_quest` is on). `Quest: none` satisfies both. | Only on an intentional `require_quest` reject |
+| `post-commit` | Run `side-quest link HEAD`: parse the just-made commit's trailers and update each referenced quest. | Never |
+
+**Why this closes the chicken-and-egg:** `post-commit` runs *after* the hash
+exists, and the quest update is a separate commit on the orphan ref whose own
+hash nobody records. `Link` is tolerant — a trailer naming an unknown quest is
+skipped rather than failing the user's already-made commit.
+
+**Hook safety inside git:** git may export `GIT_INDEX_FILE` to hooks. `gitcmd`
+collapses duplicate env keys keeping the last value, so the store's scratch
+`GIT_INDEX_FILE` always wins and a hook can never mutate the user's real index.
+
+The **current-quest pointer** is worktree-local state (`<git-dir>/side-quest-current`),
+not ref state: each worktree has its own, and it never travels with a push.
+
 ## Package map
 
 | Package | Responsibility | I/O? |
@@ -145,6 +176,7 @@ advanced, and takes `SQ-0002`.
 | `internal/quest` | The `Quest` model + Markdown/YAML-frontmatter (de)serialization; id = filename | pure |
 | `internal/config` | On-ref `_config.yaml` model; `Unmarshal` fills missing keys from `Default()` | pure |
 | `internal/store` | Orphan-ref CRUD + the `mutate`/`buildCommit`/`cas` machinery + id allocation | git plumbing |
+| `internal/trailer` | Parse Quest:/Completes: trailers + the commit-msg decision | pure |
 
 **CRUD** — Create, Read, Update, Delete — the basic persistence operations. Today the store
 implements Create (`Create`), Read (`Get`/`List`), and Update (`SetStatus`/`AddCommit`/
@@ -168,6 +200,8 @@ single flag (`rev-parse --absolute-git-dir`); everything else works on far older
 | `update-index --cacheinfo <mode,sha,path>` (comma form) | 2.0 (2014) | stage a blob into the scratch index (`buildCommit`) |
 | `commit-tree -m` | 1.7.7 (2011) | author the ref commit without an editor |
 | `read-tree --empty`, `for-each-ref --format`, `cat-file`/`ls-tree <tree>:path`, `hash-object -w --stdin`, `write-tree`, `update-ref <new> <old>` (CAS), `update-index --force-remove`, `rev-parse --show-toplevel` | ≤ 1.8 (ancient) | reads + the mutation transaction |
+| `rev-parse --git-common-dir` | 2.5 (2015) | resolve the shared hooks dir for `install-hooks` |
+| `remote get-url origin` | 2.7 (2016) | detect origin before adding the refspec |
 
 > **Maintenance rule (keep this current):** whenever you add or change a `git` command or
 > flag, check the git version that introduced it. If it exceeds the floor above, **raise the

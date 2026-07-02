@@ -159,9 +159,3 @@ func cmdPrepareCommitMsg(args []string) error {
 	}
 	return nil
 }
-
-// cmdInstallHooks is a TEMPORARY stub for this task. The real implementation
-// (hooks.go) lands in Task 7, which replaces this function.
-func cmdInstallHooks(args []string) error {
-	return fmt.Errorf("install-hooks lands in the next task")
-}

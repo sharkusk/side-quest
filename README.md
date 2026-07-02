@@ -39,6 +39,11 @@ Quick glossary:
 - **CAS (compare-and-swap)** — move the ref only if it still equals the expected old commit;
   how concurrent writers avoid lost updates without locking.
 - **CRUD** — Create, Read, Update, Delete — the basic persistence operations the store exposes.
+- **trailer** — `Quest: SQ-xxxx` / `Completes: SQ-xxxx` lines in a commit
+  message; a `post-commit` hook reads them and links the commit to the quest
+  (`Quest: none` opts a chore out).
+- **current quest** — a per-worktree pointer (`side-quest current <id>`) that
+  `prepare-commit-msg` uses to auto-fill the `Quest:` trailer.
 
 **→ For the full explanation of the storage model, CAS, the mutation flow, and id
 allocation, see [`docs/architecture.md`](docs/architecture.md).**

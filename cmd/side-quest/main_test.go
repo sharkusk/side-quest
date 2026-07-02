@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/sharkusk/side-quest/internal/gitcmd"
+	"github.com/sharkusk/side-quest/internal/quest"
 	"github.com/sharkusk/side-quest/internal/store"
 )
 
@@ -186,6 +187,91 @@ func TestPrepareCommitMsgWriteFailureDoesNotBlock(t *testing.T) {
 	}
 	if string(out) != original {
 		t.Fatalf("message file changed despite write failure: got %q, want %q", out, original)
+	}
+}
+
+// gitCommit runs a real `git commit` in dir (hooks fire) and returns the exit
+// code — used to assert require_quest rejection blocks the commit.
+func gitCommit(t *testing.T, dir, filename, message string) int {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, filename), []byte("data\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g := gitcmd.New(dir)
+	if _, err := g.Run("add", filename); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "commit", "-m", message)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	if err := cmd.Run(); err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			return ee.ExitCode()
+		}
+		t.Fatalf("git commit: %v", err)
+	}
+	return 0
+}
+
+// TestEndToEndHooksDriveLinking installs the real hooks and drives them with
+// real commits: current-quest injection, assisted warning, enforced rejection,
+// and post-commit linking that closes a quest.
+func TestEndToEndHooksDriveLinking(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Create("ship it", "", nil) // SQ-0001
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Install hooks (bakes the built binary's absolute path into the shims).
+	if _, code := runBin(t, bin, dir, "install-hooks"); code != 0 {
+		t.Fatalf("install-hooks exit=%d", code)
+	}
+
+	// 1) current-quest injection + post-commit linking (not closing).
+	if _, code := runBin(t, bin, dir, "current", q.ID); code != 0 {
+		t.Fatalf("set current exit=%d", code)
+	}
+	if code := gitCommit(t, dir, "f1.txt", "progress on the feature"); code != 0 {
+		t.Fatalf("commit 1 blocked unexpectedly: %d", code)
+	}
+	got, _ := s.Get(q.ID)
+	if len(got.Commits) != 1 {
+		t.Fatalf("prepare+post-commit should have linked one commit: %v", got.Commits)
+	}
+	if got.Status != quest.StatusOpen {
+		t.Fatalf("Quest: (auto) should not close: %+v", got)
+	}
+
+	// 2) explicit Completes: closes the quest.
+	if _, code := runBin(t, bin, dir, "current", "--clear"); code != 0 {
+		t.Fatalf("clear current exit=%d", code)
+	}
+	if code := gitCommit(t, dir, "f2.txt", "done\n\nCompletes: "+q.ID); code != 0 {
+		t.Fatalf("commit 2 blocked unexpectedly: %d", code)
+	}
+	got, _ = s.Get(q.ID)
+	if got.Status != quest.StatusDone {
+		t.Fatalf("Completes: via hook should close: %+v", got)
+	}
+	if len(got.Commits) != 2 {
+		t.Fatalf("expected 2 linked commits, got %v", got.Commits)
+	}
+
+	// 3) require_quest enforcement blocks a trailerless commit.
+	if err := s.SetRequireQuest(true); err != nil {
+		t.Fatal(err)
+	}
+	if code := gitCommit(t, dir, "f3.txt", "no trailer here"); code == 0 {
+		t.Fatal("require_quest should have blocked a trailerless commit")
+	}
+	// ...but Quest: none passes.
+	if code := gitCommit(t, dir, "f3.txt", "chore\n\nQuest: none"); code != 0 {
+		t.Fatalf("Quest: none should pass enforcement, blocked with %d", code)
 	}
 }
 
