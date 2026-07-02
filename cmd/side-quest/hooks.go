@@ -35,7 +35,7 @@ func cmdInstallHooks(args []string) error {
 		return err
 	}
 
-	hooksDir, err := resolveHooksDir(g)
+	hooksDir, err := resolveHooksDir(g, cwd)
 	if err != nil {
 		return err
 	}
@@ -63,7 +63,11 @@ func cmdInstallHooks(args []string) error {
 }
 
 // resolveHooksDir honors core.hooksPath, otherwise <common-git-dir>/hooks.
-func resolveHooksDir(g *gitcmd.Git) (string, error) {
+// cwd is the directory g's git commands run in: a relative core.hooksPath is
+// resolved by git relative to the worktree top, but a relative
+// --git-common-dir is resolved by git relative to cwd — so each fallback
+// branch below joins against the base git actually used.
+func resolveHooksDir(g *gitcmd.Git, cwd string) (string, error) {
 	top, topErr := g.Run("rev-parse", "--show-toplevel")
 	if hp, err := g.Run("config", "--get", "core.hooksPath"); err == nil && hp != "" {
 		if filepath.IsAbs(hp) {
@@ -79,10 +83,7 @@ func resolveHooksDir(g *gitcmd.Git) (string, error) {
 		return "", err
 	}
 	if !filepath.IsAbs(common) {
-		if topErr != nil {
-			return "", topErr
-		}
-		common = filepath.Join(top, common)
+		common = filepath.Join(cwd, common)
 	}
 	return filepath.Join(common, "hooks"), nil
 }

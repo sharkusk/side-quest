@@ -275,6 +275,39 @@ func TestEndToEndHooksDriveLinking(t *testing.T) {
 	}
 }
 
+// TestInstallHooksFromSubdirectory locks in that install-hooks resolves the
+// --git-common-dir fallback against the directory the command actually ran
+// in, not the worktree top. Before the fix, running from a subdirectory
+// joined the (cwd-relative) common-dir output onto the wrong base and wrote
+// the shims outside .git/hooks without any error.
+func TestInstallHooksFromSubdirectory(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	sub := filepath.Join(dir, "sub", "deep")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, code := runBin(t, bin, sub, "install-hooks"); code != 0 {
+		t.Fatalf("install-hooks (from subdir) exit=%d", code)
+	}
+
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	for _, name := range []string{"prepare-commit-msg", "commit-msg", "post-commit"} {
+		fi, err := os.Stat(filepath.Join(hooksDir, name))
+		if err != nil {
+			t.Fatalf("hook %s not installed at %s: %v", name, hooksDir, err)
+		}
+		if fi.Size() == 0 {
+			t.Fatalf("hook %s is empty", name)
+		}
+	}
+}
+
 func containsLine(s, want string) bool { return countLine(s, want) > 0 }
 
 func countLine(s, want string) int {
