@@ -150,6 +150,35 @@ advanced, and takes `SQ-0002`.
 implements Create (`Create`), Read (`Get`/`List`), and Update (`SetStatus`/`AddCommit`/
 `Update`/`SetStrategy`). Delete is not built yet (the `txn.del` plumbing exists for it).
 
+## Dependencies
+
+- **Go ≥ 1.22** — build + runtime (pure Go, no CGo; single static binary).
+- **`git` ≥ 2.13** (May 2017) — invoked as a subprocess for all storage.
+- **`gopkg.in/yaml.v3`** — YAML frontmatter + config parsing.
+
+### git version floor — provenance
+
+side-quest shells out to `git`, so the minimum git version is whatever the
+highest-versioned command/flag it invokes requires. The current floor is **2.13**, set by a
+single flag (`rev-parse --absolute-git-dir`); everything else works on far older git.
+
+| git feature used | first available | why we use it |
+|---|---|---|
+| `rev-parse --absolute-git-dir` | **2.13** (2017) | resolve the `.git` dir for scratch index files (`store.Open`) — **sets the floor** |
+| `update-index --cacheinfo <mode,sha,path>` (comma form) | 2.0 (2014) | stage a blob into the scratch index (`buildCommit`) |
+| `commit-tree -m` | 1.7.7 (2011) | author the ref commit without an editor |
+| `read-tree --empty`, `for-each-ref --format`, `cat-file`/`ls-tree <tree>:path`, `hash-object -w --stdin`, `write-tree`, `update-ref <new> <old>` (CAS), `update-index --force-remove`, `rev-parse --show-toplevel` | ≤ 1.8 (ancient) | reads + the mutation transaction |
+
+> **Maintenance rule (keep this current):** whenever you add or change a `git` command or
+> flag, check the git version that introduced it. If it exceeds the floor above, **raise the
+> documented floor — here, in [CONTRIBUTING.md](../CONTRIBUTING.md), and in the README/spec
+> dependency lists — and add a row to this table.** The warn-only pre-commit hook nudges you
+> when `internal/**/*.go` changes without a docs change, which covers most git-usage edits.
+>
+> The floor could be *lowered* to git 2.0 if broad old-git support is ever wanted: the only
+> blocker is `--absolute-git-dir`, replaceable with `rev-parse --git-dir` + resolving to
+> absolute in Go.
+
 ## Invariants (do not break)
 
 1. **The working tree and the user's real index are never touched.** All writes go through a
