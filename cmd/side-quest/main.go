@@ -82,7 +82,7 @@ func cmdCurrent(args []string) error {
 			return err
 		}
 		if cur == "" {
-			fmt.Println("(no current quest)")
+			fmt.Println("side-quest: (no current quest)")
 		} else {
 			fmt.Println(cur)
 		}
@@ -154,7 +154,10 @@ func cmdPrepareCommitMsg(args []string) error {
 		out += "\n"
 	}
 	out += "\nQuest: " + cur + "\n" // blank line before the trailer block
-	return os.WriteFile(args[0], []byte(out), 0o644)
+	if err := os.WriteFile(args[0], []byte(out), 0o644); err != nil {
+		return nil // a write failure must not block the commit
+	}
+	return nil
 }
 
 // cmdInstallHooks is a TEMPORARY stub for this task. The real implementation

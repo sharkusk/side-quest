@@ -144,6 +144,51 @@ func TestPrepareCommitMsgInjectsCurrent(t *testing.T) {
 	}
 }
 
+// TestPrepareCommitMsgWriteFailureDoesNotBlock locks in the hook's hard
+// invariant: it must never block a commit. Git aborts the commit if
+// prepare-commit-msg exits non-zero, so even a failure to write the injected
+// trailer back to the message file must still result in exit 0 and the
+// message left as-is.
+func TestPrepareCommitMsgWriteFailureDoesNotBlock(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetCurrent("SQ-0001"); err != nil {
+		t.Fatal(err)
+	}
+	msg := filepath.Join(dir, "MSG")
+	original := "a change\n"
+	if err := os.WriteFile(msg, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(msg, 0o444); err != nil {
+		t.Fatal(err)
+	}
+
+	// Some environments (e.g. running as root, or certain CI containers) can
+	// write to a file regardless of the 0o444 permission bit. If so, the
+	// hook's injecting write below won't actually fail, and this test can't
+	// exercise the invariant it's meant to check.
+	if f, err := os.OpenFile(msg, os.O_WRONLY, 0); err == nil {
+		f.Close()
+		t.Skip("cannot make file read-only in this environment")
+	}
+
+	_, code := runBin(t, bin, dir, "prepare-commit-msg", msg)
+	if code != 0 {
+		t.Fatalf("prepare-commit-msg must never block the commit, got exit=%d", code)
+	}
+	out, err := os.ReadFile(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != original {
+		t.Fatalf("message file changed despite write failure: got %q, want %q", out, original)
+	}
+}
+
 func containsLine(s, want string) bool { return countLine(s, want) > 0 }
 
 func countLine(s, want string) int {
