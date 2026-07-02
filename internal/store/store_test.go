@@ -6,6 +6,7 @@ import (
 
 	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/gitcmd"
+	"github.com/sharkusk/side-quest/internal/quest"
 )
 
 // newStore creates a throwaway git repo with a committer identity and returns
@@ -127,7 +128,7 @@ func TestCreateRandom(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetStrategyForTest(t); err != nil { // helper flips to random
+	if err := s.SetStrategy(config.Random); err != nil {
 		t.Fatal(err)
 	}
 	q, err := s.Create("rand", "", nil)
@@ -204,18 +205,91 @@ func TestCreateConcurrentNoDuplicateIDs(t *testing.T) {
 	}
 }
 
-// SetStrategyForTest flips the on-ref strategy to random by rewriting config.
-// (A public SetStrategy lands in Task 7; this keeps Task 6's test self-contained.)
-func (s *Store) SetStrategyForTest(t *testing.T) error {
-	t.Helper()
-	return s.mutate("test: strategy random", func(snap *Snapshot, tx *txn) error {
-		cfg := snap.Config
-		cfg.IDStrategy = config.Random
-		b, err := config.Marshal(cfg)
-		if err != nil {
-			return err
-		}
-		tx.put(configPath, b)
-		return nil
-	})
+func TestGetAndList(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := s.Create("alpha", "", nil)
+	b, _ := s.Create("bravo", "", nil)
+
+	got, err := s.Get(a.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "alpha" {
+		t.Errorf("Get returned wrong quest: %+v", got)
+	}
+	if _, err := s.Get("SQ-9999"); err != ErrNotFound {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+
+	list, err := s.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 2 || list[0].ID != a.ID || list[1].ID != b.ID {
+		t.Fatalf("List wrong: %v", list)
+	}
+}
+
+func TestSetStatusSetsCompletedOnDone(t *testing.T) {
+	s := newStore(t)
+	_ = s.Init()
+	q, _ := s.Create("finish me", "", nil)
+
+	if err := s.SetStatus(q.ID, quest.StatusDone); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get(q.ID)
+	if got.Status != quest.StatusDone {
+		t.Errorf("status not set: %v", got.Status)
+	}
+	if got.Completed == nil {
+		t.Error("completed timestamp should be set when moving to done")
+	}
+
+	if err := s.SetStatus(q.ID, quest.Status("bogus")); err == nil {
+		t.Error("invalid status should error")
+	}
+}
+
+func TestAddCommitAppendsAndDedupes(t *testing.T) {
+	s := newStore(t)
+	_ = s.Init()
+	q, _ := s.Create("linkme", "", nil)
+
+	if err := s.AddCommit(q.ID, "abc123", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddCommit(q.ID, "abc123", false); err != nil { // duplicate
+		t.Fatal(err)
+	}
+	if err := s.AddCommit(q.ID, "def456", true); err != nil { // completing link
+		t.Fatal(err)
+	}
+	got, _ := s.Get(q.ID)
+	if len(got.Commits) != 2 {
+		t.Fatalf("commits not deduped: %v", got.Commits)
+	}
+	if got.Status != quest.StatusDone || got.Completed == nil {
+		t.Errorf("completing link should mark done: %+v", got)
+	}
+}
+
+func TestSetStrategyPreservesSeqNext(t *testing.T) {
+	s := newStore(t)
+	_ = s.Init()
+	_, _ = s.Create("one", "", nil) // seq_next -> 2
+
+	if err := s.SetStrategy(config.Random); err != nil {
+		t.Fatal(err)
+	}
+	snap, _ := s.snapshot()
+	if snap.Config.IDStrategy != config.Random {
+		t.Errorf("strategy not switched: %v", snap.Config.IDStrategy)
+	}
+	if snap.Config.SeqNext != 2 {
+		t.Errorf("seq_next must be preserved across switch, got %d", snap.Config.SeqNext)
+	}
 }

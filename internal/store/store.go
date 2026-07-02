@@ -341,3 +341,120 @@ func (s *Store) Create(title, context string, tags map[string]string) (*quest.Qu
 	}
 	return created, nil
 }
+
+// Get loads one quest by id.
+func (s *Store) Get(id string) (*quest.Quest, error) {
+	tip, err := s.tip()
+	if err != nil {
+		return nil, err
+	}
+	if tip == "" {
+		return nil, ErrNotFound
+	}
+	raw, err := s.readFile(tip, questPath(id))
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	return quest.Unmarshal(id, raw)
+}
+
+// List returns all quests, sorted by id.
+func (s *Store) List() ([]*quest.Quest, error) {
+	snap, err := s.snapshot()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*quest.Quest, 0, len(snap.IDs))
+	for _, id := range snap.IDs {
+		raw, err := s.readFile(snap.Tip, questPath(id))
+		if err != nil {
+			return nil, err
+		}
+		q, err := quest.Unmarshal(id, raw)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, q)
+	}
+	return out, nil
+}
+
+// Update loads a quest, applies apply, and writes it back under the CAS loop.
+// apply may run more than once (on CAS retry), so it must be a pure function of
+// its argument.
+func (s *Store) Update(id string, apply func(*quest.Quest)) error {
+	return s.mutate("side-quest: update "+id, func(snap *Snapshot, tx *txn) error {
+		if snap.Tip == "" {
+			return ErrNotFound
+		}
+		raw, err := s.readFile(snap.Tip, questPath(id))
+		if err != nil {
+			return ErrNotFound
+		}
+		q, err := quest.Unmarshal(id, raw)
+		if err != nil {
+			return err
+		}
+		apply(q)
+		data, err := quest.Marshal(q)
+		if err != nil {
+			return err
+		}
+		tx.put(questPath(id), data)
+		return nil
+	})
+}
+
+// SetStatus sets a quest's status, stamping Completed when moving to done.
+func (s *Store) SetStatus(id string, st quest.Status) error {
+	if !st.Valid() {
+		return fmt.Errorf("invalid status %q", st)
+	}
+	return s.Update(id, func(q *quest.Quest) {
+		q.Status = st
+		if st == quest.StatusDone && q.Completed == nil {
+			t := time.Now().UTC().Truncate(time.Second)
+			q.Completed = &t
+		}
+	})
+}
+
+// AddCommit appends sha to a quest's commit list (deduped). When complete is
+// true it also closes the quest (used by the Completes: trailer in a later
+// phase).
+func (s *Store) AddCommit(id, sha string, complete bool) error {
+	return s.Update(id, func(q *quest.Quest) {
+		if !contains(q.Commits, sha) {
+			q.Commits = append(q.Commits, sha)
+		}
+		if complete && q.Status != quest.StatusDone {
+			q.Status = quest.StatusDone
+			t := time.Now().UTC().Truncate(time.Second)
+			q.Completed = &t
+		}
+	})
+}
+
+// SetStrategy switches the id strategy, preserving seq_next so a later switch
+// back to sequential resumes the counter (spec §7).
+func (s *Store) SetStrategy(st config.Strategy) error {
+	return s.mutate("side-quest: set id strategy "+string(st), func(snap *Snapshot, tx *txn) error {
+		cfg := snap.Config
+		cfg.IDStrategy = st
+		data, err := config.Marshal(cfg)
+		if err != nil {
+			return err
+		}
+		tx.put(configPath, data)
+		return nil
+	})
+}
+
+func contains(xs []string, x string) bool {
+	for _, v := range xs {
+		if v == x {
+			return true
+		}
+	}
+	return false
+}
