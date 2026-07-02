@@ -1,0 +1,21 @@
+# Go build artifacts
+/side-quest
+/dist/
+*.exe
+*.test
+*.out
+
+# Go workspace / module cache local bits
+/vendor/
+
+# Editor / OS cruft
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Local, un-shipped superfan voice pool (verbatim catch phrases; see spec §12)
+superfan-lines.txt
+
+# Local, per-user Claude Code settings (not shared)
+.claude/settings.local.json
