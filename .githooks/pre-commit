@@ -1,0 +1,23 @@
+#!/bin/sh
+# side-quest doc-freshness reminder (WARN ONLY — never blocks).
+#
+# Nudges you to keep the living docs (docs/architecture.md, README) in sync with
+# code changes. Enable per clone with:  git config core.hooksPath .githooks
+# See CONTRIBUTING.md → "Documentation is part of the change".
+
+changed=$(git diff --cached --name-only)
+
+# Non-test Go source under internal/ that this commit touches.
+code=$(printf '%s\n' "$changed" | grep -E '^internal/.*\.go$' | grep -vE '_test\.go$')
+
+# Any documentation touched (docs/ tree or any Markdown file).
+docs=$(printf '%s\n' "$changed" | grep -E '(^docs/|\.md$)')
+
+if [ -n "$code" ] && [ -z "$docs" ]; then
+  echo "⚠  side-quest: you changed internal Go source but no docs/*.md in this commit." >&2
+  echo "   If this changes behavior or the storage model, update docs/architecture.md" >&2
+  echo "   (and the README concepts if relevant) — see CONTRIBUTING.md." >&2
+  echo "   This is a reminder, not a block; commit proceeds." >&2
+fi
+
+exit 0

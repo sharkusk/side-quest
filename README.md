@@ -21,5 +21,27 @@ main history and never checked out. A `post-commit` hook writes the now-known ha
 the quest as a separate commit on that ref — so the loop closes cleanly, and the data still
 travels with your repo.
 
+## Concepts (overview)
+
+side-quest stores quests as one Markdown file per quest on a dedicated git **ref**
+(`refs/side-quest/quests`) — an **orphan ref** with its own history, off your main line and
+never checked out. It reads and writes that ref with git's low-level **plumbing** commands
+(never touching your working tree), and every change is committed with a **compare-and-swap
+(CAS)** so parallel git worktrees stay safe without a lock.
+
+Quick glossary:
+
+- **ref / orphan ref** — a named pointer to a commit; the orphan ref holds quest data on its
+  own root history.
+- **plumbing** — git's scriptable low-level commands (`cat-file`, `write-tree`, `commit-tree`,
+  `update-ref`), as opposed to everyday `add`/`commit`.
+- **mutation** — any state change (create/update); each builds one new commit on the ref.
+- **CAS (compare-and-swap)** — move the ref only if it still equals the expected old commit;
+  how concurrent writers avoid lost updates without locking.
+- **CRUD** — Create, Read, Update, Delete — the basic persistence operations the store exposes.
+
+**→ For the full explanation of the storage model, CAS, the mutation flow, and id
+allocation, see [`docs/architecture.md`](docs/architecture.md).**
+
 A full README (quickstart, CLI/MCP reference, plugin install, configuration) ships with the
 implementation.
