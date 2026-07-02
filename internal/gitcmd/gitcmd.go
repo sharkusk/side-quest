@@ -39,8 +39,12 @@ func (g *Git) WithEnv(kv ...string) *Git {
 func (g *Git) run(stdin []byte, args ...string) ([]byte, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = g.dir
+	// Pin the C locale so git's stderr messages are stable English — the store's
+	// CAS logic classifies lost races by matching git's "cannot lock ref" text,
+	// which git otherwise translates per the user's locale.
+	cmd.Env = append(cmd.Environ(), "LC_ALL=C") // Environ() = inherited env
 	if len(g.env) > 0 {
-		cmd.Env = append(cmd.Environ(), g.env...) // Environ() = inherited env
+		cmd.Env = append(cmd.Env, g.env...)
 	}
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)

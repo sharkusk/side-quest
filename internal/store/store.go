@@ -228,7 +228,9 @@ func (s *Store) buildCommit(parent, msg string, tx *txn) (string, error) {
 // git distinguishes these in stderr: a precondition/lock failure says
 // "cannot lock ref ..." (oldvalue mismatch, "reference already exists", or
 // "unable to resolve reference"); a real fault says "cannot update ref ...
-// with nonexistent object ..." — verified against git's messages.
+// with nonexistent object ..." — verified against git's messages. This string
+// match is locale-independent because gitcmd pins LC_ALL=C on every git
+// subprocess, so git's stderr is always stable English.
 func (s *Store) cas(oldTip, newCommit string) (bool, error) {
 	if _, err := s.git.Run("update-ref", Ref, newCommit, oldTip); err != nil {
 		if strings.Contains(err.Error(), "cannot lock ref") {

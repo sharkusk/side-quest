@@ -1,7 +1,9 @@
 package store
 
 import (
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/sharkusk/side-quest/internal/config"
@@ -151,7 +153,7 @@ func TestCreatePersistsAndReloads(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Re-open the same repo to prove it was persisted on the ref.
-	s2 := s // same dir; snapshot reads from git, not memory
+	s2 := s // same Store; snapshot re-reads from the ref via git, proving on-disk persistence
 	snap, err := s2.snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -291,5 +293,101 @@ func TestSetStrategyPreservesSeqNext(t *testing.T) {
 	}
 	if snap.Config.SeqNext != 2 {
 		t.Errorf("seq_next must be preserved across switch, got %d", snap.Config.SeqNext)
+	}
+}
+
+// TestCreateDoesNotTouchWorkingTree proves the store's whole reason to exist:
+// writes go only to refs/side-quest/quests via a scratch index, never the user's
+// working tree or real index. After Create, `git status --porcelain` must be empty.
+func TestCreateDoesNotTouchWorkingTree(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Create("no side effects", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	out, err := s.git.Run("status", "--porcelain")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "" {
+		t.Fatalf("working tree/index was modified by the store: %q", out)
+	}
+	// And the quest really was persisted to the ref.
+	snap, err := s.snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Tip == "" || len(snap.IDs) != 1 {
+		t.Fatalf("quest not persisted to ref: tip=%q ids=%v", snap.Tip, snap.IDs)
+	}
+}
+
+// TestConcurrentUpdateSameQuest fires N concurrent AddCommit calls at ONE quest
+// with distinct shas and asserts none are lost — the classic lost-update case the
+// CAS re-read loop must handle.
+func TestConcurrentUpdateSameQuest(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Create("target", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const n = 8
+	var wg sync.WaitGroup
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs <- s.AddCommit(q.ID, fmt.Sprintf("sha%02d", i), false)
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.Get(q.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Commits) != n {
+		t.Fatalf("lost updates: got %d commits, want %d (%v)", len(got.Commits), n, got.Commits)
+	}
+}
+
+// TestStrategySwitchRoundTripResumesCounter verifies the spec §7 promise: after
+// switching sequential -> random -> sequential, sequential ids resume from the
+// preserved counter rather than restarting.
+func TestStrategySwitchRoundTripResumesCounter(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := s.Create("one", "", nil) // SQ-0001, seq_next -> 2
+	if a.ID != "SQ-0001" {
+		t.Fatalf("first id: got %q want SQ-0001", a.ID)
+	}
+	if err := s.SetStrategy(config.Random); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Create("two", "", nil); err != nil { // random id
+		t.Fatal(err)
+	}
+	if err := s.SetStrategy(config.Sequential); err != nil {
+		t.Fatal(err)
+	}
+	c, err := s.Create("three", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ID != "SQ-0002" {
+		t.Fatalf("counter not resumed after round-trip: got %q want SQ-0002", c.ID)
 	}
 }
