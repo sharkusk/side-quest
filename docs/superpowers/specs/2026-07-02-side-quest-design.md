@@ -525,6 +525,36 @@ A descriptive, publish-ready `README.md`:
   original homage and that verbatim lines require permission).
 - Importer usage; publishing/for-teams notes.
 
+### 19.1 Installation / Deployment (required section)
+
+The README MUST include an explicit install/deploy section covering every supported path:
+
+- **Prebuilt binary:** download the platform binary from the GitHub Releases page, put it on
+  `PATH` (per-OS notes: macOS/Linux `chmod +x` + move to a `PATH` dir; Windows `.exe`).
+- **`go install`:** `go install github.com/sharkusk/side-quest@latest` (needs Go ≥1.22).
+- **Build from source:** `git clone … && cd side-quest && go build -o side-quest .`
+- **Per-project setup:** `side-quest init` then `side-quest install-hooks` inside the repo.
+- **Claude plugin:** `/plugin marketplace add sharkusk/side-quest` → `/plugin install side-quest`
+  (documents that the plugin requires the `side-quest` binary on `PATH` first).
+- **Remote / multi-environment use (§15):** how to make quests travel to another clone
+  (laptop ↔ cloud/remote Claude Code session): the ref `refs/side-quest/quests` is not
+  fetched by default, so document configuring the fetch refspec (auto-configured by `init`)
+  and/or running `side-quest sync --pull`. Note the eventual-consistency model and the
+  recommendation to use `random` ids when clones are used concurrently offline.
+
+### 19.2 Development (required section)
+
+The README MUST include a development section for contributors:
+
+- **Runtime/build dependencies:** Go ≥1.22; the system `git` binary (used as a subprocess);
+  `gopkg.in/yaml.v3`; the MCP Go SDK (added in Phase 4). No CGo; pure-Go static binary.
+- **Layout:** the `internal/` package map (`quest`, `config`, `gitcmd`, `store`, `trailer`,
+  `importer`, `voice`, `hooks`) + the `cli`/`mcp` frontends.
+- **Build & test:** `go build ./...`, `go test ./... -race`, `go vet ./...`,
+  `go mod tidy -diff` (CI-clean check).
+- **Conventions:** teaching-quality doc comments for a C/Python audience (§21); TDD; the
+  filename-is-id invariant (§5.5); machine output stays neutral (§12).
+
 ---
 
 ## 20. Testing Strategy
