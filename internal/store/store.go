@@ -215,32 +215,40 @@ func (s *Store) buildCommit(parent, msg string, tx *txn) (string, error) {
 	return g.Run(args...)
 }
 
-// cas points the ref at newCommit only if it currently equals oldTip (or does
-// not exist, when oldTip is ""). Returns (false, nil) when update-ref rejects
-// the move because the ref changed — a retryable lost race.
+// cas points the ref at newCommit only if it currently equals oldTip (or, when
+// oldTip is "", only if the ref does not yet exist). A ref-lock failure means a
+// concurrent writer violated that precondition — a retryable lost race, so we
+// return (false, nil). Any OTHER update-ref failure is a genuine error we must
+// surface rather than silently retry into the cap (spec §5.3).
+//
+// git distinguishes these in stderr: a precondition/lock failure says
+// "cannot lock ref ..." (oldvalue mismatch, "reference already exists", or
+// "unable to resolve reference"); a real fault says "cannot update ref ...
+// with nonexistent object ..." — verified against git's messages.
 func (s *Store) cas(oldTip, newCommit string) (bool, error) {
-	old := oldTip
-	// An empty oldvalue tells update-ref the ref must not currently exist.
-	if _, err := s.git.Run("update-ref", Ref, newCommit, old); err != nil {
-		return false, nil
+	if _, err := s.git.Run("update-ref", Ref, newCommit, oldTip); err != nil {
+		if strings.Contains(err.Error(), "cannot lock ref") {
+			return false, nil // lost race — caller retries
+		}
+		return false, err // genuine failure — surface it
 	}
 	return true, nil
 }
 
-// Init creates the ref with a default config. Errors if already initialized.
+// Init creates the ref with a default config. It errors if the store is already
+// initialized. The guard lives INSIDE the mutate closure so it re-checks the
+// fresh snapshot on every CAS retry: if a concurrent Init wins the race, this
+// one's retry sees a non-empty tip and returns the error instead of committing
+// a second init on top (spec §5.3 CAS safety).
 func (s *Store) Init() error {
-	tip, err := s.tip()
-	if err != nil {
-		return err
-	}
-	if tip != "" {
-		return errors.New("side-quest already initialized")
-	}
 	cfgBytes, err := config.Marshal(config.Default())
 	if err != nil {
 		return err
 	}
 	return s.mutate("side-quest: init", func(snap *Snapshot, tx *txn) error {
+		if snap.Tip != "" {
+			return errors.New("side-quest already initialized")
+		}
 		tx.put(configPath, cfgBytes)
 		return nil
 	})

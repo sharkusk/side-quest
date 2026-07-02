@@ -1,6 +1,7 @@
 package store
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/sharkusk/side-quest/internal/config"
@@ -72,5 +73,28 @@ func TestInitTwiceFails(t *testing.T) {
 	}
 	if err := s.Init(); err == nil {
 		t.Fatal("second Init should fail (already initialized)")
+	}
+}
+
+// TestInitConcurrentOnlyOneWins launches several Init() calls concurrently and
+// asserts exactly one succeeds and the rest report "already initialized". The
+// guard must live inside the mutate closure for this to hold.
+func TestInitConcurrentOnlyOneWins(t *testing.T) {
+	s := newStore(t)
+	const n = 6
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		go func() { errs <- s.Init() }()
+	}
+	success := 0
+	for i := 0; i < n; i++ {
+		if err := <-errs; err == nil {
+			success++
+		} else if !strings.Contains(err.Error(), "already initialized") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	}
+	if success != 1 {
+		t.Fatalf("expected exactly 1 successful Init, got %d", success)
 	}
 }
