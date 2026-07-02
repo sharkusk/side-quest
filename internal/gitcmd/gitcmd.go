@@ -39,13 +39,14 @@ func (g *Git) WithEnv(kv ...string) *Git {
 func (g *Git) run(stdin []byte, args ...string) ([]byte, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = g.dir
-	// Pin the C locale so git's stderr messages are stable English — the store's
-	// CAS logic classifies lost races by matching git's "cannot lock ref" text,
-	// which git otherwise translates per the user's locale.
-	cmd.Env = append(cmd.Environ(), "LC_ALL=C") // Environ() = inherited env
-	if len(g.env) > 0 {
-		cmd.Env = append(cmd.Env, g.env...)
-	}
+	// Build env then collapse duplicate keys keeping the LAST value, so our
+	// overrides (LC_ALL, and especially GIT_INDEX_FILE from WithEnv) beat any
+	// inherited same-key var. Git reads env via getenv (first match), so a
+	// duplicate GIT_INDEX_FILE inherited from a hook could otherwise point git
+	// at the user's REAL index instead of our scratch one.
+	env := append(cmd.Environ(), "LC_ALL=C")
+	env = append(env, g.env...)
+	cmd.Env = dedupeEnvKeepLast(env)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
@@ -77,4 +78,27 @@ func (g *Git) RunRaw(args ...string) ([]byte, error) {
 func (g *Git) RunInput(stdin string, args ...string) (string, error) {
 	b, err := g.run([]byte(stdin), args...)
 	return strings.TrimRight(string(b), "\n"), err
+}
+
+// dedupeEnvKeepLast returns env with each KEY=VALUE key appearing once, keeping
+// the LAST value seen (later entries override earlier ones). Entries without a
+// '=' are passed through unchanged. Order of first appearance is preserved.
+func dedupeEnvKeepLast(env []string) []string {
+	pos := map[string]int{} // key -> index in out
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		eq := strings.IndexByte(kv, '=')
+		if eq < 0 {
+			out = append(out, kv)
+			continue
+		}
+		key := kv[:eq]
+		if i, ok := pos[key]; ok {
+			out[i] = kv // overwrite earlier value with this later one
+			continue
+		}
+		pos[key] = len(out)
+		out = append(out, kv)
+	}
+	return out
 }

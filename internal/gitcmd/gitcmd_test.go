@@ -78,3 +78,31 @@ func TestWithEnvSetsGitIndexFile(t *testing.T) {
 		t.Fatalf("scratch index file not created: %v", err)
 	}
 }
+
+func TestDedupeEnvKeepLast(t *testing.T) {
+	in := []string{"A=1", "B=2", "A=3", "PATH=/x", "B=5", "NOEQ"}
+	got := dedupeEnvKeepLast(in)
+
+	m := map[string]string{}
+	for _, kv := range got {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			if _, dup := m[k]; dup {
+				t.Fatalf("key %q appears more than once: %v", k, got)
+			}
+			m[k] = v
+		}
+	}
+	if m["A"] != "3" || m["B"] != "5" || m["PATH"] != "/x" {
+		t.Fatalf("keep-last wrong: %v", m)
+	}
+	// entries without '=' are preserved as-is
+	found := false
+	for _, kv := range got {
+		if kv == "NOEQ" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("non key=value entry dropped: %v", got)
+	}
+}
