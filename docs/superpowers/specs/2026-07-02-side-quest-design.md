@@ -554,6 +554,25 @@ The README MUST include a development section for contributors:
   `go mod tidy -diff` (CI-clean check).
 - **Conventions:** teaching-quality doc comments for a C/Python audience (§21); TDD; the
   filename-is-id invariant (§5.5); machine output stays neutral (§12).
+- **Developing side-quest while using it in another project (required):** how to iterate on
+  the tool without disturbing a live install driving a real repo (the author develops `sq`
+  while using it in `babelmap`). Cover: keep the *released* `side-quest` on `PATH` for the
+  production project; use an explicit **local dev build** (`go build -o ./side-quest .` and
+  invoke `./side-quest …`) for development; never point a WIP binary at your live repo — run
+  it against the `sq` repo itself or throwaway `git init` scratch repos (the test suite
+  already isolates via temp repos). Note that quest data is per-repo on `refs/side-quest/*`,
+  so working in the `sq` repo cannot touch another project's quests; the only risk is running
+  a buggy dev binary directly against a live project, which this workflow avoids. If a project
+  needs to pin a specific binary, document overriding the plugin `.mcp.json` `command` (or a
+  `SIDE_QUEST_BIN`-style path) to point at the dev build deliberately.
+
+### 19.3 Dogfooding
+
+Once the CLI lands (Phase 3), side-quest **uses itself**: run `side-quest init` in the `sq`
+repo and track its own remaining work (Phases 2–7, deferred ideas, follow-ups) as quests
+instead of a markdown TODO. This is both a philosophical fit (a side-quest tracker built by
+managing its own side quests) and a continuous real-world end-to-end test of capture,
+linking, ids, sync, and the voice. The README notes the project dogfoods itself.
 
 ---
 
