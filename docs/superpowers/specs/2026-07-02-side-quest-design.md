@@ -183,15 +183,28 @@ different quests touch different paths and never conflict at the tree level — 
 author's multi-worktree workflow. It is also human-readable and hand-editable, and makes
 the importer a natural fit (legacy items are already Markdown prose).
 
+### 5.5 The filename is the id (single source of truth)
+
+The quest's id is its filename stem: `quests/SQ-0001.md` → `SQ-0001`. The id is **not**
+duplicated in the frontmatter, so there is no second source of truth to drift. The store
+always discovers quests by listing `quests/`, so the id is known from the path on every
+read. The `cli` and `mcp` frontends synthesize the id from the path and include it in their
+output (e.g. `quest_show` returns `{ "id": "SQ-0001", ...frontmatter, "body": ... }`), so
+consumers still receive an explicit id. Quest files are never renamed (ids are stable across
+id-strategy switches), so the filename is a safe anchor. This is also consistent with the
+`created` ground truth (§8), which is likewise keyed on the path.
+
 ---
 
 ## 6. Quest Schema
 
-A quest file is YAML frontmatter + a free-form Markdown body:
+A quest file is YAML frontmatter + a free-form Markdown body. **The id is the filename**
+(`quests/SQ-0001.md` → `SQ-0001`), not a stored field — see §5.5. It is synthesized from the
+path and included in CLI/MCP output, so consumers still get an explicit id without it being
+stored twice.
 
 ```markdown
 ---
-id: SQ-0001
 title: Crash stack-trace diagnostic on VM fault
 status: open            # open | partial | done | deferred | discarded
 created: 2026-07-02T14:03:11Z
@@ -210,9 +223,9 @@ Full prose description goes here — the rich notes the author likes to keep,
 including sub-tasks, investigation results, and "REMAINING:" breadcrumbs.
 ```
 
-**Minimal core fields:** `id`, `title`, `status`, `created`, `completed`, `commits`.
-Optional: `context`. Everything else is `tags`. This keeps the schema small and lets the
-prose-heavy style live in the body.
+**Minimal core fields:** `title`, `status`, `created`, `completed`, `commits`. Optional:
+`context`. Everything else is `tags`. The **id is not stored** — it is the filename (§5.5).
+This keeps the schema small and lets the prose-heavy style live in the body.
 
 ---
 
