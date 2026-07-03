@@ -308,6 +308,60 @@ func TestInstallHooksFromSubdirectory(t *testing.T) {
 	}
 }
 
+// TestInstallHooksPushKeepsBranchAndQuests is the SQ-0016 regression: a bare
+// `git push` after install-hooks must send BOTH the current branch AND the quest
+// refs. Before the fix, the lone refs/side-quest/* push refspec disabled
+// push.default so the branch was silently skipped.
+func TestInstallHooksPushKeepsBranchAndQuests(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Create("q", "", "", "", nil); err != nil { // creates refs/side-quest/quests
+		t.Fatal(err)
+	}
+	g := gitcmd.New(dir)
+
+	// A branch with a commit to push.
+	if _, err := g.Run("checkout", "-q", "-b", "main"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.Run("add", "f.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.Run("commit", "-q", "-m", "c1"); err != nil {
+		t.Fatal(err)
+	}
+
+	// A bare origin remote, then install-hooks (which configures the push refspec).
+	remote := t.TempDir()
+	if _, err := gitcmd.New(remote).Run("init", "--bare", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.Run("remote", "add", "origin", remote); err != nil {
+		t.Fatal(err)
+	}
+	if _, code := runBin(t, bin, dir, "install-hooks"); code != 0 {
+		t.Fatalf("install-hooks exit=%d", code)
+	}
+
+	// Bare push: must land BOTH the branch and the quest ref.
+	if _, err := g.Run("push", "origin"); err != nil {
+		t.Fatalf("push: %v", err)
+	}
+	rg := gitcmd.New(remote)
+	if _, err := rg.Run("show-ref", "--verify", "refs/heads/main"); err != nil {
+		t.Errorf("branch not pushed (SQ-0016 regression): %v", err)
+	}
+	if _, err := rg.Run("show-ref", "--verify", "refs/side-quest/quests"); err != nil {
+		t.Errorf("quest ref not pushed: %v", err)
+	}
+}
+
 func containsLine(s, want string) bool { return countLine(s, want) > 0 }
 
 func countLine(s, want string) int {

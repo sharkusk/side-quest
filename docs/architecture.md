@@ -153,8 +153,10 @@ by thin hook shims that call the `side-quest` binary. All logic lives in Go.
 - `Quest: none` — explicit escape hatch: a genuine chore, not linked.
 
 Three hooks, installed by `side-quest install-hooks` (which writes/composes
-marker-guarded shims and adds a `refs/side-quest/*` push/fetch refspec to
-`origin`):
+marker-guarded shims and adds `refs/side-quest/*` fetch and push refspecs to
+`origin`; the push side also adds `HEAD` so a bare `git push` still sends the
+current branch alongside the quest refs, rather than replacing it — see
+SQ-0016):
 
 | Hook | Does | Blocks the commit? |
 |---|---|---|

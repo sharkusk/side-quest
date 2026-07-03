@@ -118,14 +118,25 @@ plugin will use it from your `PATH`.
 
 ### Sharing quests across machines
 
-The `refs/side-quest/quests` ref is not fetched by default. `side-quest init`
-configures the fetch refspec; to publish quests to a remote, push the ref:
+Custom refs like `refs/side-quest/quests` are not fetched or pushed by default.
+`side-quest install-hooks` configures both refspecs on `origin`, so once it has
+run:
+
+- `git fetch` / `git pull` also retrieve quest updates (the fetch refspec is
+  additive — your normal fetch is unchanged).
+- `git push` sends your current branch **and** the quest ref together (the push
+  refspec keeps pushing your branch; it does not replace it).
+
+A fresh `git clone` does **not** include the quest ref (Git skips custom refs on
+clone) — run `side-quest install-hooks` in the clone, then `git fetch`, to pull
+existing quests. To publish before the hooks are configured, push the ref
+explicitly:
 
 ```
 git push origin refs/side-quest/quests
 ```
 
-A dedicated `sync` command that automates pull/push is **planned** (see "Roadmap").
+A dedicated `sync` command that automates this is **planned** (see "Roadmap").
 
 ## MCP server
 

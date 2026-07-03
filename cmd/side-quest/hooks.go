@@ -136,6 +136,13 @@ func addRefspec(g *gitcmd.Git) {
 	}
 	const refspec = "refs/side-quest/*:refs/side-quest/*"
 	ensureConfigContains(g, "remote.origin.fetch", refspec)
+	// A configured remote.origin.push disables push.default entirely, so pushing
+	// only the quest refspec would make a bare `git push` send quests but SKIP
+	// the user's branch. Restore current-branch push explicitly with "HEAD" (it
+	// pushes the checked-out branch to a like-named remote branch, matching
+	// push.default's "current" intent without pushing other branches), then add
+	// the quest refs alongside it. See SQ-0016.
+	ensureConfigContains(g, "remote.origin.push", "HEAD")
 	ensureConfigContains(g, "remote.origin.push", refspec)
 }
 
