@@ -39,7 +39,7 @@ func TestLinkCompletesClosesQuest(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
-	q, err := s.Create("close me", "", nil)
+	q, err := s.Create("close me", "", "", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestLinkCompletesClosesQuest(t *testing.T) {
 func TestLinkQuestAppendsWithoutClosing(t *testing.T) {
 	s := newStore(t)
 	_ = s.Init()
-	q, _ := s.Create("ongoing", "", nil)
+	q, _ := s.Create("ongoing", "", "", "", nil)
 	commitInWorktree(t, s, "b.txt", "progress\n\nQuest: "+q.ID+"\n")
 
 	if err := s.Link("HEAD"); err != nil {
@@ -113,7 +113,7 @@ func TestLinkNoTrailerIsNoop(t *testing.T) {
 func TestLinkIgnoresInheritedIndexFile(t *testing.T) {
 	s := newStore(t)
 	_ = s.Init()
-	q, _ := s.Create("hooked", "", nil)
+	q, _ := s.Create("hooked", "", "", "", nil)
 	// Make the commit BEFORE swapping in the inherited-index copy (git
 	// add/commit need the real index). commitInWorktree runs `git add`, so
 	// the repo's real index file is guaranteed to exist and be non-empty

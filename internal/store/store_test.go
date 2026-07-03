@@ -107,11 +107,11 @@ func TestCreateSequential(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
-	a, err := s.Create("first", "", nil)
+	a, err := s.Create("first", "", "", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := s.Create("second", "", nil)
+	b, err := s.Create("second", "", "", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestCreateRandom(t *testing.T) {
 	if err := s.SetStrategy(config.Random); err != nil {
 		t.Fatal(err)
 	}
-	q, err := s.Create("rand", "", nil)
+	q, err := s.Create("rand", "", "", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestCreatePersistsAndReloads(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
-	created, err := s.Create("persist me", "ctx", map[string]string{"area": "engine"})
+	created, err := s.Create("persist me", "ctx", "", "", map[string]string{"area": "engine"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestCreateConcurrentNoDuplicateIDs(t *testing.T) {
 	errs := make(chan error, n)
 	for i := 0; i < n; i++ {
 		go func() { // goroutine: a lightweight concurrent function (like a green thread)
-			q, err := s.Create("concurrent", "", nil)
+			q, err := s.Create("concurrent", "", "", "", nil)
 			if err != nil {
 				errs <- err
 				return
@@ -212,8 +212,8 @@ func TestGetAndList(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
-	a, _ := s.Create("alpha", "", nil)
-	b, _ := s.Create("bravo", "", nil)
+	a, _ := s.Create("alpha", "", "", "", nil)
+	b, _ := s.Create("bravo", "", "", "", nil)
 
 	got, err := s.Get(a.ID)
 	if err != nil {
@@ -238,7 +238,7 @@ func TestGetAndList(t *testing.T) {
 func TestSetStatusSetsCompletedOnDone(t *testing.T) {
 	s := newStore(t)
 	_ = s.Init()
-	q, _ := s.Create("finish me", "", nil)
+	q, _ := s.Create("finish me", "", "", "", nil)
 
 	if err := s.SetStatus(q.ID, quest.StatusDone); err != nil {
 		t.Fatal(err)
@@ -259,7 +259,7 @@ func TestSetStatusSetsCompletedOnDone(t *testing.T) {
 func TestAddCommitAppendsAndDedupes(t *testing.T) {
 	s := newStore(t)
 	_ = s.Init()
-	q, _ := s.Create("linkme", "", nil)
+	q, _ := s.Create("linkme", "", "", "", nil)
 
 	if err := s.AddCommit(q.ID, "abc123", false); err != nil {
 		t.Fatal(err)
@@ -282,7 +282,7 @@ func TestAddCommitAppendsAndDedupes(t *testing.T) {
 func TestSetStrategyPreservesSeqNext(t *testing.T) {
 	s := newStore(t)
 	_ = s.Init()
-	_, _ = s.Create("one", "", nil) // seq_next -> 2
+	_, _ = s.Create("one", "", "", "", nil) // seq_next -> 2
 
 	if err := s.SetStrategy(config.Random); err != nil {
 		t.Fatal(err)
@@ -304,7 +304,7 @@ func TestCreateDoesNotTouchWorkingTree(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Create("no side effects", "", nil); err != nil {
+	if _, err := s.Create("no side effects", "", "", "", nil); err != nil {
 		t.Fatal(err)
 	}
 	out, err := s.git.Run("status", "--porcelain")
@@ -332,7 +332,7 @@ func TestConcurrentUpdateSameQuest(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
-	q, err := s.Create("target", "", nil)
+	q, err := s.Create("target", "", "", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -405,24 +405,80 @@ func TestStrategySwitchRoundTripResumesCounter(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
-	a, _ := s.Create("one", "", nil) // SQ-0001, seq_next -> 2
+	a, _ := s.Create("one", "", "", "", nil) // SQ-0001, seq_next -> 2
 	if a.ID != "SQ-0001" {
 		t.Fatalf("first id: got %q want SQ-0001", a.ID)
 	}
 	if err := s.SetStrategy(config.Random); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Create("two", "", nil); err != nil { // random id
+	if _, err := s.Create("two", "", "", "", nil); err != nil { // random id
 		t.Fatal(err)
 	}
 	if err := s.SetStrategy(config.Sequential); err != nil {
 		t.Fatal(err)
 	}
-	c, err := s.Create("three", "", nil)
+	c, err := s.Create("three", "", "", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if c.ID != "SQ-0002" {
 		t.Fatalf("counter not resumed after round-trip: got %q want SQ-0002", c.ID)
+	}
+}
+
+func TestCreateAppliesTypePriorityDefaults(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Create("defaulted", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.Type != quest.TypeFeature {
+		t.Errorf("default type: got %q want feature", q.Type)
+	}
+	if q.Priority != quest.PriorityLow {
+		t.Errorf("default priority: got %q want low", q.Priority)
+	}
+}
+
+func TestCreatePersistsExplicitTypePriority(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Create("explicit", "", quest.TypeBug, quest.PriorityHigh, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := s.Get(q.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Type != quest.TypeBug || reloaded.Priority != quest.PriorityHigh {
+		t.Errorf("persisted type/priority wrong: %q/%q", reloaded.Type, reloaded.Priority)
+	}
+}
+
+func TestCreateRejectsInvalidTypePriority(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Create("bad type", "", quest.Type("chore"), "", nil); err == nil {
+		t.Error("expected error for invalid type")
+	}
+	if _, err := s.Create("bad prio", "", "", quest.Priority("urgent"), nil); err == nil {
+		t.Error("expected error for invalid priority")
+	}
+	// Nothing should have been written by the rejected creates.
+	snap, err := s.snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.IDs) != 0 {
+		t.Errorf("rejected creates wrote quests: %v", snap.IDs)
 	}
 }

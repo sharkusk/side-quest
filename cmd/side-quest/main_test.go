@@ -222,7 +222,7 @@ func TestEndToEndHooksDriveLinking(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
-	q, err := s.Create("ship it", "", nil) // SQ-0001
+	q, err := s.Create("ship it", "", "", "", nil) // SQ-0001
 	if err != nil {
 		t.Fatal(err)
 	}

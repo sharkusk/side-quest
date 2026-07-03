@@ -308,7 +308,24 @@ func randomID(prefix string) (string, error) {
 // (possibly advanced) config are written in the SAME commit, so id allocation
 // is atomic under the CAS loop: two racing lanes can never mint the same id —
 // the loser's CAS fails and its rebuild sees the advanced counter / new files.
-func (s *Store) Create(title, context string, tags map[string]string) (*quest.Quest, error) {
+//
+// typ and prio are required-with-defaults: an empty value is coerced to the
+// package default; a non-empty but invalid value is rejected (nothing is
+// written). This keeps quick capture a one-liner while guaranteeing every
+// persisted quest carries a valid type and priority.
+func (s *Store) Create(title, context string, typ quest.Type, prio quest.Priority, tags map[string]string) (*quest.Quest, error) {
+	if typ == "" {
+		typ = quest.DefaultType
+	}
+	if !typ.Valid() {
+		return nil, fmt.Errorf("invalid type %q", typ)
+	}
+	if prio == "" {
+		prio = quest.DefaultPriority
+	}
+	if !prio.Valid() {
+		return nil, fmt.Errorf("invalid priority %q", prio)
+	}
 	now := time.Now().UTC().Truncate(time.Second)
 	var created *quest.Quest
 	err := s.mutate("side-quest: new quest", func(snap *Snapshot, tx *txn) error {
@@ -317,13 +334,15 @@ func (s *Store) Create(title, context string, tags map[string]string) (*quest.Qu
 			return err
 		}
 		q := &quest.Quest{
-			ID:      id,
-			Title:   title,
-			Status:  quest.StatusOpen,
-			Created: now,
-			Commits: []string{},
-			Context: context,
-			Tags:    tags,
+			ID:       id,
+			Title:    title,
+			Status:   quest.StatusOpen,
+			Type:     typ,
+			Priority: prio,
+			Created:  now,
+			Commits:  []string{},
+			Context:  context,
+			Tags:     tags,
 		}
 		data, err := quest.Marshal(q)
 		if err != nil {
