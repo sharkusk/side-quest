@@ -17,8 +17,9 @@
 # Local, un-shipped superfan voice pool (verbatim catch phrases; see spec §12)
 superfan-lines.txt
 
-# Local, per-user Claude Code settings (not shared)
+# Local, per-user Claude Code settings and commands (not shared)
 .claude/settings.local.json
+.claude/commands/
 
 # side-quest-generated git hook shims (machine-local absolute paths; not shared).
 # The tracked .githooks/pre-commit stays tracked; these three are install-time
