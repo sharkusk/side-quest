@@ -110,6 +110,17 @@ func TestAgentsDocPointsToSkill(t *testing.T) {
 	}
 }
 
+// Both guidance docs must tell the agent how to self-heal an unset-up repo:
+// init + install-hooks have no MCP tool, so the agent runs them in the shell.
+func TestFirstRunGuidancePresent(t *testing.T) {
+	for _, f := range []string{"AGENTS.md", "skills/side-quest/SKILL.md"} {
+		doc := string(repoFile(t, f))
+		if !strings.Contains(doc, "side-quest install-hooks") {
+			t.Errorf("%s must tell the agent to run `side-quest install-hooks` for first-run setup", f)
+		}
+	}
+}
+
 func TestReadmeReframedAndToneRemoved(t *testing.T) {
 	r := string(repoFile(t, "README.md"))
 	if strings.Contains(r, "\n## Tone\n") {

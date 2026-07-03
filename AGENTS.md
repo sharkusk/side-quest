@@ -6,6 +6,20 @@ drive it through the `side-quest serve` stdio MCP server. This file is
 agent-agnostic; the Claude-plugin-flavored version of the same guidance is
 `skills/side-quest/SKILL.md`.
 
+## First-run setup (if the repo isn't tracked yet)
+
+If a quest tool reports the repo isn't initialized — or you're the first to use
+side-quest here — the quest ref and git hooks are missing. They have no MCP
+tool, so run them once in the shell (`side-quest` is on your `PATH`), then retry:
+
+```
+side-quest init            # create the quest ref
+side-quest install-hooks   # install the commit-linking git hooks
+```
+
+This is a one-time, per-repo step so the user need not do it by hand; skip it
+once the ref exists.
+
 ## Capture reflex
 
 When a new, unrelated idea surfaces mid-task, capture it instead of derailing:

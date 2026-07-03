@@ -10,6 +10,21 @@ capturing, tracking, and closing quests. This skill is about *when* to reach for
 them — most importantly, the reflex to capture a stray idea without derailing your
 current work.
 
+## First-run setup (if the repo isn't tracked yet)
+
+If a quest tool reports the repo isn't initialized — or you're the first to use
+side-quest in this repo — the quest ref and git hooks are missing. They have no
+MCP tool, so run them once in the shell (`side-quest` is on your `PATH`), then
+retry:
+
+```
+side-quest init            # create the quest ref
+side-quest install-hooks   # install the commit-linking git hooks
+```
+
+This is a one-time, per-repo step, done so the user need not run it by hand; skip
+it once the ref exists.
+
 ## The capture reflex (the main thing)
 
 When a new idea, follow-up, bug, or TODO occurs to you **while you're working on
