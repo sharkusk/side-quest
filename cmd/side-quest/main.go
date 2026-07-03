@@ -30,12 +30,22 @@ const usage = `usage: side-quest <command> [args]
   commit-msg <file>               (hook) warn or reject when a trailer is missing
   prepare-commit-msg <file> [..]  (hook) inject the current-quest trailer
   install-hooks                   install git hooks + refs/side-quest/* refspec
-  serve                           run the stdio MCP server`
+  serve                           run the stdio MCP server
+  version                         print the side-quest version`
+
+// version is overwritten at release build time via -ldflags "-X main.version=<tag>".
+// A plain `go build` / `go install` leaves it as "dev".
+var version = "dev"
 
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, usage)
 		os.Exit(2)
+	}
+	switch os.Args[1] {
+	case "version", "--version", "-v":
+		fmt.Println(version)
+		return
 	}
 	if err := run(os.Args[1], os.Args[2:]); err != nil {
 		var ue *usageErr
