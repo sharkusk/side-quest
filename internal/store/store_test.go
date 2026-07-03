@@ -296,6 +296,23 @@ func TestSetStrategyPreservesSeqNext(t *testing.T) {
 	}
 }
 
+func TestSetTone(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetTone(config.TonePlain); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := s.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Tone != config.TonePlain {
+		t.Errorf("Tone = %q, want plain", cfg.Tone)
+	}
+}
+
 // TestCreateDoesNotTouchWorkingTree proves the store's whole reason to exist:
 // writes go only to refs/side-quest/quests via a scratch index, never the user's
 // working tree or real index. After Create, `git status --porcelain` must be empty.

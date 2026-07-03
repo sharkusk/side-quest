@@ -268,6 +268,24 @@ func TestConfigSetEachKey(t *testing.T) {
 	}
 }
 
+func TestConfigSetTone(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	runBin(t, bin, dir, "init")
+
+	if _, code := runBin(t, bin, dir, "config", "set", "tone", "plain"); code != 0 {
+		t.Fatal("set tone plain")
+	}
+	cfg, _ := s.Config()
+	if cfg.Tone != config.TonePlain {
+		t.Fatalf("tone not persisted: %+v", cfg)
+	}
+
+	if _, code := runBin(t, bin, dir, "config", "set", "tone", "loud"); code != 1 {
+		t.Fatal("set tone loud: want exit 1")
+	}
+}
+
 func TestConfigSetRejectsBadKeyValueStrategy(t *testing.T) {
 	bin := buildBinary(t)
 	dir, _ := newRepo(t)

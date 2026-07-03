@@ -35,6 +35,15 @@ const (
 	ToneDCCSuperfan Tone = "dcc-superfan"
 )
 
+// Valid reports whether t is one of the known tones.
+func (t Tone) Valid() bool {
+	switch t {
+	case TonePlain, ToneDCC, ToneDCCSuperfan:
+		return true
+	}
+	return false
+}
+
 // Config is the persisted configuration.
 type Config struct {
 	IDPrefix    string   `yaml:"id_prefix"`

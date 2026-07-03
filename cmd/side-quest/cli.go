@@ -281,8 +281,14 @@ func cmdConfigSet(args []string) error {
 			return fmt.Errorf("invalid id_strategy %q (want sequential|random)", val)
 		}
 		return s.SetStrategy(st)
+	case "tone":
+		tn := config.Tone(val)
+		if !tn.Valid() {
+			return fmt.Errorf("invalid tone %q (want plain|dcc|dcc-superfan)", val)
+		}
+		return s.SetTone(tn)
 	default:
-		return fmt.Errorf("unknown config key %q (settable: require_quest, auto_trailer, id_strategy)", key)
+		return fmt.Errorf("unknown config key %q (settable: require_quest, auto_trailer, id_strategy, tone)", key)
 	}
 }
 

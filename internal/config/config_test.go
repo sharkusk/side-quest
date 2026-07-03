@@ -86,3 +86,16 @@ func TestStrategyValid(t *testing.T) {
 		}
 	}
 }
+
+func TestToneValid(t *testing.T) {
+	for _, tn := range []Tone{TonePlain, ToneDCC, ToneDCCSuperfan} {
+		if !tn.Valid() {
+			t.Errorf("Tone(%q).Valid() = false, want true", tn)
+		}
+	}
+	for _, bad := range []Tone{"", "loud", "DCC"} {
+		if Tone(bad).Valid() {
+			t.Errorf("Tone(%q).Valid() = true, want false", bad)
+		}
+	}
+}

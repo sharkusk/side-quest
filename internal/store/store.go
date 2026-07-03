@@ -535,6 +535,20 @@ func (s *Store) SetStrategy(st config.Strategy) error {
 	})
 }
 
+// SetTone persists the human-facing voice tone in the on-ref config.
+func (s *Store) SetTone(t config.Tone) error {
+	return s.mutate("side-quest: set tone "+string(t), func(snap *Snapshot, tx *txn) error {
+		cfg := snap.Config
+		cfg.Tone = t
+		data, err := config.Marshal(cfg)
+		if err != nil {
+			return err
+		}
+		tx.put(configPath, data)
+		return nil
+	})
+}
+
 // Config returns the on-ref configuration, or Default() when the store is empty.
 func (s *Store) Config() (config.Config, error) {
 	snap, err := s.snapshot()
