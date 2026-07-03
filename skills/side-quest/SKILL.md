@@ -55,7 +55,7 @@ Multiple commits per quest is normal: each in-progress commit carries
 ## The current quest (optional convenience)
 
 `quest_set_current` points the worktree at a quest so that commits **without an
-explicit trailer** auto-link to it. You author your own commit messages, so you
+explicit trailer** auto-link to it (when auto-trailer is on, the default). You author your own commit messages, so you
 usually don't need it — prefer explicit trailers. Reach for it only to tee up a
 *human's* (or a non-message-authoring agent's) upcoming commits.
 
@@ -88,9 +88,10 @@ you learn with `quest_note { id, text }`. Edit the title with
 
 **Tags** are free-form `key → value` pairs, not a fixed set. `quest_update`'s `tags`
 **merges** into the existing tags (an empty value deletes a key). Tags are **not
-searchable** — `quest_list` filters by `status`/`type`/`priority` only, and tags
-show only in `quest_show`. So treat a tag as a note-to-self on one quest, reach for
-`type`/`priority` first, and use tags sparingly.
+searchable** — `quest_list` filters by `status`/`type`/`priority` only; a quest's
+tags show in its details (`quest_show`) but you can't query by them. So treat a tag
+as a note-to-self on one quest, reach for `type`/`priority` first, and use tags
+sparingly.
 
 ## Reviewing quests
 
