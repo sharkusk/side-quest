@@ -3,7 +3,125 @@ package store
 import (
 	"strings"
 	"testing"
+
+	"github.com/sharkusk/side-quest/internal/gitcmd"
 )
+
+// newOrigin returns (originDir) for a bare repo usable as a file remote.
+func newOrigin(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if _, err := gitcmd.New(dir).Run("init", "--bare", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// clone makes a working repo with origin set to originDir and an identity.
+func clone(t *testing.T, originDir string) *Store {
+	t.Helper()
+	dir := t.TempDir()
+	g := gitcmd.New(dir)
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"config", "user.email", "t@example.com"},
+		{"config", "user.name", "Tester"},
+		{"remote", "add", "origin", originDir},
+	} {
+		if _, err := g.Run(args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestReconcileFastForward(t *testing.T) {
+	origin := newOrigin(t)
+	a := clone(t, origin)
+	if err := a.Init(); err != nil {
+		t.Fatal(err)
+	}
+	mustCreate(t, a) // SQ-0001
+	if _, err := a.git.Run("push", origin, Ref); err != nil {
+		t.Fatal(err)
+	}
+
+	b := clone(t, origin)
+	// b has no quests yet; fetch origin into its tracking ref, then reconcile.
+	if _, err := b.git.Run("fetch", origin, FetchRefspec); err != nil {
+		t.Fatal(err)
+	}
+	res, err := b.reconcile(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.UpToDate && res.Merged == 0 {
+		t.Errorf("expected b to adopt remote quests, got %+v", res)
+	}
+	got, err := b.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("b should have 1 quest after reconcile, got %d", len(got))
+	}
+}
+
+func TestReconcileDivergedConverges(t *testing.T) {
+	origin := newOrigin(t)
+	a := clone(t, origin)
+	if err := a.Init(); err != nil {
+		t.Fatal(err)
+	}
+	mustCreate(t, a) // SQ-0001 (shared base)
+	if _, err := a.git.Run("push", origin, Ref); err != nil {
+		t.Fatal(err)
+	}
+	b := clone(t, origin)
+	if _, err := b.git.Run("fetch", origin, FetchRefspec); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.reconcile(false); err != nil { // b adopts SQ-0001
+		t.Fatal(err)
+	}
+
+	// Diverge: a adds SQ-0002, b adds SQ-0003 (random strategy avoids id clash;
+	// both are sequential here but different content, so ids differ by counter).
+	if _, err := a.Create("a work", "", "", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.git.Run("push", origin, Ref); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Create("b work", "", "", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	// b fetches a's advance and reconciles -> merge commit containing all three.
+	if _, err := b.git.Run("fetch", origin, FetchRefspec); err != nil {
+		t.Fatal(err)
+	}
+	res, err := b.reconcile(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Merged == 0 {
+		t.Errorf("expected a merge, got %+v", res)
+	}
+	got, _ := b.List()
+	if len(got) != 3 {
+		t.Fatalf("b should have 3 quests after merge, got %d", len(got))
+	}
+	// the merge commit has two parents
+	tip, _ := b.tip()
+	parents, _ := b.git.Run("rev-list", "--parents", "-n", "1", tip)
+	if len(strings.Fields(parents)) != 3 {
+		t.Errorf("merge tip should have 2 parents: %q", parents)
+	}
+}
 
 func TestBuildMergeCommitHasTwoParents(t *testing.T) {
 	s := newStore(t)

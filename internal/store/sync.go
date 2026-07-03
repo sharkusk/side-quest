@@ -83,3 +83,169 @@ func (s *Store) lastTouch(commit, path string) (time.Time, error) {
 	}
 	return time.Parse(time.RFC3339, out)
 }
+
+// SyncResult summarizes what a sync did, for reporting.
+type SyncResult struct {
+	Merged   int  // quests newly integrated from the remote (adopted or field-merged)
+	Renamed  int  // id collisions reassigned
+	Pushed   bool // a push to the remote succeeded
+	UpToDate bool // nothing to do
+}
+
+func (s *Store) trackingTip() (string, error) {
+	out, err := s.git.Run("for-each-ref", "--format=%(objectname)", TrackingRef)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// isAncestor reports whether a is an ancestor of b (a == b counts as false here;
+// callers test equality separately).
+func (s *Store) isAncestor(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	_, err := s.git.Run("merge-base", "--is-ancestor", a, b)
+	return err == nil
+}
+
+// mergeBase returns the common ancestor of a and b, or "" if there is none.
+func (s *Store) mergeBase(a, b string) string {
+	out, err := s.git.Run("merge-base", a, b)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
+// reconcile brings the live Ref into agreement with TrackingRef using the domain
+// merge, with no network I/O. It fast-forwards when possible, otherwise writes a
+// two-parent merge commit. With dryRun it computes counts but writes nothing.
+func (s *Store) reconcile(dryRun bool) (SyncResult, error) {
+	local, err := s.tip()
+	if err != nil {
+		return SyncResult{}, err
+	}
+	remote, err := s.trackingTip()
+	if err != nil {
+		return SyncResult{}, err
+	}
+	switch {
+	case remote == "":
+		return SyncResult{UpToDate: true}, nil // no remote data
+	case local == remote:
+		return SyncResult{UpToDate: true}, nil
+	case local == "":
+		// fresh: adopt remote wholesale
+		if !dryRun {
+			if _, err := s.git.Run("update-ref", Ref, remote); err != nil {
+				return SyncResult{}, err
+			}
+		}
+		rs, _ := s.sideAt(remote)
+		return SyncResult{Merged: len(rs.Quests)}, nil
+	case s.isAncestor(local, remote):
+		// local strictly behind -> fast-forward
+		if !dryRun {
+			if _, err := s.git.Run("update-ref", Ref, remote, local); err != nil {
+				return SyncResult{}, err
+			}
+		}
+		ls, _ := s.sideAt(local)
+		rs, _ := s.sideAt(remote)
+		return SyncResult{Merged: countNew(ls, rs)}, nil
+	case s.isAncestor(remote, local):
+		return SyncResult{}, nil // local ahead: nothing to merge (push will publish)
+	default:
+		return s.writeMerge(local, remote, dryRun)
+	}
+}
+
+// writeMerge performs the true 3-way merge of local vs remote and records it as a
+// two-parent merge commit (unless dryRun).
+func (s *Store) writeMerge(local, remote string, dryRun bool) (SyncResult, error) {
+	baseCommit := s.mergeBase(local, remote)
+	base, err := s.sideAt(baseCommit)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	lSide, err := s.sideAt(local)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	rSide, err := s.sideAt(remote)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	// Touch is needed only where both sides have the id; fill that set.
+	var both []string
+	for id := range lSide.Quests {
+		if _, ok := rSide.Quests[id]; ok {
+			both = append(both, id)
+		}
+	}
+	if err := s.fillTouch(&lSide, local, both); err != nil {
+		return SyncResult{}, err
+	}
+	if err := s.fillTouch(&rSide, remote, both); err != nil {
+		return SyncResult{}, err
+	}
+
+	result, events := merge.Merge(base, lSide, rSide)
+	renamed := 0
+	for _, e := range events {
+		if e.Kind == merge.Renamed {
+			renamed++
+		}
+	}
+	res := SyncResult{Merged: countNew(lSide, mergeSideOf(result)), Renamed: renamed}
+	if dryRun {
+		return res, nil
+	}
+
+	tx := newTxn()
+	cfgBytes, err := config.Marshal(result.Config)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	tx.put(configPath, cfgBytes)
+	for id, q := range result.Quests {
+		data, err := quest.Marshal(q)
+		if err != nil {
+			return SyncResult{}, err
+		}
+		tx.put(questPath(id), data)
+	}
+	commit, err := s.buildMergeCommit([]string{local, remote}, "side-quest: sync merge", tx)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	if _, err := s.git.Run("update-ref", Ref, commit, local); err != nil {
+		return SyncResult{}, err
+	}
+	return res, nil
+}
+
+// countNew counts ids in `to` that are absent from or differ from `from`.
+func countNew(from, to merge.Side) int {
+	n := 0
+	for id, q := range to.Quests {
+		old, ok := from.Quests[id]
+		if !ok {
+			n++
+			continue
+		}
+		ob, _ := quest.Marshal(old)
+		nb, _ := quest.Marshal(q)
+		if string(ob) != string(nb) {
+			n++
+		}
+	}
+	return n
+}
+
+// mergeSideOf wraps a Result as a Side for countNew.
+func mergeSideOf(r merge.Result) merge.Side {
+	return merge.Side{Config: r.Config, Quests: r.Quests}
+}
