@@ -200,6 +200,8 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   combined with AND) and `--json`.
 - `show <id>` — show one quest; `--json`.
 - `status <id> <status>` — set the lifecycle status.
+- `note <id> <text>` — append a note to a quest (the note text is every
+  argument after the id, joined with spaces).
 - `reclassify <id> [--type --priority]` — change type and/or priority.
 - `config get` / `config set <key> <value>` — read config; set `require_quest`,
   `auto_trailer`, or `id_strategy`.

@@ -52,6 +52,7 @@ side-quest new "Fix the flaky parser test" --type bug --priority high
 side-quest list --status open --type bug
 side-quest show SQ-0001
 side-quest status SQ-0001 done
+side-quest note SQ-0001 "flaky since the timer refactor"
 side-quest reclassify SQ-0001 --priority low
 side-quest config set require_quest true
 side-quest config get

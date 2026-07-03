@@ -209,6 +209,25 @@ func cmdStatus(args []string) error {
 	return nil
 }
 
+// cmdNote appends a note to a quest. The note text is every argument after the
+// id, joined with spaces, so callers need not quote a multi-word note. The
+// store rejects empty text and a nonexistent id.
+func cmdNote(args []string) error {
+	if len(args) < 2 {
+		return &usageErr{"note needs <id> <text>"}
+	}
+	s, err := openStore()
+	if err != nil {
+		return err
+	}
+	id := args[0]
+	if err := s.AppendNote(id, strings.Join(args[1:], " ")); err != nil {
+		return err
+	}
+	fmt.Printf("noted %s\n", id)
+	return nil
+}
+
 func cmdReclassify(args []string) error {
 	fs := newFlagSet("reclassify")
 	var typ, prio string

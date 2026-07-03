@@ -40,6 +40,37 @@ func TestNewCreatesQuestAndPrintsID(t *testing.T) {
 	}
 }
 
+func TestNoteAppendsToQuestBody(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	t.Setenv("SIDE_QUEST_TONE", "plain")
+
+	out, _ := runBin(t, bin, dir, "new", "Track a thing")
+	id := idFromCreated(t, out)
+
+	nout, code := runBin(t, bin, dir, "note", id, "learned something useful")
+	if code != 0 {
+		t.Fatalf("note exit=%d out=%s", code, nout)
+	}
+	q, err := s.Get(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(q.Body, "learned something useful") {
+		t.Fatalf("note not appended: body=%q", q.Body)
+	}
+}
+
+func TestNoteMissingTextExitsTwo(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	out, code := runBin(t, bin, dir, "note", "SQ-0001")
+	if code != 2 {
+		t.Fatalf("expected usage exit 2, got %d out=%s", code, out)
+	}
+}
+
 func TestNewFlagsTypePriorityTagCurrentJSON(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)
