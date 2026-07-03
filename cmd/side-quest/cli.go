@@ -5,11 +5,13 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/sharkusk/side-quest/internal/config"
@@ -296,6 +298,89 @@ func cmdReclassify(args []string) error {
 	}
 	id := rest[0]
 	return s.Reclassify(id, quest.Type(typ), quest.Priority(prio))
+}
+
+// editorArgv resolves the editor to launch, honoring VISUAL then EDITOR (the
+// long-standing Unix convention) and falling back to vi. The value may carry
+// arguments (e.g. `code --wait`), split on spaces like git does.
+func editorArgv() []string {
+	for _, env := range []string{"VISUAL", "EDITOR"} {
+		if v := strings.TrimSpace(os.Getenv(env)); v != "" {
+			return strings.Fields(v)
+		}
+	}
+	return []string{"vi"}
+}
+
+// runEditor opens path in the resolved editor with the terminal attached, so an
+// interactive editor (vi, nano) works normally.
+func runEditor(path string) error {
+	argv := append(editorArgv(), path)
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
+// cmdEdit round-trips a quest through $EDITOR: it serializes the quest to its
+// Markdown form, opens it, and writes the saved buffer back to the ref. The id
+// is the filename, not part of the buffer, so it is never editable. If the saved
+// buffer no longer parses or is rejected, the temp file is KEPT and its path is
+// reported, so a long hand-edit is never silently lost.
+func cmdEdit(args []string) error {
+	if len(args) != 1 {
+		return &usageErr{"edit needs exactly one <id>"}
+	}
+	s, err := openStore()
+	if err != nil {
+		return err
+	}
+	q, err := s.Get(args[0])
+	if err != nil {
+		return err
+	}
+	orig, err := quest.Marshal(q)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.CreateTemp("", "side-quest-"+q.ID+"-*.md")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	_, werr := f.Write(orig)
+	f.Close()
+	if werr != nil {
+		os.Remove(tmp)
+		return werr
+	}
+
+	if err := runEditor(tmp); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("editor: %w", err)
+	}
+	edited, err := os.ReadFile(tmp)
+	if err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if bytes.Equal(edited, orig) {
+		os.Remove(tmp)
+		fmt.Println("no changes")
+		return nil
+	}
+
+	// From here on a failure keeps tmp so the edits survive — report its path.
+	nq, err := quest.Unmarshal(q.ID, edited)
+	if err != nil {
+		return fmt.Errorf("edited quest did not parse (your edits are kept at %s): %w", tmp, err)
+	}
+	if err := s.Replace(q.ID, nq); err != nil {
+		return fmt.Errorf("edited quest rejected (your edits are kept at %s): %w", tmp, err)
+	}
+	os.Remove(tmp)
+	fmt.Printf("updated %s\n", q.ID)
+	return nil
 }
 
 func cmdConfig(args []string) error {

@@ -261,6 +261,61 @@ func TestCreateConcurrentNoDuplicateIDs(t *testing.T) {
 	}
 }
 
+func TestReplaceOverwritesContent(t *testing.T) {
+	s := newStore(t)
+	q := mustCreate(t, s) // open/feature/low, title "a task"
+
+	edited := *q
+	edited.Title = "a much better title"
+	edited.Status = quest.StatusPartial
+	edited.Type = quest.TypeBug
+	edited.Body = "a fresh body written in the editor"
+
+	if err := s.Replace(q.ID, &edited); err != nil {
+		t.Fatalf("Replace: %v", err)
+	}
+	got, err := s.Get(q.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "a much better title" || got.Status != quest.StatusPartial ||
+		got.Type != quest.TypeBug || got.Body != "a fresh body written in the editor" {
+		t.Fatalf("Replace did not overwrite content: %+v", got)
+	}
+}
+
+func TestReplaceValidatesAtWriteBoundary(t *testing.T) {
+	s := newStore(t)
+	q := mustCreate(t, s)
+
+	bad := *q
+	bad.Status = quest.Status("bogus")
+	if err := s.Replace(q.ID, &bad); err == nil {
+		t.Error("Replace should reject an invalid status")
+	}
+
+	blank := *q
+	blank.Title = "   "
+	if err := s.Replace(q.ID, &blank); err == nil {
+		t.Error("Replace should reject a blank title")
+	}
+
+	// The rejected writes must not have altered the stored quest.
+	got, _ := s.Get(q.ID)
+	if got.Title != q.Title || got.Status != q.Status {
+		t.Fatalf("rejected Replace mutated the quest: %+v", got)
+	}
+}
+
+func TestReplaceUnknownID(t *testing.T) {
+	s := newStore(t)
+	mustCreate(t, s)
+	ghost := &quest.Quest{Title: "x", Status: quest.StatusOpen, Type: quest.TypeFeature, Priority: quest.PriorityLow}
+	if err := s.Replace("SQ-9999", ghost); err != ErrNotFound {
+		t.Errorf("Replace(unknown) = %v, want ErrNotFound", err)
+	}
+}
+
 func TestGetAndList(t *testing.T) {
 	s := newStore(t)
 	if err := s.Init(); err != nil {

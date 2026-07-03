@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -19,6 +21,71 @@ func idFromCreated(t *testing.T, out string) string {
 		t.Fatalf("expected an SQ- id, got %q", out)
 	}
 	return id
+}
+
+// writeEditor writes an executable fake-$EDITOR script and returns its path.
+func writeEditor(t *testing.T, body string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "fake-editor.sh")
+	if err := os.WriteFile(p, []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// TestEditRoundTrip: `edit <id>` opens the quest in $EDITOR and writes the saved
+// buffer back to the ref.
+func TestEditRoundTrip(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	q, err := s.Create("original title", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A fake editor that appends a body line to the temp file (arg $1).
+	t.Setenv("EDITOR", writeEditor(t, `printf 'a note from the editor\n' >> "$1"`))
+	out, code := runBin(t, bin, dir, "edit", q.ID)
+	if code != 0 {
+		t.Fatalf("edit exit=%d out=%s", code, out)
+	}
+	got, err := s.Get(q.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.Body, "a note from the editor") {
+		t.Fatalf("edit did not persist the body: %q", got.Body)
+	}
+
+	// Shorthand id resolves, and a no-op edit writes nothing.
+	t.Setenv("EDITOR", writeEditor(t, `exit 0`))
+	out, code = runBin(t, bin, dir, "edit", "1")
+	if code != 0 {
+		t.Fatalf("no-op edit exit=%d out=%s", code, out)
+	}
+	if !strings.Contains(out, "no changes") {
+		t.Errorf("expected a no-changes message, got %q", out)
+	}
+}
+
+// TestEditRejectsInvalidBuffer: a saved buffer that no longer parses is refused,
+// the stored quest is left untouched, and the message points at the kept file.
+func TestEditRejectsInvalidBuffer(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	q, err := s.Create("keep me", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("EDITOR", writeEditor(t, `printf 'this is not a quest file' > "$1"`))
+	out, code := runBin(t, bin, dir, "edit", q.ID)
+	if code == 0 {
+		t.Fatalf("edit of an unparseable buffer should fail; out=%s", out)
+	}
+	got, _ := s.Get(q.ID)
+	if got.Title != "keep me" {
+		t.Errorf("rejected edit mutated the quest: %+v", got)
+	}
 }
 
 // TestPerCommandHelp: `<cmd> -h` / `--help` prints a clean, command-specific

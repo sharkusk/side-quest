@@ -23,6 +23,7 @@ const usage = `usage: side-quest <command> [args]
   show <id> [--json]              show one quest
   status <id> <status>            set a quest's status
   note <id> <text>                append a note to a quest
+  edit <id>                       open a quest in $EDITOR and write it back
   reclassify <id> [--type --priority]  change a quest's type/priority
   config get [--json]             show effective config
   config set <key> <value>        set require_quest | auto_trailer | id_strategy | tone
@@ -83,6 +84,8 @@ func run(cmd string, args []string) error {
 		return cmdStatus(args)
 	case "note":
 		return cmdNote(args)
+	case "edit":
+		return cmdEdit(args)
 	case "reclassify":
 		return cmdReclassify(args)
 	case "config":

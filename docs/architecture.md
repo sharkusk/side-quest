@@ -56,7 +56,7 @@ Each quest's frontmatter carries `title`, `status` (open/partial/done/deferred/d
 `type` (bug/feature), `priority` (high/low), `created`, an optional `completed`, `commits`,
 an optional `context`, and optional `tags`. `type` and `priority` are constrained enums with
 defaults (`feature`/`low`) applied at creation; like `status`, they are validated only at the
-write boundary (`Create`/`SetType`/`SetPriority`), never on read.
+write boundary (`Create`/`Reclassify`/`SetStatus`/`Modify`/`Replace`), never on read.
 
 ## Reads
 
@@ -217,6 +217,11 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
 - `status <id> <status>` — set the lifecycle status.
 - `note <id> <text>` — append a note to a quest (the note text is every
   argument after the id, joined with spaces).
+- `edit <id>` — open the quest's Markdown (frontmatter + body) in `$EDITOR`
+  (`VISUAL`→`EDITOR`→`vi`) and write the saved buffer back via `store.Replace`.
+  The id is the filename, never part of the buffer, so it cannot be edited. A
+  buffer that no longer parses or is rejected keeps its temp file and reports the
+  path, so a long hand-edit is never lost. Edits are last-write-wins.
 - `reclassify <id> [--type --priority]` — change type and/or priority.
 - `config get` / `config set <key> <value>` — read config; set `require_quest`,
   `auto_trailer`, or `id_strategy`.

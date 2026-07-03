@@ -532,6 +532,48 @@ func (s *Store) Modify(id, title string, tags map[string]string) error {
 	})
 }
 
+// Replace overwrites a quest's entire content — everything but its id, which is
+// the filename — with edited, in a single commit. The core fields are validated
+// at this write boundary (a blank title or an unknown status/type/priority is
+// rejected before anything is written), consistent with every other mutation.
+//
+// It is deliberately last-write-wins: unlike Update it does not merge concurrent
+// changes, matching the mental model of the `edit` command, where the user opens
+// a snapshot in $EDITOR and saves it back whole.
+func (s *Store) Replace(id string, edited *quest.Quest) error {
+	if strings.TrimSpace(edited.Title) == "" {
+		return fmt.Errorf("title is empty")
+	}
+	if !edited.Status.Valid() {
+		return fmt.Errorf("invalid status %q", edited.Status)
+	}
+	if !edited.Type.Valid() {
+		return fmt.Errorf("invalid type %q", edited.Type)
+	}
+	if !edited.Priority.Valid() {
+		return fmt.Errorf("invalid priority %q", edited.Priority)
+	}
+	id, err := s.canonicalID(id)
+	if err != nil {
+		return err
+	}
+	return s.mutate("side-quest: edit "+id, func(snap *Snapshot, tx *txn) error {
+		if snap.Tip == "" {
+			return ErrNotFound
+		}
+		if _, err := s.readFile(snap.Tip, questPath(id)); err != nil {
+			return ErrNotFound
+		}
+		edited.ID = id // id is the filename; keep it authoritative, never from the buffer
+		data, err := quest.Marshal(edited)
+		if err != nil {
+			return err
+		}
+		tx.put(questPath(id), data)
+		return nil
+	})
+}
+
 // AddCommit appends sha to a quest's commit list (deduped). When complete is
 // true it also closes the quest (used by the Completes: trailer in a later
 // phase).

@@ -60,6 +60,7 @@ side-quest list --status open --type bug
 side-quest show SQ-0001
 side-quest status SQ-0001 done
 side-quest note SQ-0001 "flaky since the timer refactor"
+side-quest edit SQ-0001            # open the quest in $EDITOR, save to write it back
 side-quest reclassify SQ-0001 --priority low
 side-quest config set require_quest true
 side-quest config get
