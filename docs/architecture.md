@@ -202,6 +202,30 @@ other errors exit 1.
 The CLI relies on two store/config additions: `store.SetAutoTrailer` and
 `config.Strategy.Valid()`.
 
+## MCP frontend (`internal/mcp` + `side-quest serve`)
+
+`side-quest serve` runs a stdio MCP server (JSON-RPC over stdin/stdout) built on
+`github.com/modelcontextprotocol/go-sdk`. `cmd/side-quest/serve.go` is a thin
+frontend: it opens the store for the cwd and hands it to `internal/mcp.NewServer`,
+which registers ten tools:
+
+- `quest_new`, `quest_list`, `quest_show`, `quest_get_current` (capture/read)
+- `quest_set_status`, `quest_reclassify`, `quest_update`, `quest_note`,
+  `quest_set_current`, `quest_link_commit` (mutation)
+
+Each handler decodes typed params (the SDK infers each tool's JSON-Schema from a
+Go struct), calls one store method, and returns neutral JSON of the
+`quest.Quest`/ack shape. Validation stays in the store; invalid input is returned
+as an MCP **tool error** (not a protocol error). The one frontend-side check is
+`quest_list` validating its filter values. `quest_new` auto-records mechanical
+context (branch/HEAD/cwd/current-quest, via `internal/capture.Mechanical`) ahead
+of the agent's narrative note, and only moves the current-quest pointer when
+`set_current:true`. stdout carries only JSON-RPC; diagnostics go to stderr.
+
+The three store mutators the update tools use — `AppendNote` (append a dated note
+to the body), `SetTitle`, and `MergeTags` (empty value deletes a key) — live in
+`store` beside the other setters.
+
 ## Package map
 
 | Package | Responsibility | I/O? |
