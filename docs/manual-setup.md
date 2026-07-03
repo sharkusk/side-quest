@@ -41,10 +41,11 @@ subprocess your agent launches. Register it with a project `.mcp.json`:
 { "mcpServers": { "side-quest": { "command": "side-quest", "args": ["serve"] } } }
 ```
 
-Then add side-quest's guidance to your agent instructions. If the project already
-has an `AGENTS.md`, append side-quest's block as a new section — **merge, don't
-overwrite** (the block to copy is this repo's [`AGENTS.md`](../AGENTS.md)).
-Optionally add a `/sq` capture command at `.claude/commands/sq.md`.
+Then add side-quest's guidance to your agent instructions. Run `side-quest
+agents-md` to print the canonical block (or copy this repo's
+[`AGENTS.md`](../AGENTS.md)). If the project already has an `AGENTS.md`, append
+the block as a new section — **merge, don't overwrite**. Optionally add a `/sq`
+capture command at `.claude/commands/sq.md`.
 
 **Restart the agent session** so the MCP server, commands, and `AGENTS.md` load —
 you'll be prompted once to approve a new project MCP server.

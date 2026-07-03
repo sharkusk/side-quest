@@ -31,6 +31,7 @@ const usage = `usage: side-quest <command> [args]
   commit-msg <file>               (hook) warn or reject when a trailer is missing
   prepare-commit-msg <file> [..]  (hook) inject the current-quest trailer
   install-hooks                   install git hooks + refs/side-quest/* refspec
+  agents-md                       print the agent-guidance block for AGENTS.md
   serve                           run the stdio MCP server
   version                         print the side-quest version
 
@@ -92,6 +93,8 @@ func run(cmd string, args []string) error {
 		return cmdPrepareCommitMsg(args)
 	case "install-hooks":
 		return cmdInstallHooks(args)
+	case "agents-md":
+		return cmdAgentsMd(args)
 	case "serve":
 		return cmdServe(args)
 	default:
