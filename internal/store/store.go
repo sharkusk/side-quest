@@ -367,8 +367,24 @@ func (s *Store) Create(title, context string, typ quest.Type, prio quest.Priorit
 	return created, nil
 }
 
+// canonicalID normalizes a user-supplied id to its canonical form using the
+// store's configured prefix and width, so shorthand like "11" or "0011" resolves
+// to "SQ-0011". It is the single point both frontends pass through (every
+// id-taking store method calls it), which keeps the CLI and MCP identical.
+func (s *Store) canonicalID(id string) (string, error) {
+	cfg, err := s.Config()
+	if err != nil {
+		return "", err
+	}
+	return quest.NormalizeID(cfg.IDPrefix, cfg.SeqWidth, id), nil
+}
+
 // Get loads one quest by id.
 func (s *Store) Get(id string) (*quest.Quest, error) {
+	id, err := s.canonicalID(id)
+	if err != nil {
+		return nil, err
+	}
 	tip, err := s.tip()
 	if err != nil {
 		return nil, err
@@ -408,6 +424,10 @@ func (s *Store) List() ([]*quest.Quest, error) {
 // apply may run more than once (on CAS retry), so it must be a pure function of
 // its argument.
 func (s *Store) Update(id string, apply func(*quest.Quest)) error {
+	id, err := s.canonicalID(id)
+	if err != nil {
+		return err
+	}
 	return s.mutate("side-quest: update "+id, func(snap *Snapshot, tx *txn) error {
 		if snap.Tip == "" {
 			return ErrNotFound

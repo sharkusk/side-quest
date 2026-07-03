@@ -109,3 +109,31 @@ func TestUnmarshalRejectsMissingFence(t *testing.T) {
 		t.Fatal("expected error for missing frontmatter fence")
 	}
 }
+
+func TestNormalizeID(t *testing.T) {
+	cases := []struct {
+		name   string
+		prefix string
+		width  int
+		raw    string
+		want   string
+	}{
+		{"bare number", "SQ", 4, "11", "SQ-0011"},
+		{"zero-padded number", "SQ", 4, "0011", "SQ-0011"},
+		{"over-padded number", "SQ", 4, "00011", "SQ-0011"},
+		{"already canonical", "SQ", 4, "SQ-0011", "SQ-0011"},
+		{"number wider than width", "SQ", 4, "12345", "SQ-12345"},
+		{"surrounding whitespace", "SQ", 4, "  11 ", "SQ-0011"},
+		{"custom prefix and width", "Q", 3, "7", "Q-007"},
+		{"non-numeric bare left alone", "SQ", 4, "abc", "abc"},
+		{"random hex id left alone", "SQ", 4, "SQ-a1b2c3", "SQ-a1b2c3"},
+		{"empty left alone", "SQ", 4, "", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := NormalizeID(c.prefix, c.width, c.raw); got != c.want {
+				t.Errorf("NormalizeID(%q, %d, %q) = %q, want %q", c.prefix, c.width, c.raw, got, c.want)
+			}
+		})
+	}
+}

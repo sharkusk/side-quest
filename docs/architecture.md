@@ -43,6 +43,15 @@ quests/
 The quest **id is the filename** (`quests/SQ-0001.md` → `SQ-0001`); it is never stored inside
 the file, so there is no second source of truth to drift.
 
+Every command that takes an `<id>` also accepts a **bare or zero-padded number** as
+shorthand: `11` and `0011` both resolve to `SQ-0001` (using the configured prefix and
+`seq_width`). Normalization happens in one place — `quest.NormalizeID`, applied by the
+store at each id-entry method (`Get`, `Update`, `SetCurrent`) — so the CLI and the MCP
+server behave identically and a shorthand id can never be silently persisted verbatim
+(e.g. `SetCurrent` stores the canonical `SQ-0001`, never `11`). A non-numeric id (a
+random hex id, a typo) passes through unchanged and is caught by the normal existence
+check.
+
 Each quest's frontmatter carries `title`, `status` (open/partial/done/deferred/discarded),
 `type` (bug/feature), `priority` (high/low), `created`, an optional `completed`, `commits`,
 an optional `context`, and optional `tags`. `type` and `priority` are constrained enums with
@@ -200,7 +209,8 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   `--json`.
 - `list` — list quests; filters `--status`/`--type`/`--priority` (validated,
   combined with AND) and `--json`.
-- `show <id>` — show one quest; `--json`.
+- `show <id>` — show one quest; `--json`. (`<id>` accepts shorthand: `11` or
+  `0011` for `SQ-0011`, everywhere an id is taken.)
 - `status <id> <status>` — set the lifecycle status.
 - `note <id> <text>` — append a note to a quest (the note text is every
   argument after the id, joined with spaces).

@@ -16,11 +16,17 @@ func (s *Store) currentPath() string {
 	return filepath.Join(s.gitDir, "side-quest-current")
 }
 
-// SetCurrent records id as this worktree's active quest. It first verifies the
-// quest exists on the ref: pointing at a typo'd or stale id would silently arm
-// prepare-commit-msg to inject a dangling Quest: trailer, so a missing id is
-// rejected with ErrNotFound and the pointer is left untouched.
+// SetCurrent records id as this worktree's active quest. It normalizes the id to
+// canonical form (so "11" is stored as "SQ-0011", not injected verbatim as a
+// dangling trailer) and verifies the quest exists on the ref: pointing at a
+// typo'd or stale id would silently arm prepare-commit-msg to inject a bad
+// Quest: trailer, so a missing id is rejected with ErrNotFound and the pointer
+// is left untouched.
 func (s *Store) SetCurrent(id string) error {
+	id, err := s.canonicalID(id)
+	if err != nil {
+		return err
+	}
 	if _, err := s.Get(id); err != nil {
 		return err
 	}

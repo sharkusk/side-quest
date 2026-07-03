@@ -86,6 +86,32 @@ func TestCurrentSubcommand(t *testing.T) {
 	}
 }
 
+// TestShowAcceptsShorthandID proves the id shorthand reaches through the CLI
+// frontend: `show 1` finds the same quest as `show SQ-0001` and renders the
+// canonical id.
+func TestShowAcceptsShorthandID(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	q, err := s.Create("a task", "", "", "", nil) // SQ-0001
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, raw := range []string{"1", "0001", q.ID} {
+		out, code := runBin(t, bin, dir, "show", raw)
+		if code != 0 {
+			t.Fatalf("show %q exit=%d out=%q", raw, code, out)
+		}
+		if !strings.Contains(out, q.ID) {
+			t.Errorf("show %q output missing canonical id %q:\n%s", raw, q.ID, out)
+		}
+	}
+
+	if _, code := runBin(t, bin, dir, "show", "999"); code == 0 {
+		t.Error("show of an unknown shorthand id should exit non-zero")
+	}
+}
+
 func TestCommitMsgExitCodes(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)

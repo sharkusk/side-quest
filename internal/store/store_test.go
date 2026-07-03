@@ -46,6 +46,48 @@ func mustCreate(t *testing.T, s *Store) *quest.Quest {
 	return q
 }
 
+func TestBareIDResolvesThroughStore(t *testing.T) {
+	s := newStore(t)
+	q := mustCreate(t, s) // SQ-0001 under the default sequential strategy
+
+	// Get accepts a bare and a zero-padded number, returning the canonical id.
+	for _, raw := range []string{"1", "0001", "SQ-0001"} {
+		got, err := s.Get(raw)
+		if err != nil {
+			t.Fatalf("Get(%q): %v", raw, err)
+		}
+		if got.ID != q.ID {
+			t.Errorf("Get(%q).ID = %q, want %q", raw, got.ID, q.ID)
+		}
+	}
+
+	// Update-based mutations accept the bare form too.
+	if err := s.SetStatus("1", quest.StatusDone); err != nil {
+		t.Fatalf("SetStatus(bare): %v", err)
+	}
+	if got, _ := s.Get(q.ID); got.Status != quest.StatusDone {
+		t.Errorf("status after SetStatus(bare) = %q, want done", got.Status)
+	}
+
+	// SetCurrent normalizes before writing the pointer, so the stored value is
+	// canonical (a bare id in the pointer would inject a dangling trailer).
+	if err := s.SetCurrent("1"); err != nil {
+		t.Fatalf("SetCurrent(bare): %v", err)
+	}
+	cur, err := s.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cur != q.ID {
+		t.Errorf("current pointer = %q, want canonical %q", cur, q.ID)
+	}
+
+	// An unknown number still fails, not silently resolving to something real.
+	if _, err := s.Get("999"); err == nil {
+		t.Error("Get(unknown bare id) should fail")
+	}
+}
+
 func TestSnapshotEmptyBeforeInit(t *testing.T) {
 	s := newStore(t)
 	snap, err := s.snapshot()

@@ -66,7 +66,9 @@ side-quest config get
 ```
 
 Add `--json` to `new`, `list`, `show`, or `config get` for machine-readable output.
-Flags may appear before or after the title/id positional argument.
+Flags may appear before or after the title/id positional argument. Anywhere an
+`<id>` is expected you can use shorthand — `side-quest show 1` (or `0001`) is the
+same as `side-quest show SQ-0001`.
 
 ## Installation & setup
 

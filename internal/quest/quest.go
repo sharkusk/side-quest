@@ -9,6 +9,7 @@ package quest
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -98,6 +99,24 @@ type Quest struct {
 	Tags      map[string]string `yaml:"tags,omitempty"`
 
 	Body string `yaml:"-"` // Markdown after the frontmatter block
+}
+
+// NormalizeID canonicalizes a user-supplied quest id so the frontends can accept
+// shorthand. A bare or zero-padded number (11, 0011) becomes
+// prefix + "-" + the number zero-padded to width (SQ-0011). An id that already
+// carries the "prefix-" head, or any non-numeric form (a random hex id, a typo),
+// is returned unchanged. Normalization is idempotent and never fails: an id that
+// resolves to nothing real is caught later by the store's existence check, not
+// here.
+func NormalizeID(prefix string, width int, raw string) string {
+	raw = strings.TrimSpace(raw)
+	if strings.HasPrefix(raw, prefix+"-") {
+		return raw
+	}
+	if n, err := strconv.Atoi(raw); err == nil && n >= 0 {
+		return fmt.Sprintf("%s-%0*d", prefix, width, n)
+	}
+	return raw
 }
 
 const fence = "---"
