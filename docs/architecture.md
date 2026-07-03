@@ -215,7 +215,7 @@ format strings.
 
 Two tones actually render: `plain` (one neutral line per key) and `dcc` (several
 candidate lines per key, picked at random, in the voice of *Dungeon Crawler Carl* — see
-"Credits & permissions" in the [README](../README.md)). `Voice.New` collapses anything
+[Credits & permissions](#credits--permissions) below). `Voice.New` collapses anything
 that isn't `plain` to `dcc`.
 
 **Tone precedence**, resolved once per invocation by `voice.ResolveTone` +
