@@ -449,6 +449,68 @@ func TestInstallHooksSkipsNonShHook(t *testing.T) {
 	}
 }
 
+// TestInstallHooksWarnsOnCustomHooksPath (SQ-0022): when core.hooksPath points
+// somewhere non-default — often another framework's dir — install-hooks still
+// honors it but warns, naming the path.
+func TestInstallHooksWarnsOnCustomHooksPath(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	g := gitcmd.New(dir)
+	if _, err := g.Run("config", "core.hooksPath", ".husky"); err != nil {
+		t.Fatal(err)
+	}
+
+	out, code := runBin(t, bin, dir, "install-hooks")
+	if code != 0 {
+		t.Fatalf("install-hooks exit=%d out=%s", code, out)
+	}
+	if !strings.Contains(out, "core.hooksPath") || !strings.Contains(out, ".husky") {
+		t.Errorf("expected a core.hooksPath warning naming .husky, got:\n%s", out)
+	}
+	// Hooks still land in the custom dir.
+	if _, err := os.Stat(filepath.Join(dir, ".husky", "commit-msg")); err != nil {
+		t.Errorf("hook not installed into custom hooksPath: %v", err)
+	}
+}
+
+// TestInstallHooksWarnsWhenComposing (SQ-0022): appending our block to a user's
+// existing (sh-compatible) hook is allowed but announced, so the user knows two
+// systems now share the hook.
+func TestInstallHooksWarnsWhenComposing(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	foreign := "#!/bin/sh\necho other-tool ran\n"
+	if err := os.WriteFile(filepath.Join(hooksDir, "commit-msg"), []byte(foreign), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	out, code := runBin(t, bin, dir, "install-hooks")
+	if code != 0 {
+		t.Fatalf("install-hooks exit=%d out=%s", code, out)
+	}
+	if !strings.Contains(out, "composed") || !strings.Contains(out, "commit-msg") {
+		t.Errorf("expected a compose warning naming commit-msg, got:\n%s", out)
+	}
+	// Both the foreign body and our block survive.
+	b, err := os.ReadFile(filepath.Join(hooksDir, "commit-msg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "other-tool ran") || !strings.Contains(string(b), hookMarker) {
+		t.Errorf("compose did not preserve both bodies:\n%s", b)
+	}
+}
+
 func containsLine(s, want string) bool { return countLine(s, want) > 0 }
 
 func countLine(s, want string) int {

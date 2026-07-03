@@ -194,10 +194,12 @@ Appending assumes the existing hook runs under a POSIX shell: a hook whose
 shebang names a non-sh interpreter (python, node, …) is **skipped with a warning**
 rather than corrupted (SQ-0020) — migrate it to call `side-quest <hook>` itself.
 Our block still runs **last**, so an existing hook that exits early can shadow it;
-that ordering caveat is documented but not yet enforced. A repo already driving a
-different bookkeeping system through `core.hooksPath` should retire it before
-adopting side-quest (SQ-0022); the
-[manual-setup guide](manual-setup.md#existing-git-hooks) walks through this.
+that ordering caveat is documented but not yet enforced. install-hooks also
+**warns** (SQ-0022) when `core.hooksPath` is set — another framework (husky,
+pre-commit) likely owns that dir — and whenever it composes into a hook that
+already had content, so a repo driving a different bookkeeping system surfaces
+the conflict instead of getting side-quest silently appended; the
+[manual-setup guide](manual-setup.md#existing-git-hooks) walks through migrating.
 
 The **current-quest pointer** is worktree-local state (`<git-dir>/side-quest-current`),
 not ref state: each worktree has its own, and it never travels with a push.

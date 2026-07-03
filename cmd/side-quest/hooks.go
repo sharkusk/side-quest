@@ -39,6 +39,12 @@ func cmdInstallHooks(args []string) error {
 	if err != nil {
 		return err
 	}
+	// A non-default core.hooksPath usually means another framework (husky,
+	// pre-commit) owns the hooks dir. We still honor it, but say so — a silent
+	// install into someone else's hooks dir is how workflows get tangled.
+	if hp, err := g.Run("config", "--get", "core.hooksPath"); err == nil && hp != "" {
+		fmt.Fprintf(os.Stderr, "side-quest: core.hooksPath is set (%s) — installing there. If another tool (husky, pre-commit) manages it, migrate off that tool first.\n", hp)
+	}
 	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
 		return err
 	}
@@ -56,9 +62,12 @@ func cmdInstallHooks(args []string) error {
 		if err != nil {
 			return err
 		}
-		if outcome == hookSkipped {
+		switch outcome {
+		case hookSkipped:
 			fmt.Fprintf(os.Stderr, "side-quest: SKIPPED the existing %s hook — it has a non-sh shebang, and appending our sh block would corrupt it.\n", sh.name)
 			fmt.Fprintf(os.Stderr, "  Migrate that hook to call `side-quest %s` itself, or remove it and re-run install-hooks.\n", sh.name)
+		case hookComposed:
+			fmt.Fprintf(os.Stderr, "side-quest: composed into the existing %s hook (it already had content) — verify the two coexist.\n", sh.name)
 		}
 	}
 

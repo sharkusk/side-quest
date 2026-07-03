@@ -35,9 +35,15 @@ one-time, per-repo.
 
 Already have a git hook framework? (Husky, pre-commit, or a custom setup via
 `core.hooksPath`.) `install-hooks` composes into whatever hooks directory git
-uses, appending its own marker-guarded block without clobbering yours. Retire or
-migrate any *conflicting* bookkeeping first, and unset a stale `core.hooksPath`
-if you want the shims in the default `.git/hooks`.
+uses, appending its own marker-guarded block without clobbering yours — and it
+tells you when it does. It **warns** if `core.hooksPath` is set (that dir usually
+belongs to another framework) and whenever it appends to a hook that already had
+content, and it **skips** — leaving untouched — any hook whose shebang names a
+non-sh interpreter (a Python or Node hook), since appending shell lines would
+corrupt it. Heed those warnings: retire or migrate any *conflicting* bookkeeping
+first, unset a stale `core.hooksPath` if you want the shims in the default
+`.git/hooks`, and for a skipped hook, fold a `side-quest <hook>` call into it by
+hand.
 
 ## Wire up your agent
 
