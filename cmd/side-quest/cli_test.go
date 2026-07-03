@@ -71,6 +71,27 @@ func TestNoteMissingTextExitsTwo(t *testing.T) {
 	}
 }
 
+// The usage output is the only place enum values are discoverable (subcommand
+// -h is silenced), so it must list the valid type/priority/status values.
+func TestUsageListsEnumValues(t *testing.T) {
+	bin := buildBinary(t)
+	dir := t.TempDir()
+
+	out, code := runBin(t, bin, dir) // no args -> usage on stderr, exit 2
+	if code != 2 {
+		t.Fatalf("bare invocation should exit 2, got %d\n%s", code, out)
+	}
+	for _, want := range []string{
+		"bug|feature",
+		"high|low",
+		"open|partial|done|deferred|discarded",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("usage missing enum values %q\n%s", want, out)
+		}
+	}
+}
+
 func TestNewFlagsTypePriorityTagCurrentJSON(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)

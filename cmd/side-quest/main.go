@@ -32,7 +32,12 @@ const usage = `usage: side-quest <command> [args]
   prepare-commit-msg <file> [..]  (hook) inject the current-quest trailer
   install-hooks                   install git hooks + refs/side-quest/* refspec
   serve                           run the stdio MCP server
-  version                         print the side-quest version`
+  version                         print the side-quest version
+
+values:
+  type      bug|feature (default feature)
+  priority  high|low (default low)
+  status    open|partial|done|deferred|discarded (new quests start open)`
 
 // version is overwritten at release build time via -ldflags "-X main.version=<tag>".
 // A plain `go build` / `go install` leaves it as "dev".
