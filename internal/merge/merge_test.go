@@ -181,3 +181,28 @@ func idsOf(r Result) string {
 	sort.Strings(ids)
 	return strings.Join(ids, ",")
 }
+
+func TestMergeConfigSeqNextMaxAndLWW(t *testing.T) {
+	base := side(q("SQ-0001", "x", quest.StatusOpen))
+	base.Config = config.Default() // seq_next 1
+
+	local := side(q("SQ-0001", "x", quest.StatusOpen))
+	local.Config = config.Default()
+	local.Config.SeqNext = 9
+	local.Config.Tone = config.TonePlain
+	local.ConfigTouch = time.Date(2026, 1, 2, 10, 0, 0, 0, time.UTC)
+
+	remote := side(q("SQ-0001", "x", quest.StatusOpen))
+	remote.Config = config.Default()
+	remote.Config.SeqNext = 5
+	remote.Config.Tone = config.ToneDCC
+	remote.ConfigTouch = time.Date(2026, 1, 2, 11, 0, 0, 0, time.UTC) // later -> tone wins
+
+	res, _ := Merge(base, local, remote)
+	if res.Config.SeqNext != 9 {
+		t.Errorf("seq_next = %d, want max 9", res.Config.SeqNext)
+	}
+	if res.Config.Tone != config.ToneDCC {
+		t.Errorf("tone = %q, want later writer's dcc", res.Config.Tone)
+	}
+}

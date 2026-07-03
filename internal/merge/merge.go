@@ -127,6 +127,7 @@ func Merge(base, local, remote Side) (Result, []Event) {
 		events = append(events, Event{Kind: Renamed, ID: newID,
 			Detail: "renamed from " + old + " (id collision)"})
 	}
+	res.Config = mergeConfig(base.Config, local.Config, remote.Config, local.ConfigTouch, remote.ConfigTouch)
 	return res, events
 }
 
@@ -272,4 +273,29 @@ func unionTags(winner, l, r *quest.Quest) map[string]string {
 		return nil
 	}
 	return out
+}
+
+// mergeConfig merges the on-ref config: seq_next only ever moves forward (max of
+// all three), and every other field is last-writer-wins by config touch time,
+// with an exact tie broken by larger marshaled bytes for determinism.
+func mergeConfig(base, local, remote config.Config, lTouch, rTouch time.Time) config.Config {
+	out := local
+	if rTouch.After(lTouch) {
+		out = remote
+	} else if lTouch.Equal(rTouch) {
+		lb, _ := config.Marshal(local)
+		rb, _ := config.Marshal(remote)
+		if bytes.Compare(rb, lb) > 0 {
+			out = remote
+		}
+	}
+	out.SeqNext = maxInt(base.SeqNext, maxInt(local.SeqNext, remote.SeqNext))
+	return out
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
