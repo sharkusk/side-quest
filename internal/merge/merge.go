@@ -114,10 +114,11 @@ func unionIDs(maps ...map[string]*quest.Quest) []string {
 // mergeConflict resolves a quest changed on both sides. The later-touched side
 // wins the scalar fields (equal times break on larger canonical bytes, a
 // side-independent tiebreak); Created is the earliest seen; commits and tags
-// union. Body is the winner's here and is refined in Task 3.
+// union. Body keeps the winner's preamble and unions both sides' notes.
 func mergeConflict(id string, b, l, r *quest.Quest, lTouch, rTouch time.Time) *quest.Quest {
 	winner := laterWins(l, r, lTouch, rTouch)
 	out := *winner // copy the winning scalars (Title, Status, Type, Priority, Context, Body, Completed)
+	out.Body = mergeBody(winner, l, r)
 	out.ID = id
 	out.Created = earliest(b, l, r)
 	out.Commits = unionCommits(b, l, r)
