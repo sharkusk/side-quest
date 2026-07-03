@@ -235,6 +235,14 @@ renders `dcc-superfan` as `dcc`, and when the user's own line file
 to stderr pointing at `superfan-lines.example.txt`. Wiring an actual verbatim-line source
 into the render path is unbuilt — deferred to a later phase.
 
+**Configuring the tone (user-facing).** Three tones exist: `plain` (neutral),
+`dcc` (the default flavored voice), and `dcc-superfan` (opt-in; currently falls
+back to `dcc`). Set it persistently with `side-quest config set tone <value>`, or
+override it for one invocation with the `SIDE_QUEST_TONE` environment variable
+(`SIDE_QUEST_TONE=plain` forces neutral output). This is deliberately not
+advertised in the README — the flavored default is meant to be discovered on first
+run — but it is fully documented and configurable here.
+
 ## MCP frontend (`internal/mcp` + `side-quest serve`)
 
 `side-quest serve` runs a stdio MCP server (JSON-RPC over stdin/stdout) built on
@@ -332,3 +340,28 @@ single flag (`rev-parse --absolute-git-dir`); everything else works on far older
 | **discriminator** | Logic classifying a CAS failure as a lost race (retry) vs a real error (surface). |
 | **TOCTOU** | Time-Of-Check-To-Time-Of-Use — a bug class where state changes between checking and acting; avoided by validating *inside* the CAS-retried closure. |
 | **`LC_ALL=C`** | POSIX master locale override forcing the default "C" locale, so git's messages stay stable English. |
+
+## Packaging & distribution (Phase 7)
+
+side-quest ships both as a standalone binary and as a Claude Code plugin from the
+same repository.
+
+- **Plugin manifests** live in `.claude-plugin/` (`plugin.json`, `marketplace.json`).
+  `commands/sq.md` is the `/sq` capture command (it calls the `quest_new` MCP tool);
+  `AGENTS.md` is the agent-agnostic contract; `skills/side-quest/SKILL.md` is the
+  Claude-flavored workflow skill.
+- **The `.mcp.json`** launches the server by bare name (`side-quest serve`). Inside
+  an installed plugin, Claude prepends the plugin's `bin/` to `PATH`, so `side-quest`
+  resolves to `bin/side-quest` (POSIX) or `bin/side-quest.cmd` (Windows).
+- **The launcher** (`bin/side-quest`) resolves the native binary in order: a cached
+  copy under `${CLAUDE_PLUGIN_DATA}` → a `side-quest` already on `PATH` → download
+  the matching release asset and verify its SHA-256 against the release
+  `checksums.txt` → otherwise print a `go install` hint and exit non-zero. No
+  compiled binaries are committed to the repo.
+- **Versioning:** the root `VERSION` file is the single source of truth; `plugin.json`'s
+  `version` matches it (test-enforced); the release tag is `v` + `VERSION`. The binary
+  reports its version via `side-quest version`, stamped at release build time by
+  GoReleaser (`-ldflags "-X main.version=<tag>"`); plain builds report `dev`.
+- **Releases** are produced by GoReleaser (`.goreleaser.yaml`) via a tag-triggered
+  GitHub Actions workflow: six targets (darwin/linux/windows × amd64/arm64), archived
+  with README + LICENSE, plus `checksums.txt`.

@@ -1,54 +1,48 @@
 # side-quest
 
-A lightweight, project-specific quest/task tracker for capturing the *side quests* — the
-new ideas, follow-ups, and research tangents that occur to you while working on something
-else — without derailing your current session, and with a clean two-way link between quests
-and the git commits that address them.
+A streamlined, git-native issue tracker for individuals and small teams. Capture
+the *side quests* — the new ideas, follow-ups, and research tangents that occur to
+you mid-work — without derailing your current session, and keep a clean two-way
+link between every quest and the git commits that address it.
 
-> **Status: CLI + MCP server ready; further phases in progress.** The quest store, git hooks, CLI commands (init/new/list/show/status/reclassify/config), and MCP server (`side-quest serve`) are built and tested. Voice/tone is built (see "Tone" below); the babelmap importer and plugin packaging remain in development.
-> See the design spec:
-> [`docs/superpowers/specs/2026-07-02-side-quest-design.md`](docs/superpowers/specs/2026-07-02-side-quest-design.md)
+> **Status: CLI + MCP server + plugin packaging ready.** The quest store, git
+> hooks, CLI (init/new/list/show/status/reclassify/config), MCP server
+> (`side-quest serve`), and the Claude Code plugin are built and tested. A
+> TODO/COMPLETED importer and a `sync` command are planned (see "Roadmap").
 
 ## The problem it solves
 
-Markdown `TODO.md` / `COMPLETED.md` files can't cleanly link a quest to the commit that
-completed it: a commit's hash doesn't exist until *after* the commit, and if the quest file
-lives in the same repo, recording that hash needs another commit — with its own hash. The
-loop never closes.
+Most trackers can't cleanly link a task to the commit that resolved it: a commit's
+hash doesn't exist until *after* the commit, and if the task lives in the same repo,
+recording that hash needs another commit — with its own hash. The loop never closes.
 
-`side-quest` stores quest data on a dedicated git ref (`refs/side-quest/quests`), off your
-main history and never checked out. A `post-commit` hook writes the now-known hash back into
-the quest as a separate commit on that ref — so the loop closes cleanly, and the data still
-travels with your repo.
+side-quest stores quest data on a dedicated git ref (`refs/side-quest/quests`), off
+your main history and never checked out. A `post-commit` hook writes the now-known
+hash back into the quest as a separate commit on that ref — so the loop closes
+cleanly, and the data still travels with your repo.
 
-## Concepts (overview)
+## Concepts
 
 side-quest stores quests as one Markdown file per quest on a dedicated git **ref**
-(`refs/side-quest/quests`) — an **orphan ref** with its own history, off your main line and
-never checked out. It reads and writes that ref with git's low-level **plumbing** commands
-(never touching your working tree), and every change is committed with a **compare-and-swap
-(CAS)** so parallel git worktrees stay safe without a lock.
+(`refs/side-quest/quests`) — an **orphan ref** with its own history, off your main
+line and never checked out. It reads and writes that ref with git's low-level
+**plumbing** commands (never touching your working tree), and every change is
+committed with a **compare-and-swap (CAS)** so parallel git worktrees stay safe
+without a lock.
 
-Quick glossary:
-
-- **ref / orphan ref** — a named pointer to a commit; the orphan ref holds quest data on its
-  own root history.
-- **plumbing** — git's scriptable low-level commands (`cat-file`, `write-tree`, `commit-tree`,
-  `update-ref`), as opposed to everyday `add`/`commit`.
-- **mutation** — any state change (create/update); each builds one new commit on the ref.
-- **CAS (compare-and-swap)** — move the ref only if it still equals the expected old commit;
-  how concurrent writers avoid lost updates without locking.
-- **CRUD** — Create, Read, Update, Delete — the basic persistence operations the store exposes.
+- **ref / orphan ref** — a named pointer to a commit; the orphan ref holds quest
+  data on its own root history.
 - **type / priority** — every quest carries a `type` (bug/feature) and a `priority`
-  (high/low), constrained enums that default to feature/low when a quick capture omits them.
-- **trailer** — `Quest: SQ-xxxx` / `Completes: SQ-xxxx` lines in a commit
-  message; a `post-commit` hook reads them and links the commit to the quest
-  (`Quest: none` opts a chore out).
+  (high/low), enums that default to feature/low when a quick capture omits them.
+- **status** — `open` (default), `partial`, `done`, `deferred`, `discarded`.
+- **trailer** — `Quest: SQ-xxxx` / `Completes: SQ-xxxx` lines in a commit message; a
+  `post-commit` hook reads them and links the commit to the quest (`Quest: none`
+  opts a chore out).
 - **current quest** — a per-worktree pointer (`side-quest current <id>`) that
   `prepare-commit-msg` uses to auto-fill the `Quest:` trailer.
 
-**→ For the full explanation of the storage model, CAS, the mutation flow, and id
-allocation, see [`docs/architecture.md`](docs/architecture.md).**
+**→ For the storage model, CAS, the mutation flow, and id allocation, see
+[`docs/architecture.md`](docs/architecture.md).**
 
 ## Usage
 
@@ -63,23 +57,80 @@ side-quest config set require_quest true
 side-quest config get
 ```
 
-Add `--json` to `new`, `list`, `show`, or `config get` for machine-readable
-output. Flags may appear before or after the title/id positional argument.
+Add `--json` to `new`, `list`, `show`, or `config get` for machine-readable output.
+Flags may appear before or after the title/id positional argument.
 
-## Tone
+## Installation
 
-Human-facing confirmations and warnings (not `--json`, quest bodies, config values, or
-errors — those stay neutral no matter what) render in one of three tones: `plain`; `dcc`
-(the default — a *Dungeon Crawler Carl*-flavored voice, an original homage with no
-verbatim text); and `dcc-superfan`, which currently falls back to `dcc` with a one-time
-hint (see "Credits & permissions" below). Set it with `side-quest config set tone
-<value>`, or override it per-invocation with the `SIDE_QUEST_TONE` environment variable.
+### Prebuilt binary (no toolchain)
+
+Download the archive for your platform from the
+[Releases](https://github.com/sharkusk/side-quest/releases) page, extract the
+`side-quest` binary, and put it on your `PATH`.
+
+| Platform | Where to put it | Notes |
+|---|---|---|
+| macOS | `/usr/local/bin` or `~/.local/bin` | `chmod +x side-quest`; first run may be blocked by Gatekeeper (unsigned) — clear it with `xattr -d com.apple.quarantine side-quest` |
+| Linux | `~/.local/bin` (often on `PATH`) or `/usr/local/bin` (sudo) | `chmod +x side-quest` |
+| Windows | a folder you add to `Path`, e.g. `%LOCALAPPDATA%\Programs\side-quest\` | use `side-quest.exe` |
+
+### `go install` (needs Go ≥ 1.25)
+
+```
+go install github.com/sharkusk/side-quest/cmd/side-quest@latest
+```
+
+This installs to `~/go/bin` (`%USERPROFILE%\go\bin` on Windows), which is **not on
+`PATH` by default** — add it:
+
+- macOS/Linux: `export PATH="$HOME/go/bin:$PATH"` in your shell profile.
+- Windows: add `%USERPROFILE%\go\bin` to your user `Path` environment variable.
+
+### Build from source (needs Go ≥ 1.25)
+
+```
+git clone https://github.com/sharkusk/side-quest && cd side-quest
+go build -o side-quest ./cmd/side-quest
+```
+
+### Per-project setup
+
+Inside the repo you want to track:
+
+```
+side-quest init            # create the quest ref
+side-quest install-hooks   # install git hooks + the refs/side-quest/* refspec
+```
+
+### Claude Code plugin
+
+```
+/plugin marketplace add sharkusk/side-quest
+/plugin install side-quest
+```
+
+The plugin registers the `side-quest` MCP server and the `/sq` capture command. On
+first use it **auto-provisions** the matching `side-quest` binary (downloaded from
+the release and checksum-verified) into a per-plugin cache. If a download isn't
+possible (offline, or before the project is public), install the binary yourself
+with `go install github.com/sharkusk/side-quest/cmd/side-quest@latest` and the
+plugin will use it from your `PATH`.
+
+### Sharing quests across machines
+
+The `refs/side-quest/quests` ref is not fetched by default. `side-quest init`
+configures the fetch refspec; to publish quests to a remote, push the ref:
+
+```
+git push origin refs/side-quest/quests
+```
+
+A dedicated `sync` command that automates pull/push is **planned** (see "Roadmap").
 
 ## MCP server
 
 `side-quest serve` runs a stdio MCP server so any MCP-capable agent can capture,
-read, and drive quests. Register it with your agent (end-user form, assumes
-`side-quest` is on PATH):
+read, and drive quests. Register it (assumes `side-quest` is on `PATH`):
 
 ```json
 { "mcpServers": { "side-quest": { "command": "side-quest", "args": ["serve"] } } }
@@ -87,23 +138,47 @@ read, and drive quests. Register it with your agent (end-user form, assumes
 
 Tools: `quest_new`, `quest_list`, `quest_show`, `quest_set_status`,
 `quest_reclassify`, `quest_update`, `quest_note`, `quest_set_current`,
-`quest_get_current`, `quest_link_commit`. Responses are neutral JSON.
+`quest_get_current`, `quest_link_commit`. Responses are neutral JSON. For
+agent-facing guidance see [`AGENTS.md`](AGENTS.md) and
+[`skills/side-quest/SKILL.md`](skills/side-quest/SKILL.md).
 
-**Developing side-quest with side-quest (dogfooding):** this repo's `.mcp.json`
-uses `go run ./cmd/side-quest serve`, which recompiles from source on each
-launch, so every new session runs your latest code — no install step, and it
-won't disturb a `side-quest` you use elsewhere. Restart the server to pick up
-code or tool-schema changes. Quest data lives on the git ref and is
-binary-version-independent (the on-ref parser is default-tolerant), so switching
-binaries mid-session is safe.
+## Development
 
-The babelmap importer and plugin distribution are in development.
+- **Requirements:** Go ≥ 1.25; the system `git` binary (used as a subprocess);
+  `gopkg.in/yaml.v3`; the MCP Go SDK. No CGo — a pure-Go static binary.
+  [GoReleaser](https://goreleaser.com) is needed only to cut releases.
+- **Layout:** `internal/` packages (`quest`, `config`, `gitcmd`, `store`,
+  `trailer`, `voice`) with the `cli` and `mcp` frontends under `cmd/side-quest`.
+- **Build & test:**
+
+  ```
+  go build ./...
+  go test ./...
+  go vet ./...
+  ```
+
+- **Cutting a release:** bump `VERSION` and `plugin.json`'s `version` together, then
+  `git tag v$(cat VERSION) && git push --tags`. The release workflow runs GoReleaser
+  and publishes the six platform archives + `checksums.txt`. Validate the config
+  locally with `goreleaser check` and `goreleaser build --snapshot --clean`.
+- **Developing side-quest while using it elsewhere:** keep the released
+  `side-quest` on your `PATH` for the project you track in production; for
+  development, build a local `./side-quest` (`go build -o side-quest ./cmd/side-quest`)
+  and invoke it explicitly. Never point a work-in-progress binary at a live repo —
+  run it against the side-quest repo itself or throwaway `git init` scratch repos
+  (the test suite already isolates via temp repos). Quest data is per-repo on
+  `refs/side-quest/*`, so working in this repo cannot touch another project's quests.
+
+## Roadmap
+
+- **Importer** — a best-effort importer for existing `TODO.md` / `COMPLETED.md`
+  files (planned).
+- **`sync`** — a command to pull/push the quest ref across machines (planned).
 
 ## Credits & permissions
 
-side-quest's `dcc` tone is an original homage to *Dungeon Crawler Carl* by Matt
-Dinniman — no verbatim book/show text is included or shipped. Verbatim catch phrases are
-never distributed with side-quest; the `dcc-superfan` tone only loads them from a file
-you create yourself, at `~/.config/side-quest/superfan-lines.txt` (see
-[`superfan-lines.example.txt`](superfan-lines.example.txt) for the format). Public or
-committed use of verbatim phrases requires permission from the author.
+side-quest's output has a bit of personality under the hood. Its flavored voice is
+an original homage to *Dungeon Crawler Carl* by Matt Dinniman — no verbatim
+book/show text is included or shipped. Verbatim catch phrases are never distributed
+with side-quest; they load only from a file you create yourself. Public or committed
+use of verbatim phrases requires permission from the author.

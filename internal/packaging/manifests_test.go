@@ -109,3 +109,29 @@ func TestAgentsDocPointsToSkill(t *testing.T) {
 		}
 	}
 }
+
+func TestReadmeReframedAndToneRemoved(t *testing.T) {
+	r := string(repoFile(t, "README.md"))
+	if strings.Contains(r, "\n## Tone\n") {
+		t.Error("README must not have a Tone section (voice is kept a surprise)")
+	}
+	if !strings.Contains(r, "go install github.com/sharkusk/side-quest/cmd/side-quest@latest") {
+		t.Error("README missing the corrected go install path")
+	}
+	if !strings.Contains(r, "1.25") {
+		t.Error("README must state the Go >=1.25 floor")
+	}
+	if strings.Contains(r, "go install github.com/sharkusk/side-quest@latest") {
+		t.Error("README still has the broken root-path go install command")
+	}
+}
+
+func TestArchitectureHasToneAndPackaging(t *testing.T) {
+	a := string(repoFile(t, "docs/architecture.md"))
+	if !strings.Contains(a, "SIDE_QUEST_TONE") {
+		t.Error("architecture.md should document the SIDE_QUEST_TONE override")
+	}
+	if !strings.Contains(a, "CLAUDE_PLUGIN_ROOT") && !strings.Contains(a, "launcher") {
+		t.Error("architecture.md should document the plugin launcher/packaging")
+	}
+}
