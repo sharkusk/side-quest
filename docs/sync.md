@@ -123,11 +123,12 @@ clone computes the identical outcome without needing to talk to each other first
 
 1. The version with the **earlier `Created`** keeps `SQ-0007`. (Tie: the lexicographically
    smaller marshaled bytes keeps it — again, a rule independent of which side is "local".)
-2. The loser is re-keyed to `SQ-<first 6 hex of sha256(its marshaled bytes)>` — a
-   content-derived id, so both clones compute the identical replacement without coordinating.
-   For example, if the local clone's `SQ-0007` ("Add timeout to retry loop") is the loser, it
-   might become `SQ-a3f9c2`. In the vanishing chance that id is already taken, the merge
-   widens to 8 hex characters, then 10, and so on — still a pure function of the bytes.
+2. The loser is re-keyed to `<prefix>-<first 6 hex of sha256(its marshaled bytes)>` (where
+   `<prefix>` is the repo's configured `id_prefix`) — a content-derived id, so both clones
+   compute the identical replacement without coordinating. For example, in a repo with the
+   default `SQ` prefix, if the local clone's `SQ-0007` ("Add timeout to retry loop") is the
+   loser, it might become `SQ-a3f9c2`. In the vanishing chance that id is already taken, the
+   merge widens to 8 hex characters, then 10, and so on — still a pure function of the bytes.
 3. A note is appended to the loser recording what happened —
    `renamed from SQ-0007 on sync: id collision` — so the history of the rename is visible
    inside the quest itself, and a `Renamed` event is reported (`side-quest sync` prints a

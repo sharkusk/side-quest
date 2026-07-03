@@ -238,7 +238,8 @@ its own document: **[`docs/sync.md`](sync.md)**. Summary of the moving parts, fo
   tracking ref, `refs/side-quest-remote/quests` (`store.FetchRefspec`), instead of the old
   `refs/side-quest/*:refs/side-quest/*`, which pointed fetch directly at the live ref and left
   it either stale (on divergence) or silently clobbered (on a fast-forward). The push refspec
-  no longer includes the quest ref at all — only `HEAD`, so a bare `git push` still sends your
+  no longer includes the quest ref at all — only `HEAD` (which `install-hooks` itself
+  configures as `remote.origin.push`), so a bare `git push` still sends your
   branch — because the quest ref is now published by the `pre-push` hook, which can guarantee
   it's fast-forwardable at push time in a way a static refspec cannot. `install-hooks`/`onboard`
   migrate old installs to the new refspecs idempotently (`addRefspec` in `cmd/side-quest/hooks.go`).
