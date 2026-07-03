@@ -15,7 +15,9 @@ if exist "%BIN%" (
 )
 
 rem 2. A side-quest already on PATH (dev build / go install), not this launcher.
-for /f "delims=" %%p in ('where side-quest 2^>nul') do (
+rem Match only side-quest.exe so the sibling extensionless POSIX launcher and
+rem this .cmd (both on the plugin bin/ PATH) are never picked by mistake.
+for /f "delims=" %%p in ('where side-quest.exe 2^>nul') do (
   if /I not "%%~fp"=="%~f0" (
     "%%~fp" %*
     exit /b %errorlevel%

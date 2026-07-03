@@ -137,8 +137,11 @@ func TestArchitectureHasToneAndPackaging(t *testing.T) {
 	if !strings.Contains(a, "SIDE_QUEST_TONE") {
 		t.Error("architecture.md should document the SIDE_QUEST_TONE override")
 	}
-	if !strings.Contains(a, "CLAUDE_PLUGIN_ROOT") && !strings.Contains(a, "launcher") {
-		t.Error("architecture.md should document the plugin launcher/packaging")
+	if !strings.Contains(a, "Packaging & distribution") {
+		t.Error("architecture.md should have the packaging section")
+	}
+	if !strings.Contains(a, "launcher") {
+		t.Error("architecture.md should document the plugin binary launcher")
 	}
 	if !strings.Contains(a, "Dungeon Crawler") {
 		t.Error("architecture.md must contain the Dungeon Crawler voice attribution")
