@@ -173,6 +173,17 @@ skipped rather than failing the user's already-made commit.
 collapses duplicate env keys keeping the last value, so the store's scratch
 `GIT_INDEX_FILE` always wins and a hook can never mutate the user's real index.
 
+**Where the shims land, and composing with existing hooks:** install-hooks
+honors `core.hooksPath` when set, otherwise writes to `<common-git-dir>/hooks`.
+Each shim is a marker-guarded block (`# >>> side-quest >>>` … `# <<< side-quest
+<<<`): installing into an existing hook **appends** our block and leaves the rest
+intact, and re-installing replaces only our block (idempotent, never duplicated).
+It assumes the existing hook is POSIX-sh and runs our block last — a non-sh hook,
+or one that exits early, needs care (SQ-0020). A repo already driving a different
+bookkeeping system through `core.hooksPath` should retire it before adopting
+side-quest (SQ-0022); the [README onboarding checklist](../README.md#adopting-side-quest-in-a-project)
+walks through this.
+
 The **current-quest pointer** is worktree-local state (`<git-dir>/side-quest-current`),
 not ref state: each worktree has its own, and it never travels with a push.
 

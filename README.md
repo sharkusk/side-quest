@@ -138,6 +138,38 @@ git push origin refs/side-quest/quests
 
 A dedicated `sync` command that automates this is **planned** (see "Roadmap").
 
+## Adopting side-quest in a project
+
+Bringing side-quest into an existing repo — the full checklist:
+
+1. **Install the binary** ([Installation](#installation)) and put it on your `PATH`.
+2. **`side-quest init`** — create the quest ref (once per repo).
+3. **`side-quest install-hooks`** — install the hooks and refspecs.
+   > **Already have a git hook framework?** (Husky, pre-commit, or a custom setup
+   > via `core.hooksPath`.) install-hooks composes into whatever hooks directory
+   > git uses, appending its own marker-guarded block without clobbering yours.
+   > Retire or migrate any *conflicting* bookkeeping first, and unset a stale
+   > `core.hooksPath` if you want the shims in the default `.git/hooks`.
+4. **Wire up your agent:**
+   - **Plugin (Claude Code):** `/plugin install side-quest` registers the MCP
+     server, the `/sq` command, and the guidance skill — nothing to add to your
+     `AGENTS.md`.
+   - **Manual (other agents, or before the plugin is public):** add a project
+     [`.mcp.json`](#mcp-server) that runs `side-quest serve`, and add side-quest's
+     guidance to your **`AGENTS.md`**. If the project already has an `AGENTS.md`,
+     append side-quest's block as a new section — **merge, don't overwrite** (the
+     block to copy is this repo's [`AGENTS.md`](AGENTS.md)). Optionally add a `/sq`
+     command at `.claude/commands/sq.md`.
+5. **Restart the agent session** so the MCP server, commands, and `AGENTS.md` load
+   — you'll be prompted once to approve a new project MCP server.
+6. **Share across machines** — see
+   [Sharing quests across machines](#sharing-quests-across-machines).
+
+**`PATH` note:** a bare `side-quest serve` in `.mcp.json` needs `side-quest` on the
+launching shell's `PATH` (e.g. `~/go/bin`). A GUI-launched agent may not inherit
+your shell `PATH` — use an absolute path to the binary if the server fails to
+start.
+
 ## MCP server
 
 `side-quest serve` runs a stdio MCP server so any MCP-capable agent can capture,
