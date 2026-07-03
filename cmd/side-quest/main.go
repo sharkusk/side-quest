@@ -28,7 +28,8 @@ const usage = `usage: side-quest <command> [args]
   current [<id> | --clear]        get / set / clear this worktree's active quest
   commit-msg <file>               (hook) warn or reject when a trailer is missing
   prepare-commit-msg <file> [..]  (hook) inject the current-quest trailer
-  install-hooks                   install git hooks + refs/side-quest/* refspec`
+  install-hooks                   install git hooks + refs/side-quest/* refspec
+  serve                           run the stdio MCP server`
 
 func main() {
 	if len(os.Args) < 2 {
@@ -72,6 +73,8 @@ func run(cmd string, args []string) error {
 		return cmdPrepareCommitMsg(args)
 	case "install-hooks":
 		return cmdInstallHooks(args)
+	case "serve":
+		return cmdServe(args)
 	default:
 		return fmt.Errorf("unknown command %q\n%s", cmd, usage)
 	}
