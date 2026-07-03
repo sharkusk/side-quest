@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png">
+    <img src="docs/logo-light.png" alt="side-quest" width="280">
+  </picture>
+</p>
+
 # side-quest
 
 A streamlined, git-native issue tracker for individuals and small teams. Capture
