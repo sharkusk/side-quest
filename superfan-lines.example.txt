@@ -1,0 +1,13 @@
+# side-quest superfan lines (EXAMPLE — ships empty on purpose)
+#
+# This file is where you may place your OWN verbatim Dungeon Crawler Carl
+# catch phrases for the `dcc-superfan` tone. It is intentionally empty.
+#
+# - Verbatim book/show text is NEVER shipped in this repository.
+# - Copy this file to  ~/.config/side-quest/superfan-lines.txt  and add one
+#   phrase per line. Lines beginning with '#' and blank lines are ignored.
+# - Using verbatim phrases publicly (committed or shared) requires permission
+#   from the author, Matt Dinniman. See README "Credits & permissions".
+#
+# Until this file exists at the path above, `tone: dcc-superfan` behaves as
+# `dcc` and prints a one-time hint naming the expected location.

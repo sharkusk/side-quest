@@ -5,7 +5,7 @@ new ideas, follow-ups, and research tangents that occur to you while working on 
 else — without derailing your current session, and with a clean two-way link between quests
 and the git commits that address them.
 
-> **Status: CLI + MCP server ready; further phases in progress.** The quest store, git hooks, CLI commands (init/new/list/show/status/reclassify/config), and MCP server (`side-quest serve`) are built and tested. Voice/tone, babelmap importer, and plugin packaging remain in development.
+> **Status: CLI + MCP server ready; further phases in progress.** The quest store, git hooks, CLI commands (init/new/list/show/status/reclassify/config), and MCP server (`side-quest serve`) are built and tested. Voice/tone is built (see "Tone" below); the babelmap importer and plugin packaging remain in development.
 > See the design spec:
 > [`docs/superpowers/specs/2026-07-02-side-quest-design.md`](docs/superpowers/specs/2026-07-02-side-quest-design.md)
 
@@ -66,6 +66,15 @@ side-quest config get
 Add `--json` to `new`, `list`, `show`, or `config get` for machine-readable
 output. Flags come before the title/id positional argument.
 
+## Tone
+
+Human-facing confirmations and warnings (not `--json`, quest bodies, config values, or
+errors — those stay neutral no matter what) render in one of three tones: `plain`; `dcc`
+(the default — a *Dungeon Crawler Carl*-flavored voice, an original homage with no
+verbatim text); and `dcc-superfan`, which currently falls back to `dcc` with a one-time
+hint (see "Credits & permissions" below). Set it with `side-quest config set tone
+<value>`, or override it per-invocation with the `SIDE_QUEST_TONE` environment variable.
+
 ## MCP server
 
 `side-quest serve` runs a stdio MCP server so any MCP-capable agent can capture,
@@ -88,4 +97,13 @@ code or tool-schema changes. Quest data lives on the git ref and is
 binary-version-independent (the on-ref parser is default-tolerant), so switching
 binaries mid-session is safe.
 
-Voice/tone layer, the babelmap importer, and plugin distribution are in development.
+The babelmap importer and plugin distribution are in development.
+
+## Credits & permissions
+
+side-quest's `dcc` tone is an original homage to *Dungeon Crawler Carl* by Matt
+Dinniman — no verbatim book/show text is included or shipped. Verbatim catch phrases are
+never distributed with side-quest; the `dcc-superfan` tone only loads them from a file
+you create yourself, at `~/.config/side-quest/superfan-lines.txt` (see
+[`superfan-lines.example.txt`](superfan-lines.example.txt) for the format). Public or
+committed use of verbatim phrases requires permission from the author.

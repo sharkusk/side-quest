@@ -202,6 +202,38 @@ other errors exit 1.
 The CLI relies on two store/config additions: `store.SetAutoTrailer` and
 `config.Strategy.Valid()`.
 
+### Voice layer (`internal/voice`)
+
+`internal/voice` renders the small set of human-facing confirmation/warning strings
+(`QuestCreated`, `StatusSet`, `MissingTrailer`, `EmptyList`, `Initialized`,
+`HooksInstalled`) in a selected **tone**. The package is pure — no I/O — and built from
+three pieces: a `pools` table (`tone -> message key -> candidate lines`), an injectable
+`source` interface for randomness (production uses `math/rand`; tests inject a
+deterministic stub), and typed methods on `*Voice` so call sites never touch raw keys or
+format strings.
+
+Two tones actually render: `plain` (one neutral line per key) and `dcc` (several
+candidate lines per key, picked at random, in the voice of *Dungeon Crawler Carl* — see
+"Credits & permissions" in the [README](../README.md)). `Voice.New` collapses anything
+that isn't `plain` to `dcc`.
+
+**Tone precedence**, resolved once per invocation by `voice.ResolveTone` +
+`cmd/side-quest/voice.go`'s `newVoice`: the `SIDE_QUEST_TONE` environment variable wins
+if it's a valid tone; otherwise the on-ref config's `tone` field is used; the config
+default is `dcc`.
+
+**Neutral-path rule:** `--json` output, data displays (quest bodies, config values), and
+error messages never route through `voice` — they stay tone-free regardless of the
+configured tone, so scripts and agents parsing output never see flavor text.
+`TestNewJSONNeutralAcrossTones` asserts this holds across all tone settings.
+
+**`dcc-superfan` status (this phase):** the tone is recognized and stored
+(`config.Tone.Valid()`), but no verbatim-line file ships with side-quest. `voice.EffectiveTone` always
+renders `dcc-superfan` as `dcc`, and when the user's own line file
+(`~/.config/side-quest/superfan-lines.txt`) is absent, `newVoice` prints a one-time hint
+to stderr pointing at `superfan-lines.example.txt`. Wiring an actual verbatim-line source
+into the render path is unbuilt — deferred to a later phase.
+
 ## MCP frontend (`internal/mcp` + `side-quest serve`)
 
 `side-quest serve` runs a stdio MCP server (JSON-RPC over stdin/stdout) built on
