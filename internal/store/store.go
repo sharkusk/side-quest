@@ -456,6 +456,54 @@ func (s *Store) SetPriority(id string, p quest.Priority) error {
 	return s.Update(id, func(q *quest.Quest) { q.Priority = p })
 }
 
+// AppendNote appends text to a quest's body as a new, UTC-timestamped entry,
+// leaving any existing body intact. The Update closure may run more than once
+// under CAS, so it recomputes from the freshly-read body each time.
+func (s *Store) AppendNote(id, text string) error {
+	if strings.TrimSpace(text) == "" {
+		return fmt.Errorf("note text is empty")
+	}
+	ts := time.Now().UTC().Format(time.RFC3339)
+	return s.Update(id, func(q *quest.Quest) {
+		var b strings.Builder
+		b.WriteString(q.Body)
+		if q.Body != "" {
+			if !strings.HasSuffix(q.Body, "\n") {
+				b.WriteString("\n")
+			}
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(&b, "--- note %s ---\n\n%s\n", ts, strings.TrimRight(text, "\n"))
+		q.Body = b.String()
+	})
+}
+
+// SetTitle replaces a quest's title. An empty title is rejected — a quest must
+// keep a title.
+func (s *Store) SetTitle(id, title string) error {
+	if strings.TrimSpace(title) == "" {
+		return fmt.Errorf("title is empty")
+	}
+	return s.Update(id, func(q *quest.Quest) { q.Title = title })
+}
+
+// MergeTags merges tags into a quest's tag map: a non-empty value sets/overwrites
+// the key; an empty value deletes it.
+func (s *Store) MergeTags(id string, tags map[string]string) error {
+	return s.Update(id, func(q *quest.Quest) {
+		for k, v := range tags {
+			if v == "" {
+				delete(q.Tags, k)
+				continue
+			}
+			if q.Tags == nil {
+				q.Tags = map[string]string{}
+			}
+			q.Tags[k] = v
+		}
+	})
+}
+
 // AddCommit appends sha to a quest's commit list (deduped). When complete is
 // true it also closes the quest (used by the Completes: trailer in a later
 // phase).

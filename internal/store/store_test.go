@@ -555,3 +555,57 @@ func TestSetTypeAndPriorityRejectInvalid(t *testing.T) {
 		t.Errorf("rejected sets mutated the quest: %q/%q", got.Type, got.Priority)
 	}
 }
+
+func TestAppendNoteAccumulates(t *testing.T) {
+	s := newStore(t)
+	q, err := s.Create("noted", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AppendNote(q.ID, "first finding"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AppendNote(q.ID, "second finding"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Get(q.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.Body, "first finding") || !strings.Contains(got.Body, "second finding") {
+		t.Fatalf("both notes should survive, body=%q", got.Body)
+	}
+	if err := s.AppendNote(q.ID, "  "); err == nil {
+		t.Fatal("empty note text should error")
+	}
+}
+
+func TestSetTitleReplacesAndRejectsEmpty(t *testing.T) {
+	s := newStore(t)
+	q, _ := s.Create("old", "", "", "", nil)
+	if err := s.SetTitle(q.ID, "new title"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get(q.ID)
+	if got.Title != "new title" {
+		t.Fatalf("title not replaced: %q", got.Title)
+	}
+	if err := s.SetTitle(q.ID, "   "); err == nil {
+		t.Fatal("empty title should error")
+	}
+}
+
+func TestMergeTagsAddsOverwritesDeletes(t *testing.T) {
+	s := newStore(t)
+	q, _ := s.Create("tagged", "", "", "", map[string]string{"area": "cli", "keep": "yes"})
+	if err := s.MergeTags(q.ID, map[string]string{"area": "mcp", "new": "x", "keep": ""}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get(q.ID)
+	if got.Tags["area"] != "mcp" || got.Tags["new"] != "x" {
+		t.Fatalf("merge/overwrite wrong: %+v", got.Tags)
+	}
+	if _, ok := got.Tags["keep"]; ok {
+		t.Fatalf("empty value should delete key: %+v", got.Tags)
+	}
+}
