@@ -207,6 +207,11 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
 - `reclassify <id> [--type --priority]` — change type and/or priority.
 - `config get` / `config set <key> <value>` — read config; set `require_quest`,
   `auto_trailer`, or `id_strategy`.
+- `onboard` — one-shot per-repo setup: `init` + `install-hooks`, write a project
+  `.mcp.json` if absent, then print the AGENTS.md guidance. Safe to re-run (an
+  existing ref, hooks, and `.mcp.json` are each left as they are).
+- `agents-md` — print the canonical agent-guidance block (the embedded
+  `AGENTS.md`) for pasting into a project's own `AGENTS.md`.
 
 Handlers live in `cli.go`; rendering in `render.go`. Each command is a thin
 adapter over one `store` method — validation stays at the store write boundary

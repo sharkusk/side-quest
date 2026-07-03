@@ -31,6 +31,10 @@ const (
 // ErrNotFound is returned when a quest id has no file on the ref.
 var ErrNotFound = errors.New("quest not found")
 
+// ErrAlreadyInitialized is returned by Init when the ref already exists, so
+// callers like `onboard` can treat a re-init as a no-op rather than a failure.
+var ErrAlreadyInitialized = errors.New("side-quest already initialized")
+
 // Store is bound to one git repository.
 type Store struct {
 	git    *gitcmd.Git
@@ -253,7 +257,7 @@ func (s *Store) Init() error {
 	}
 	return s.mutate("side-quest: init", func(snap *Snapshot, tx *txn) error {
 		if snap.Tip != "" {
-			return errors.New("side-quest already initialized")
+			return ErrAlreadyInitialized
 		}
 		tx.put(configPath, cfgBytes)
 		return nil

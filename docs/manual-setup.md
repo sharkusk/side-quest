@@ -10,7 +10,14 @@ side-quest.
 
 ## Per-project setup
 
-Inside the repo you want to track:
+Inside the repo you want to track, the one-shot way:
+
+```
+side-quest onboard         # init + install-hooks + write .mcp.json (if absent)
+```
+
+`onboard` does everything below in one command and prints the AGENTS.md guidance
+to paste; it is safe to re-run. To do it by hand instead:
 
 ```
 side-quest init            # create the quest ref

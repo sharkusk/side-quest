@@ -76,8 +76,9 @@ binary depends on your agent; setting up each repo is the same either way.
   [install the binary](docs/install.md) yourself, then register the MCP server
   and merge side-quest's guidance into your `AGENTS.md`.
 
-**2. Set up each repo you want to track** — `side-quest init` +
-`side-quest install-hooks` create the quest ref and install the git hooks.
+**2. Set up each repo you want to track** — run `side-quest onboard` once: it
+creates the quest ref, installs the git hooks, and writes a project `.mcp.json`
+if absent. (Or do it by hand with `side-quest init` + `side-quest install-hooks`.)
 
 Moving between machines? See
 [Sharing quests across machines](docs/manual-setup.md#sharing-quests-across-machines).
