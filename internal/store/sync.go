@@ -86,6 +86,9 @@ func (s *Store) lastTouch(commit, path string) (time.Time, error) {
 
 // SyncResult summarizes what a sync did, for reporting.
 type SyncResult struct {
+	// Merged is a best-effort count for reporting, not a control signal: a
+	// diverged merge that nets zero visible change vs local still writes a real
+	// two-parent commit and moves the ref, yet may report Merged: 0.
 	Merged   int  // quests newly integrated from the remote (adopted or field-merged)
 	Renamed  int  // id collisions reassigned
 	Pushed   bool // a push to the remote succeeded
@@ -143,7 +146,10 @@ func (s *Store) reconcile(dryRun bool) (SyncResult, error) {
 				return SyncResult{}, err
 			}
 		}
-		rs, _ := s.sideAt(remote)
+		rs, err := s.sideAt(remote)
+		if err != nil {
+			return SyncResult{}, err
+		}
 		return SyncResult{Merged: len(rs.Quests)}, nil
 	case s.isAncestor(local, remote):
 		// local strictly behind -> fast-forward
@@ -152,8 +158,14 @@ func (s *Store) reconcile(dryRun bool) (SyncResult, error) {
 				return SyncResult{}, err
 			}
 		}
-		ls, _ := s.sideAt(local)
-		rs, _ := s.sideAt(remote)
+		ls, err := s.sideAt(local)
+		if err != nil {
+			return SyncResult{}, err
+		}
+		rs, err := s.sideAt(remote)
+		if err != nil {
+			return SyncResult{}, err
+		}
 		return SyncResult{Merged: countNew(ls, rs)}, nil
 	case s.isAncestor(remote, local):
 		return SyncResult{}, nil // local ahead: nothing to merge (push will publish)
