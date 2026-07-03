@@ -1,0 +1,89 @@
+// Package packaging holds tests that validate the repo's distribution artifacts
+// (plugin manifests, VERSION, LICENSE, launcher). It has no non-test code; the
+// tests read repo-root files via paths relative to this directory.
+package packaging
+
+import (
+	"encoding/json"
+	"os"
+	"strings"
+	"testing"
+)
+
+// repoFile reads a file relative to the repo root. `go test` runs with CWD set
+// to this package's directory (internal/packaging), so the root is two levels up.
+func repoFile(t *testing.T, rel string) []byte {
+	t.Helper()
+	b, err := os.ReadFile("../../" + rel)
+	if err != nil {
+		t.Fatalf("read %s: %v", rel, err)
+	}
+	return b
+}
+
+func TestPluginJSONValidAndRequiredKeys(t *testing.T) {
+	var m map[string]any
+	if err := json.Unmarshal(repoFile(t, ".claude-plugin/plugin.json"), &m); err != nil {
+		t.Fatalf("plugin.json invalid JSON: %v", err)
+	}
+	for _, k := range []string{"name", "version", "description", "author", "repository"} {
+		if _, ok := m[k]; !ok {
+			t.Errorf("plugin.json missing required key %q", k)
+		}
+	}
+	if m["name"] != "side-quest" {
+		t.Errorf("plugin.json name = %v, want side-quest", m["name"])
+	}
+}
+
+func TestMarketplaceJSONValid(t *testing.T) {
+	var m map[string]any
+	if err := json.Unmarshal(repoFile(t, ".claude-plugin/marketplace.json"), &m); err != nil {
+		t.Fatalf("marketplace.json invalid JSON: %v", err)
+	}
+	if _, ok := m["plugins"]; !ok {
+		t.Error("marketplace.json missing plugins array")
+	}
+}
+
+func TestMCPJSONUsesBareBinary(t *testing.T) {
+	var m struct {
+		MCPServers map[string]struct {
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(repoFile(t, ".mcp.json"), &m); err != nil {
+		t.Fatalf(".mcp.json invalid: %v", err)
+	}
+	sq, ok := m.MCPServers["side-quest"]
+	if !ok {
+		t.Fatal(".mcp.json missing side-quest server")
+	}
+	if sq.Command != "side-quest" || len(sq.Args) != 1 || sq.Args[0] != "serve" {
+		t.Errorf(".mcp.json launches %q %v, want side-quest [serve]", sq.Command, sq.Args)
+	}
+}
+
+func TestPluginVersionMatchesVERSION(t *testing.T) {
+	ver := strings.TrimSpace(string(repoFile(t, "VERSION")))
+	var m struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(repoFile(t, ".claude-plugin/plugin.json"), &m); err != nil {
+		t.Fatal(err)
+	}
+	if m.Version != ver {
+		t.Errorf("plugin.json version %q != VERSION %q", m.Version, ver)
+	}
+}
+
+func TestLicenseIsMIT(t *testing.T) {
+	l := string(repoFile(t, "LICENSE"))
+	if !strings.Contains(l, "Permission is hereby granted") {
+		t.Error("LICENSE does not contain the MIT grant text")
+	}
+	if !strings.Contains(l, "Marcus Kellerman") {
+		t.Error("LICENSE missing copyright holder Marcus Kellerman")
+	}
+}

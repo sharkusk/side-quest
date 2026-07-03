@@ -1,0 +1,11 @@
+{
+  "name": "side-quest",
+  "owner": { "name": "Marcus Kellerman" },
+  "plugins": [
+    {
+      "name": "side-quest",
+      "source": ".",
+      "description": "A streamlined, git-native issue tracker for individuals and small teams."
+    }
+  ]
+}

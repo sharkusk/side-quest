@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "side-quest": {
-      "command": "go",
-      "args": ["run", "./cmd/side-quest", "serve"]
+      "command": "side-quest",
+      "args": ["serve"]
     }
   }
 }
