@@ -7,7 +7,7 @@ link between every quest and the git commits that address it.
 
 > **Status: CLI + MCP server + plugin packaging ready.** The quest store, git
 > hooks, CLI (init/new/list/show/status/reclassify/config), MCP server
-> (`side-quest serve`), and the Claude Code plugin are built and tested. A
+> (`side-quest serve`), and the Claude Code plugin are built and tested.
 > A `sync` command to move quests across machines is planned (see "Roadmap").
 
 ## The problem it solves
@@ -60,130 +60,23 @@ side-quest config get
 Add `--json` to `new`, `list`, `show`, or `config get` for machine-readable output.
 Flags may appear before or after the title/id positional argument.
 
-## Installation
+## Installation & setup
 
-### Prebuilt binary (no toolchain)
+side-quest is a single Go binary plus per-project git hooks. Two steps: get the
+binary, then wire it into each repo you want to track. The three guides below
+cover each piece.
 
-Download the archive for your platform from the
-[Releases](https://github.com/sharkusk/side-quest/releases) page, extract the
-`side-quest` binary, and put it on your `PATH`.
+1. **[Install the binary](docs/install.md)** — a prebuilt release, `go install`,
+   or build from source.
+2. **[Manual setup](docs/manual-setup.md)** — `side-quest init` +
+   `install-hooks`, then register the MCP server and merge side-quest's guidance
+   into your `AGENTS.md`. The general path, for any MCP-capable agent.
+3. **[Claude Code plugin](docs/plugin.md)** — one command in Claude Code:
+   registers the MCP server, the `/sq` command, and the guidance skill, and
+   auto-provisions the binary. You still run `init` + `install-hooks` per repo.
 
-| Platform | Where to put it | Notes |
-|---|---|---|
-| macOS | `/usr/local/bin` or `~/.local/bin` | `chmod +x side-quest`; first run may be blocked by Gatekeeper (unsigned) — clear it with `xattr -d com.apple.quarantine side-quest` |
-| Linux | `~/.local/bin` (often on `PATH`) or `/usr/local/bin` (sudo) | `chmod +x side-quest` |
-| Windows | a folder you add to `Path`, e.g. `%LOCALAPPDATA%\Programs\side-quest\` | use `side-quest.exe` |
-
-### `go install` (needs Go ≥ 1.25)
-
-```
-go install github.com/sharkusk/side-quest/cmd/side-quest@latest
-```
-
-This installs to `~/go/bin` (`%USERPROFILE%\go\bin` on Windows), which is **not on
-`PATH` by default** — add it:
-
-- macOS/Linux: `export PATH="$HOME/go/bin:$PATH"` in your shell profile.
-- Windows: add `%USERPROFILE%\go\bin` to your user `Path` environment variable.
-
-### Build from source (needs Go ≥ 1.25)
-
-```
-git clone https://github.com/sharkusk/side-quest && cd side-quest
-go build -o side-quest ./cmd/side-quest
-```
-
-### Per-project setup
-
-Inside the repo you want to track:
-
-```
-side-quest init            # create the quest ref
-side-quest install-hooks   # install git hooks + the refs/side-quest/* refspec
-```
-
-### Claude Code plugin
-
-```
-/plugin marketplace add sharkusk/side-quest
-/plugin install side-quest
-```
-
-The plugin registers the `side-quest` MCP server and the `/sq` capture command. On
-first use it **auto-provisions** the matching `side-quest` binary (downloaded from
-the release and checksum-verified) into a per-plugin cache. If a download isn't
-possible (offline, or before the project is public), install the binary yourself
-with `go install github.com/sharkusk/side-quest/cmd/side-quest@latest` and the
-plugin will use it from your `PATH`.
-
-### Sharing quests across machines
-
-Custom refs like `refs/side-quest/quests` are not fetched or pushed by default.
-`side-quest install-hooks` configures both refspecs on `origin`, so once it has
-run:
-
-- `git fetch` / `git pull` also retrieve quest updates (the fetch refspec is
-  additive — your normal fetch is unchanged).
-- `git push` sends your current branch **and** the quest ref together (the push
-  refspec keeps pushing your branch; it does not replace it).
-
-A fresh `git clone` does **not** include the quest ref (Git skips custom refs on
-clone) — run `side-quest install-hooks` in the clone, then `git fetch`, to pull
-existing quests. To publish before the hooks are configured, push the ref
-explicitly:
-
-```
-git push origin refs/side-quest/quests
-```
-
-A dedicated `sync` command that automates this is **planned** (see "Roadmap").
-
-## Adopting side-quest in a project
-
-Bringing side-quest into an existing repo — the full checklist:
-
-1. **Install the binary** ([Installation](#installation)) and put it on your `PATH`.
-2. **`side-quest init`** — create the quest ref (once per repo).
-3. **`side-quest install-hooks`** — install the hooks and refspecs.
-   > **Already have a git hook framework?** (Husky, pre-commit, or a custom setup
-   > via `core.hooksPath`.) install-hooks composes into whatever hooks directory
-   > git uses, appending its own marker-guarded block without clobbering yours.
-   > Retire or migrate any *conflicting* bookkeeping first, and unset a stale
-   > `core.hooksPath` if you want the shims in the default `.git/hooks`.
-4. **Wire up your agent:**
-   - **Plugin (Claude Code):** `/plugin install side-quest` registers the MCP
-     server, the `/sq` command, and the guidance skill — nothing to add to your
-     `AGENTS.md`.
-   - **Manual (other agents, or before the plugin is public):** add a project
-     [`.mcp.json`](#mcp-server) that runs `side-quest serve`, and add side-quest's
-     guidance to your **`AGENTS.md`**. If the project already has an `AGENTS.md`,
-     append side-quest's block as a new section — **merge, don't overwrite** (the
-     block to copy is this repo's [`AGENTS.md`](AGENTS.md)). Optionally add a `/sq`
-     command at `.claude/commands/sq.md`.
-5. **Restart the agent session** so the MCP server, commands, and `AGENTS.md` load
-   — you'll be prompted once to approve a new project MCP server.
-6. **Share across machines** — see
-   [Sharing quests across machines](#sharing-quests-across-machines).
-
-**`PATH` note:** a bare `side-quest serve` in `.mcp.json` needs `side-quest` on the
-launching shell's `PATH` (e.g. `~/go/bin`). A GUI-launched agent may not inherit
-your shell `PATH` — use an absolute path to the binary if the server fails to
-start.
-
-## MCP server
-
-`side-quest serve` runs a stdio MCP server so any MCP-capable agent can capture,
-read, and drive quests. Register it (assumes `side-quest` is on `PATH`):
-
-```json
-{ "mcpServers": { "side-quest": { "command": "side-quest", "args": ["serve"] } } }
-```
-
-Tools: `quest_new`, `quest_list`, `quest_show`, `quest_set_status`,
-`quest_reclassify`, `quest_update`, `quest_note`, `quest_set_current`,
-`quest_get_current`, `quest_link_commit`. Responses are neutral JSON. For
-agent-facing guidance see [`AGENTS.md`](AGENTS.md) and
-[`skills/side-quest/SKILL.md`](skills/side-quest/SKILL.md).
+Moving between machines? See
+[Sharing quests across machines](docs/manual-setup.md#sharing-quests-across-machines).
 
 ## Development
 

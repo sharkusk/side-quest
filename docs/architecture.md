@@ -181,7 +181,7 @@ intact, and re-installing replaces only our block (idempotent, never duplicated)
 It assumes the existing hook is POSIX-sh and runs our block last — a non-sh hook,
 or one that exits early, needs care (SQ-0020). A repo already driving a different
 bookkeeping system through `core.hooksPath` should retire it before adopting
-side-quest (SQ-0022); the [README onboarding checklist](../README.md#adopting-side-quest-in-a-project)
+side-quest (SQ-0022); the [manual-setup guide](manual-setup.md#existing-git-hooks)
 walks through this.
 
 The **current-quest pointer** is worktree-local state (`<git-dir>/side-quest-current`),
