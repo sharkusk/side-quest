@@ -34,6 +34,17 @@ func newStore(t *testing.T) *Store {
 	return s
 }
 
+// mustCreate writes one throwaway open quest and returns it, failing the test
+// on error. Handy when a test needs a real id to point at (e.g. SetCurrent).
+func mustCreate(t *testing.T, s *Store) *quest.Quest {
+	t.Helper()
+	q, err := s.Create("a task", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return q
+}
+
 func TestSnapshotEmptyBeforeInit(t *testing.T) {
 	s := newStore(t)
 	snap, err := s.snapshot()

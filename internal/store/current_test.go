@@ -1,9 +1,32 @@
 package store
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
+
+// SetCurrent must refuse an id that has no quest on the ref, so a typo or a
+// stale id cannot silently arm prepare-commit-msg with a dangling trailer.
+func TestSetCurrentRejectsUnknownID(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetCurrent("SQ-9999"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("SetCurrent on unknown id: want ErrNotFound, got %v", err)
+	}
+	cur, _ := s.Current()
+	if cur != "" {
+		t.Fatalf("a rejected SetCurrent must not write the pointer, got %q", cur)
+	}
+}
 
 func TestCurrentRoundTrip(t *testing.T) {
 	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q := mustCreate(t, s)
 	cur, err := s.Current()
 	if err != nil {
 		t.Fatal(err)
@@ -11,21 +34,25 @@ func TestCurrentRoundTrip(t *testing.T) {
 	if cur != "" {
 		t.Fatalf("fresh worktree should have no current quest, got %q", cur)
 	}
-	if err := s.SetCurrent("SQ-0007"); err != nil {
+	if err := s.SetCurrent(q.ID); err != nil {
 		t.Fatal(err)
 	}
 	cur, err = s.Current()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cur != "SQ-0007" {
+	if cur != q.ID {
 		t.Fatalf("current not persisted: %q", cur)
 	}
 }
 
 func TestClearCurrent(t *testing.T) {
 	s := newStore(t)
-	if err := s.SetCurrent("SQ-0001"); err != nil {
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q := mustCreate(t, s)
+	if err := s.SetCurrent(q.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.ClearCurrent(); err != nil {
@@ -47,8 +74,9 @@ func TestSetCurrentDoesNotTouchRefOrTree(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
+	q := mustCreate(t, s)
 	before, _ := s.tip()
-	if err := s.SetCurrent("SQ-0003"); err != nil {
+	if err := s.SetCurrent(q.ID); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := s.tip()

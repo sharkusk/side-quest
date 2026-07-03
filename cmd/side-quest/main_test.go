@@ -62,12 +62,16 @@ func runBin(t *testing.T, bin, dir string, args ...string) (string, int) {
 func TestCurrentSubcommand(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)
+	q, err := s.Create("a task", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	if _, code := runBin(t, bin, dir, "current", "SQ-0042"); code != 0 {
+	if _, code := runBin(t, bin, dir, "current", q.ID); code != 0 {
 		t.Fatalf("set current exit=%d", code)
 	}
 	cur, _ := s.Current()
-	if cur != "SQ-0042" {
+	if cur != q.ID {
 		t.Fatalf("current not set via CLI: %q", cur)
 	}
 	out, code := runBin(t, bin, dir, "current")
@@ -121,7 +125,11 @@ func TestPrepareCommitMsgInjectsCurrent(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetCurrent("SQ-0005"); err != nil {
+	q, err := s.Create("a task", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetCurrent(q.ID); err != nil {
 		t.Fatal(err)
 	}
 	msg := filepath.Join(dir, "MSG")
@@ -132,7 +140,7 @@ func TestPrepareCommitMsgInjectsCurrent(t *testing.T) {
 		t.Fatalf("prepare exit=%d", code)
 	}
 	out, _ := os.ReadFile(msg)
-	if want := "Quest: SQ-0005"; !containsLine(string(out), want) {
+	if want := "Quest: " + q.ID; !containsLine(string(out), want) {
 		t.Fatalf("current trailer not injected: %q", out)
 	}
 	// Idempotent: running again does not add a second trailer.
@@ -140,7 +148,7 @@ func TestPrepareCommitMsgInjectsCurrent(t *testing.T) {
 		t.Fatalf("second prepare exit=%d", code)
 	}
 	out2, _ := os.ReadFile(msg)
-	if countLine(string(out2), "Quest: SQ-0005") != 1 {
+	if countLine(string(out2), "Quest: "+q.ID) != 1 {
 		t.Fatalf("trailer injected twice: %q", out2)
 	}
 }
@@ -156,7 +164,11 @@ func TestPrepareCommitMsgWriteFailureDoesNotBlock(t *testing.T) {
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetCurrent("SQ-0001"); err != nil {
+	q, err := s.Create("a task", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetCurrent(q.ID); err != nil {
 		t.Fatal(err)
 	}
 	msg := filepath.Join(dir, "MSG")

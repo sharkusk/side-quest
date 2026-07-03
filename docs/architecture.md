@@ -186,6 +186,8 @@ walks through this.
 
 The **current-quest pointer** is worktree-local state (`<git-dir>/side-quest-current`),
 not ref state: each worktree has its own, and it never travels with a push.
+Setting it requires the target quest to exist — a missing id is rejected, so the
+pointer can never dangle and `prepare-commit-msg` cannot inject a bogus trailer.
 
 ## Command-line interface (`cmd/side-quest`)
 
