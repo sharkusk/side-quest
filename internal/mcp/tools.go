@@ -198,7 +198,7 @@ func (h *handlers) questReclassify(ctx context.Context, req *sdk.CallToolRequest
 }
 
 func (h *handlers) questUpdate(ctx context.Context, req *sdk.CallToolRequest, in updateIn) (*sdk.CallToolResult, any, error) {
-	if in.Title == "" && in.Tags == nil {
+	if in.Title == "" && len(in.Tags) == 0 {
 		return nil, nil, fmt.Errorf("update needs title and/or tags")
 	}
 	if in.Title != "" {
@@ -206,7 +206,7 @@ func (h *handlers) questUpdate(ctx context.Context, req *sdk.CallToolRequest, in
 			return nil, nil, err
 		}
 	}
-	if in.Tags != nil {
+	if len(in.Tags) > 0 {
 		if err := h.store.MergeTags(in.ID, in.Tags); err != nil {
 			return nil, nil, err
 		}

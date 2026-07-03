@@ -220,6 +220,11 @@ func TestUpdateAndNote(t *testing.T) {
 	if !res.IsError {
 		t.Fatal("update with nothing to change should be a tool error")
 	}
+
+	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_update", Arguments: map[string]any{"id": q.ID, "tags": map[string]any{}}})
+	if !res.IsError {
+		t.Fatal("update with empty tags object and no title should be a tool error")
+	}
 }
 
 func TestSetCurrentAndLink(t *testing.T) {
