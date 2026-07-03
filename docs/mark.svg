@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 64 64" role="img" aria-label="side-quest">
+  <path fill="#e8862a" d="M32 4.5c11.9 0 21.5 9.4 21.5 21 0 8.2-6.6 16.3-21.5 34.5C17.1 41.8 10.5 33.7 10.5 25.5c0-11.6 9.6-21 21.5-21Z"/>
+  <path fill="#23262b" d="M29.4 13.6h5.2l-1.15 17.3h-2.9Z"/>
+  <circle fill="#23262b" cx="32" cy="37.4" r="3"/>
+</svg>
