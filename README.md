@@ -50,5 +50,21 @@ Quick glossary:
 **→ For the full explanation of the storage model, CAS, the mutation flow, and id
 allocation, see [`docs/architecture.md`](docs/architecture.md).**
 
+## Usage
+
+```
+side-quest init
+side-quest new "Fix the flaky parser test" --type bug --priority high
+side-quest list --status open --type bug
+side-quest show SQ-0001
+side-quest status SQ-0001 done
+side-quest reclassify SQ-0001 --priority low
+side-quest config set require_quest true
+side-quest config get
+```
+
+Add `--json` to `new`, `list`, `show`, or `config get` for machine-readable
+output. Flags come before the title/id positional argument.
+
 A full README (quickstart, CLI/MCP reference, plugin install, configuration) ships with the
 implementation.

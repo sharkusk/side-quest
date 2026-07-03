@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/quest"
 )
 
@@ -233,5 +234,55 @@ func TestReclassifyInvalidExitsOne(t *testing.T) {
 
 	if _, code := runBin(t, bin, dir, "reclassify", "--type", "bugg", id); code != 1 {
 		t.Fatalf("reclassify invalid type should exit 1, got %d", code)
+	}
+}
+
+func TestConfigGetShowsDefaults(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+	runBin(t, bin, dir, "init")
+
+	out, code := runBin(t, bin, dir, "config", "get")
+	if code != 0 || !strings.Contains(out, "require_quest") || !strings.Contains(out, "auto_trailer") {
+		t.Fatalf("config get exit=%d out=%s", code, out)
+	}
+}
+
+func TestConfigSetEachKey(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	runBin(t, bin, dir, "init")
+
+	if _, code := runBin(t, bin, dir, "config", "set", "require_quest", "true"); code != 0 {
+		t.Fatal("set require_quest")
+	}
+	if _, code := runBin(t, bin, dir, "config", "set", "auto_trailer", "false"); code != 0 {
+		t.Fatal("set auto_trailer")
+	}
+	if _, code := runBin(t, bin, dir, "config", "set", "id_strategy", "random"); code != 0 {
+		t.Fatal("set id_strategy")
+	}
+	cfg, _ := s.Config()
+	if !cfg.RequireQuest || cfg.AutoTrailer || cfg.IDStrategy != config.Random {
+		t.Fatalf("config not persisted: %+v", cfg)
+	}
+}
+
+func TestConfigSetRejectsBadKeyValueStrategy(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+	runBin(t, bin, dir, "init")
+
+	if _, code := runBin(t, bin, dir, "config", "set", "bogus", "x"); code != 1 {
+		t.Fatal("bad key should exit 1")
+	}
+	if _, code := runBin(t, bin, dir, "config", "set", "require_quest", "maybe"); code != 1 {
+		t.Fatal("bad bool should exit 1")
+	}
+	if _, code := runBin(t, bin, dir, "config", "set", "id_strategy", "hash"); code != 1 {
+		t.Fatal("bad strategy should exit 1")
+	}
+	if _, code := runBin(t, bin, dir, "config", "set", "require_quest"); code != 2 {
+		t.Fatal("missing value should exit 2")
 	}
 }

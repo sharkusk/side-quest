@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/quest"
 )
 
@@ -69,4 +70,16 @@ func renderShow(w io.Writer, q *quest.Quest) {
 	if q.Body != "" {
 		fmt.Fprintf(w, "\n%s\n", strings.TrimRight(q.Body, "\n"))
 	}
+}
+
+// renderConfig prints the effective on-ref configuration as aligned key: value
+// lines.
+func renderConfig(w io.Writer, c config.Config) {
+	fmt.Fprintf(w, "id_prefix:     %s\n", c.IDPrefix)
+	fmt.Fprintf(w, "id_strategy:   %s\n", c.IDStrategy)
+	fmt.Fprintf(w, "seq_next:      %d\n", c.SeqNext)
+	fmt.Fprintf(w, "seq_width:     %d\n", c.SeqWidth)
+	fmt.Fprintf(w, "tone:          %s\n", c.Tone)
+	fmt.Fprintf(w, "auto_trailer:  %t\n", c.AutoTrailer)
+	fmt.Fprintf(w, "require_quest: %t\n", c.RequireQuest)
 }

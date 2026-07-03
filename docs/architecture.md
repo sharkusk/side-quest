@@ -174,6 +174,34 @@ collapses duplicate env keys keeping the last value, so the store's scratch
 The **current-quest pointer** is worktree-local state (`<git-dir>/side-quest-current`),
 not ref state: each worktree has its own, and it never travels with a push.
 
+## Command-line interface (`cmd/side-quest`)
+
+Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
+`prepare-commit-msg`, `install-hooks`), the binary exposes the human commands:
+
+- `init` — create the quest ref.
+- `new <title>` — create a quest; flags `--type`, `--priority`, `--context`,
+  `--tag k=v` (repeatable), `--current` (also set the worktree's current quest),
+  `--json`.
+- `list` — list quests; filters `--status`/`--type`/`--priority` (validated,
+  combined with AND) and `--json`.
+- `show <id>` — show one quest; `--json`.
+- `status <id> <status>` — set the lifecycle status.
+- `reclassify <id> [--type --priority]` — change type and/or priority.
+- `config get` / `config set <key> <value>` — read config; set `require_quest`,
+  `auto_trailer`, or `id_strategy`.
+
+Handlers live in `cli.go`; rendering in `render.go`. Each command is a thin
+adapter over one `store` method — validation stays at the store write boundary
+(the sole exception: `list` validates its filter values). `--json` marshals the
+raw `quest.Quest`/`config.Config` structs, so the JSON keys are the Go field
+names; this is the stable machine surface the MCP layer reuses. Flags must
+precede positional arguments (stdlib `flag` behavior). Usage errors exit 2; all
+other errors exit 1.
+
+The CLI relies on two store/config additions: `store.SetAutoTrailer` and
+`config.Strategy.Valid()`.
+
 ## Package map
 
 | Package | Responsibility | I/O? |

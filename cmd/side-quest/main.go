@@ -22,6 +22,8 @@ const usage = `usage: side-quest <command> [args]
   show <id> [--json]              show one quest
   status <id> <status>            set a quest's status
   reclassify <id> [--type --priority]  change a quest's type/priority
+  config get [--json]             show effective config
+  config set <key> <value>        set require_quest | auto_trailer | id_strategy
   link <sha>                      apply a commit's Quest:/Completes: trailers
   current [<id> | --clear]        get / set / clear this worktree's active quest
   commit-msg <file>               (hook) warn or reject when a trailer is missing
@@ -58,6 +60,8 @@ func run(cmd string, args []string) error {
 		return cmdStatus(args)
 	case "reclassify":
 		return cmdReclassify(args)
+	case "config":
+		return cmdConfig(args)
 	case "link":
 		return cmdLink(args)
 	case "current":

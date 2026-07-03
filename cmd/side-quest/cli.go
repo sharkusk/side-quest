@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/quest"
 )
 
@@ -213,4 +214,84 @@ func cmdReclassify(args []string) error {
 		}
 	}
 	return nil
+}
+
+func cmdConfig(args []string) error {
+	if len(args) < 1 {
+		return &usageErr{"config needs a subcommand: get | set"}
+	}
+	switch args[0] {
+	case "get":
+		return cmdConfigGet(args[1:])
+	case "set":
+		return cmdConfigSet(args[1:])
+	default:
+		return &usageErr{fmt.Sprintf("unknown config subcommand %q (want get|set)", args[0])}
+	}
+}
+
+func cmdConfigGet(args []string) error {
+	fs := newFlagSet("config get")
+	var asJSON bool
+	fs.BoolVar(&asJSON, "json", false, "emit JSON")
+	if err := fs.Parse(args); err != nil {
+		return &usageErr{err.Error()}
+	}
+	s, err := openStore()
+	if err != nil {
+		return err
+	}
+	cfg, err := s.Config()
+	if err != nil {
+		return err
+	}
+	if asJSON {
+		return emitJSON(os.Stdout, cfg)
+	}
+	renderConfig(os.Stdout, cfg)
+	return nil
+}
+
+func cmdConfigSet(args []string) error {
+	if len(args) != 2 {
+		return &usageErr{"config set needs <key> <value>"}
+	}
+	key, val := args[0], args[1]
+	s, err := openStore()
+	if err != nil {
+		return err
+	}
+	switch key {
+	case "require_quest":
+		b, err := parseBool(val)
+		if err != nil {
+			return err
+		}
+		return s.SetRequireQuest(b)
+	case "auto_trailer":
+		b, err := parseBool(val)
+		if err != nil {
+			return err
+		}
+		return s.SetAutoTrailer(b)
+	case "id_strategy":
+		st := config.Strategy(val)
+		if !st.Valid() {
+			return fmt.Errorf("invalid id_strategy %q (want sequential|random)", val)
+		}
+		return s.SetStrategy(st)
+	default:
+		return fmt.Errorf("unknown config key %q (settable: require_quest, auto_trailer, id_strategy)", key)
+	}
+}
+
+// parseBool accepts only "true" or "false" (stricter than strconv.ParseBool).
+func parseBool(v string) (bool, error) {
+	switch v {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	}
+	return false, fmt.Errorf("want true or false, got %q", v)
 }
