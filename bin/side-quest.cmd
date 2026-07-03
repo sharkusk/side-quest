@@ -14,6 +14,14 @@ if exist "%BIN%" (
   exit /b %errorlevel%
 )
 
+rem 2. A side-quest already on PATH (dev build / go install), not this launcher.
+for /f "delims=" %%p in ('where side-quest 2^>nul') do (
+  if /I not "%%~fp"=="%~f0" (
+    "%%~fp" %*
+    exit /b %errorlevel%
+  )
+)
+
 rem 3. Download + checksum-verify via PowerShell (skipped when VERSION=dev).
 if not "%VERSION%"=="dev" (
   set "ASSET=side-quest_%VERSION%_windows_amd64.zip"

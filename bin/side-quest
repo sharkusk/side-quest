@@ -9,10 +9,11 @@
 set -eu
 
 REPO="sharkusk/side-quest"
-SELF="$0"
 
-# Plugin root: this script lives at <root>/bin/side-quest.
-ROOT=$(CDPATH= cd -- "$(dirname -- "$SELF")/.." && pwd -P)
+# Canonicalize our own path so the step-2 self-check compares absolute-to-absolute.
+SELF_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+SELF="$SELF_DIR/$(basename -- "$0")"
+ROOT=$(CDPATH= cd -- "$SELF_DIR/.." && pwd -P)
 VERSION=$(cat "$ROOT/VERSION" 2>/dev/null || echo dev)
 
 # Cache dir; CLAUDE_PLUGIN_DATA survives plugin updates when Claude provides it.

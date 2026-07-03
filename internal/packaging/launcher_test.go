@@ -1,11 +1,13 @@
 package packaging
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func launcherPath(t *testing.T) string {
@@ -97,6 +99,51 @@ func TestLauncherFailsWithHint(t *testing.T) {
 	cmd := exec.Command(fake, "serve")
 	cmd.Env = cleanEnv(t.TempDir(), t.TempDir())
 	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected non-zero exit, got success: %s", out)
+	}
+	if !strings.Contains(string(out), "go install github.com/sharkusk/side-quest/cmd/side-quest@latest") {
+		t.Errorf("missing install hint: %s", out)
+	}
+}
+
+// Regression test: a relative $0 (the real shipped deployment, e.g. `./side-quest`
+// with the plugin's own bin/ on PATH) must not cause the step-2 self-check to
+// exec the launcher into itself forever. Under the old bug this hangs until the
+// context deadline; with the fix it terminates on its own with the install hint.
+func TestLauncherDoesNotRecurseOnRelativeInvocation(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("dev\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile(launcherPath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(binDir, "side-quest")
+	if err := os.WriteFile(fake, src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "./side-quest", "serve")
+	cmd.Dir = binDir
+	cmd.Env = []string{
+		"PATH=" + binDir + ":/usr/bin:/bin",
+		"CLAUDE_PLUGIN_DATA=" + t.TempDir(),
+		"HOME=" + t.TempDir(),
+	}
+	out, err := cmd.CombinedOutput()
+
+	if ctx.Err() != nil {
+		t.Fatalf("launcher hit context deadline (recursed on relative $0): %s", out)
+	}
 	if err == nil {
 		t.Fatalf("expected non-zero exit, got success: %s", out)
 	}
