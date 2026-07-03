@@ -87,7 +87,9 @@ func Merge(base, local, remote Side) (Result, []Event) {
 			res.Quests[id] = l // unchanged remotely -> take local
 		default:
 			// both changed since base (or added independently) -> Task 2 / Task 4.
-			res.Quests[id] = l // placeholder until Task 2
+			res.Quests[id] = mergeConflict(id, b, l, r, local.Touch[id], remote.Touch[id])
+			events = append(events, Event{Kind: Conflicted, ID: id,
+				Detail: "both sides changed; scalars taken from the later edit"})
 		}
 	}
 	return res, events
@@ -107,4 +109,88 @@ func unionIDs(maps ...map[string]*quest.Quest) []string {
 	}
 	sort.Strings(ids)
 	return ids
+}
+
+// mergeConflict resolves a quest changed on both sides. The later-touched side
+// wins the scalar fields (equal times break on larger canonical bytes, a
+// side-independent tiebreak); Created is the earliest seen; commits and tags
+// union. Body is the winner's here and is refined in Task 3.
+func mergeConflict(id string, b, l, r *quest.Quest, lTouch, rTouch time.Time) *quest.Quest {
+	winner := laterWins(l, r, lTouch, rTouch)
+	out := *winner // copy the winning scalars (Title, Status, Type, Priority, Context, Body, Completed)
+	out.ID = id
+	out.Created = earliest(b, l, r)
+	out.Commits = unionCommits(b, l, r)
+	out.Tags = unionTags(winner, l, r)
+	return &out
+}
+
+// laterWins returns whichever of l, r was touched later; on an exact tie the one
+// with lexicographically larger canonical bytes wins, so the choice never
+// depends on which side is "local".
+func laterWins(l, r *quest.Quest, lTouch, rTouch time.Time) *quest.Quest {
+	if lTouch.Equal(rTouch) {
+		if bytes.Compare(canonical(r), canonical(l)) > 0 {
+			return r
+		}
+		return l
+	}
+	if rTouch.After(lTouch) {
+		return r
+	}
+	return l
+}
+
+// earliest returns the earliest non-zero Created among the present quests.
+func earliest(qs ...*quest.Quest) time.Time {
+	var out time.Time
+	for _, x := range qs {
+		if x == nil || x.Created.IsZero() {
+			continue
+		}
+		if out.IsZero() || x.Created.Before(out) {
+			out = x.Created
+		}
+	}
+	return out
+}
+
+// unionCommits merges commit lists preserving base order, then appends shas new
+// to either side (deduped, deterministic order: local's new before remote's).
+func unionCommits(b, l, r *quest.Quest) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	add := func(q *quest.Quest) {
+		if q == nil {
+			return
+		}
+		for _, sha := range q.Commits {
+			if !seen[sha] {
+				seen[sha] = true
+				out = append(out, sha)
+			}
+		}
+	}
+	add(b)
+	add(l)
+	add(r)
+	return out
+}
+
+// unionTags unions the tag keys of l and r; a key set on both takes the winner's
+// value. Nil result when no tags exist anywhere.
+func unionTags(winner, l, r *quest.Quest) map[string]string {
+	out := map[string]string{}
+	for _, q := range []*quest.Quest{l, r} {
+		for k, v := range q.Tags {
+			out[k] = v
+		}
+	}
+	for k, v := range winner.Tags {
+		out[k] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

@@ -62,3 +62,65 @@ func TestMergeEmptyBaseTakesBothAdds(t *testing.T) {
 		t.Errorf("want 2 quests, got %d", len(res.Quests))
 	}
 }
+
+func TestMergeBothChangedScalarLWW(t *testing.T) {
+	base := side(q("SQ-0001", "orig", quest.StatusOpen))
+	l := q("SQ-0001", "local title", quest.StatusDone)
+	l.Priority = quest.PriorityHigh
+	l.Commits = []string{"aaa"}
+	r := q("SQ-0001", "remote title", quest.StatusPartial)
+	r.Commits = []string{"bbb"}
+
+	local := side(l)
+	local.Touch["SQ-0001"] = time.Date(2026, 1, 2, 10, 0, 0, 0, time.UTC) // earlier
+	remote := side(r)
+	remote.Touch["SQ-0001"] = time.Date(2026, 1, 2, 11, 0, 0, 0, time.UTC) // later -> wins
+
+	res, events := Merge(base, local, remote)
+	got := res.Quests["SQ-0001"]
+	if got.Title != "remote title" || got.Status != quest.StatusPartial {
+		t.Errorf("scalars = (%q,%q), want remote's (remote title, partial)", got.Title, got.Status)
+	}
+	// commits union regardless of winner:
+	if len(got.Commits) != 2 || got.Commits[0] != "aaa" || got.Commits[1] != "bbb" {
+		t.Errorf("commits = %v, want [aaa bbb]", got.Commits)
+	}
+	if len(events) != 1 || events[0].Kind != Conflicted {
+		t.Errorf("events = %v, want one Conflicted", events)
+	}
+}
+
+func TestMergeEqualTouchTiebreakByBytes(t *testing.T) {
+	base := side(q("SQ-0001", "orig", quest.StatusOpen))
+	l := q("SQ-0001", "aaa", quest.StatusOpen)
+	r := q("SQ-0001", "zzz", quest.StatusOpen)
+	ts := time.Date(2026, 1, 2, 10, 0, 0, 0, time.UTC)
+	local := side(l)
+	local.Touch["SQ-0001"] = ts
+	remote := side(r)
+	remote.Touch["SQ-0001"] = ts
+	// Same result whichever side is "local": larger canonical bytes win.
+	res1, _ := Merge(base, local, remote)
+	res2, _ := Merge(base, remote, local)
+	if res1.Quests["SQ-0001"].Title != res2.Quests["SQ-0001"].Title {
+		t.Fatalf("tiebreak not symmetric: %q vs %q",
+			res1.Quests["SQ-0001"].Title, res2.Quests["SQ-0001"].Title)
+	}
+}
+
+func TestMergeTagsUnionWinnerWinsKey(t *testing.T) {
+	base := side(q("SQ-0001", "orig", quest.StatusOpen))
+	l := q("SQ-0001", "l", quest.StatusOpen)
+	l.Tags = map[string]string{"area": "app", "only-l": "1"}
+	r := q("SQ-0001", "r", quest.StatusOpen)
+	r.Tags = map[string]string{"area": "map", "only-r": "2"}
+	local := side(l)
+	local.Touch["SQ-0001"] = time.Date(2026, 1, 2, 10, 0, 0, 0, time.UTC)
+	remote := side(r)
+	remote.Touch["SQ-0001"] = time.Date(2026, 1, 2, 11, 0, 0, 0, time.UTC) // remote wins
+	res, _ := Merge(base, local, remote)
+	tags := res.Quests["SQ-0001"].Tags
+	if tags["area"] != "map" || tags["only-l"] != "1" || tags["only-r"] != "2" {
+		t.Errorf("tags = %v, want area=map + both only-* keys", tags)
+	}
+}
