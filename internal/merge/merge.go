@@ -6,7 +6,11 @@ package merge
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/sharkusk/side-quest/internal/config"
@@ -69,6 +73,7 @@ func equalQuest(a, b *quest.Quest) bool {
 func Merge(base, local, remote Side) (Result, []Event) {
 	res := Result{Config: local.Config, Quests: map[string]*quest.Quest{}}
 	var events []Event
+	var pendingLosers []*quest.Quest
 
 	for _, id := range unionIDs(base.Quests, local.Quests, remote.Quests) {
 		b, l, r := base.Quests[id], local.Quests[id], remote.Quests[id]
@@ -86,13 +91,86 @@ func Merge(base, local, remote Side) (Result, []Event) {
 		case b != nil && equalQuest(r, b):
 			res.Quests[id] = l // unchanged remotely -> take local
 		default:
-			// both changed since base (or added independently) -> Task 2 / Task 4.
+			if b == nil {
+				// same id, two different quests (added independently) -> collision.
+				keep, lose := collisionKeeper(l, r)
+				res.Quests[id] = keep
+				pendingLosers = append(pendingLosers, lose)
+				break
+			}
 			res.Quests[id] = mergeConflict(id, b, l, r, local.Touch[id], remote.Touch[id])
 			events = append(events, Event{Kind: Conflicted, ID: id,
 				Detail: "both sides changed; scalars taken from the later edit"})
 		}
 	}
+
+	// Resolve id collisions deterministically. taken starts as every id that
+	// exists anywhere, so a reassigned id can never shadow a real quest.
+	taken := map[string]bool{}
+	for id := range res.Quests {
+		taken[id] = true
+	}
+	for _, id := range unionIDs(base.Quests, local.Quests, remote.Quests) {
+		taken[id] = true
+	}
+	sort.SliceStable(pendingLosers, func(i, j int) bool {
+		return bytes.Compare(canonical(pendingLosers[i]), canonical(pendingLosers[j])) < 0
+	})
+	for _, lose := range pendingLosers {
+		newID := collisionID(local.Config.IDPrefix, lose, taken)
+		taken[newID] = true
+		old := lose.ID
+		reassigned := *lose // copy; do not mutate the input Side's quest
+		reassigned.ID = newID
+		reassigned.Body = appendRenameNote(reassigned.Body, old)
+		res.Quests[newID] = &reassigned
+		events = append(events, Event{Kind: Renamed, ID: newID,
+			Detail: "renamed from " + old + " (id collision)"})
+	}
 	return res, events
+}
+
+// collisionKeeper returns (keeper, loser): the earlier-Created quest keeps the
+// id; an exact Created tie is broken by larger canonical bytes, so the outcome
+// does not depend on which side is "local".
+func collisionKeeper(l, r *quest.Quest) (keep, lose *quest.Quest) {
+	if l.Created.Equal(r.Created) {
+		if bytes.Compare(canonical(l), canonical(r)) >= 0 {
+			return l, r
+		}
+		return r, l
+	}
+	if l.Created.Before(r.Created) {
+		return l, r
+	}
+	return r, l
+}
+
+// collisionID derives a stable new id for a reassigned quest: prefix + the first
+// 6 hex chars of sha256(canonical), widening by 2 hex chars on the astronomically
+// unlikely event the id is already taken. Deterministic across clones.
+func collisionID(prefix string, q *quest.Quest, taken map[string]bool) string {
+	sum := sha256.Sum256(canonical(q))
+	full := hex.EncodeToString(sum[:])
+	for n := 6; n <= len(full); n += 2 {
+		id := fmt.Sprintf("%s-%s", prefix, full[:n])
+		if !taken[id] {
+			return id
+		}
+	}
+	// Exhausted the hash (practically impossible); fall back to the full digest.
+	return fmt.Sprintf("%s-%s", prefix, full)
+}
+
+// appendRenameNote records the reassignment as a note so the history is visible
+// in the quest itself. It reuses the note header shape (no timestamp source in
+// this pure layer, so the marker is fixed and sorts before real notes).
+func appendRenameNote(body, oldID string) string {
+	note := "--- note (sync) ---\n\nrenamed from " + oldID + " on sync: id collision"
+	if strings.TrimSpace(body) == "" {
+		return note
+	}
+	return strings.TrimRight(body, "\n") + "\n\n" + note
 }
 
 // unionIDs returns the sorted union of keys across the given maps.

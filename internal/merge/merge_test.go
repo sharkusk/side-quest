@@ -1,6 +1,8 @@
 package merge
 
 import (
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,4 +125,59 @@ func TestMergeTagsUnionWinnerWinsKey(t *testing.T) {
 	if tags["area"] != "map" || tags["only-l"] != "1" || tags["only-r"] != "2" {
 		t.Errorf("tags = %v, want area=map + both only-* keys", tags)
 	}
+}
+
+func TestMergeIDCollisionReassignsLoser(t *testing.T) {
+	// SQ-0007 minted independently by two clones (no base) for different quests.
+	early := q("SQ-0007", "fix parser", quest.StatusOpen)
+	early.Created = time.Date(2026, 1, 2, 14, 2, 0, 0, time.UTC)
+	late := q("SQ-0007", "add dark mode", quest.StatusOpen)
+	late.Created = time.Date(2026, 1, 2, 15, 30, 0, 0, time.UTC)
+
+	local := side(early)
+	remote := side(late)
+	res, events := Merge(Side{}, local, remote)
+
+	if res.Quests["SQ-0007"].Title != "fix parser" {
+		t.Errorf("earlier-Created should keep SQ-0007, got %q", res.Quests["SQ-0007"].Title)
+	}
+	// the loser exists under a new prefix-hex id with a rename note:
+	var renamed *quest.Quest
+	for id, x := range res.Quests {
+		if id != "SQ-0007" {
+			renamed = x
+		}
+	}
+	if renamed == nil || renamed.Title != "add dark mode" {
+		t.Fatalf("loser not reassigned: %v", res.Quests)
+	}
+	if !strings.Contains(renamed.Body, "renamed from SQ-0007") {
+		t.Errorf("rename note missing:\n%s", renamed.Body)
+	}
+	if len(events) != 1 || events[0].Kind != Renamed || events[0].ID != renamed.ID {
+		t.Errorf("events = %v, want one Renamed for %s", events, renamed.ID)
+	}
+}
+
+func TestMergeIDCollisionDeterministic(t *testing.T) {
+	early := q("SQ-0007", "fix parser", quest.StatusOpen)
+	early.Created = time.Date(2026, 1, 2, 14, 2, 0, 0, time.UTC)
+	late := q("SQ-0007", "add dark mode", quest.StatusOpen)
+	late.Created = time.Date(2026, 1, 2, 15, 30, 0, 0, time.UTC)
+	// Swapping which side is "local" must yield the same reassigned id.
+	res1, _ := Merge(Side{}, side(early), side(late))
+	res2, _ := Merge(Side{}, side(late), side(early))
+	ids1, ids2 := idsOf(res1), idsOf(res2)
+	if ids1 != ids2 {
+		t.Errorf("collision resolution not deterministic: %s vs %s", ids1, ids2)
+	}
+}
+
+func idsOf(r Result) string {
+	var ids []string
+	for id := range r.Quests {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return strings.Join(ids, ",")
 }
