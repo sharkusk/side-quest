@@ -1,0 +1,80 @@
+#!/bin/sh
+# side-quest plugin launcher. Resolves the native `side-quest` binary for this
+# OS/arch, provisioning it from the matching GitHub Release on first use.
+# Resolution order (first hit wins):
+#   1. a cached binary for this version
+#   2. a side-quest already on PATH (dev build / `go install`)
+#   3. download the matching release asset + verify its SHA-256
+#   4. print an install hint and fail (never run something wrong)
+set -eu
+
+REPO="sharkusk/side-quest"
+SELF="$0"
+
+# Plugin root: this script lives at <root>/bin/side-quest.
+ROOT=$(CDPATH= cd -- "$(dirname -- "$SELF")/.." && pwd -P)
+VERSION=$(cat "$ROOT/VERSION" 2>/dev/null || echo dev)
+
+# Cache dir; CLAUDE_PLUGIN_DATA survives plugin updates when Claude provides it.
+CACHE="${CLAUDE_PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/side-quest}/bin"
+BIN="$CACHE/side-quest-$VERSION"
+
+# sha256 of a file, portable across Linux (sha256sum) and macOS (shasum).
+sha256() {
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" | awk '{print $1}'
+	elif command -v shasum >/dev/null 2>&1; then
+		shasum -a 256 "$1" | awk '{print $1}'
+	else
+		echo ""
+	fi
+}
+
+# 1. Cached binary for this version.
+if [ -x "$BIN" ]; then
+	exec "$BIN" "$@"
+fi
+
+# 2. A real side-quest already on PATH, as long as it is not this launcher.
+found=$(command -v side-quest 2>/dev/null || true)
+if [ -n "$found" ]; then
+	found_dir=$(CDPATH= cd -- "$(dirname -- "$found")" && pwd -P)
+	found_abs="$found_dir/$(basename -- "$found")"
+	if [ "$found_abs" != "$SELF" ] && [ -x "$found_abs" ]; then
+		exec "$found_abs" "$@"
+	fi
+fi
+
+# 3. Download the matching release asset and verify its checksum.
+os=$(uname -s | tr '[:upper:]' '[:lower:]')
+arch=$(uname -m)
+case "$arch" in
+	x86_64 | amd64) arch=amd64 ;;
+	arm64 | aarch64) arch=arm64 ;;
+esac
+if [ "$VERSION" != dev ] && command -v curl >/dev/null 2>&1; then
+	asset="side-quest_${VERSION}_${os}_${arch}.tar.gz"
+	base="https://github.com/$REPO/releases/download/v$VERSION"
+	tmp=$(mktemp -d)
+	if curl -fsSL "$base/$asset" -o "$tmp/$asset" &&
+		curl -fsSL "$base/checksums.txt" -o "$tmp/checksums.txt"; then
+		want=$(grep " $asset\$" "$tmp/checksums.txt" | awk '{print $1}')
+		got=$(sha256 "$tmp/$asset")
+		if [ -n "$want" ] && [ "$want" = "$got" ]; then
+			mkdir -p "$CACHE"
+			tar -xzf "$tmp/$asset" -C "$tmp"
+			mv "$tmp/side-quest" "$BIN"
+			chmod +x "$BIN"
+			rm -rf "$tmp"
+			exec "$BIN" "$@"
+		fi
+	fi
+	rm -rf "$tmp"
+fi
+
+# 4. Could not provision — tell the user how, and fail.
+echo "side-quest: could not locate or download the side-quest binary." >&2
+echo "  Install it with:  go install github.com/$REPO/cmd/side-quest@latest" >&2
+echo "  (then ensure ~/go/bin is on your PATH), or download a release from" >&2
+echo "  https://github.com/$REPO/releases and put it on your PATH." >&2
+exit 1
