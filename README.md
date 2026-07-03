@@ -8,7 +8,7 @@ link between every quest and the git commits that address it.
 > **Status: CLI + MCP server + plugin packaging ready.** The quest store, git
 > hooks, CLI (init/new/list/show/status/reclassify/config), MCP server
 > (`side-quest serve`), and the Claude Code plugin are built and tested. A
-> TODO/COMPLETED importer and a `sync` command are planned (see "Roadmap").
+> A `sync` command to move quests across machines is planned (see "Roadmap").
 
 ## The problem it solves
 
@@ -171,6 +171,4 @@ agent-facing guidance see [`AGENTS.md`](AGENTS.md) and
 
 ## Roadmap
 
-- **Importer** — a best-effort importer for existing `TODO.md` / `COMPLETED.md`
-  files (planned).
 - **`sync`** — a command to pull/push the quest ref across machines (planned).
