@@ -55,9 +55,6 @@ func renderShow(w io.Writer, q *quest.Quest) {
 	if len(q.Commits) > 0 {
 		fmt.Fprintf(w, "commits:   %s\n", strings.Join(q.Commits, ", "))
 	}
-	if q.Context != "" {
-		fmt.Fprintf(w, "context:   %s\n", q.Context)
-	}
 	if len(q.Tags) > 0 {
 		keys := make([]string, 0, len(q.Tags))
 		for k := range q.Tags {
@@ -67,6 +64,9 @@ func renderShow(w io.Writer, q *quest.Quest) {
 		for _, k := range keys {
 			fmt.Fprintf(w, "tag:       %s=%s\n", k, q.Tags[k])
 		}
+	}
+	if q.Context != "" {
+		fmt.Fprintf(w, "context:   %s\n", q.Context)
 	}
 	if q.Body != "" {
 		fmt.Fprintf(w, "\n%s\n", strings.TrimRight(q.Body, "\n"))
