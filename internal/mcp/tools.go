@@ -184,15 +184,8 @@ func (h *handlers) questReclassify(ctx context.Context, req *sdk.CallToolRequest
 	if in.Type == "" && in.Priority == "" {
 		return nil, nil, fmt.Errorf("reclassify needs type and/or priority")
 	}
-	if in.Type != "" {
-		if err := h.store.SetType(in.ID, quest.Type(in.Type)); err != nil {
-			return nil, nil, err
-		}
-	}
-	if in.Priority != "" {
-		if err := h.store.SetPriority(in.ID, quest.Priority(in.Priority)); err != nil {
-			return nil, nil, err
-		}
+	if err := h.store.Reclassify(in.ID, quest.Type(in.Type), quest.Priority(in.Priority)); err != nil {
+		return nil, nil, err
 	}
 	return h.result(in.ID)
 }
@@ -201,15 +194,8 @@ func (h *handlers) questUpdate(ctx context.Context, req *sdk.CallToolRequest, in
 	if in.Title == "" && len(in.Tags) == 0 {
 		return nil, nil, fmt.Errorf("update needs title and/or tags")
 	}
-	if in.Title != "" {
-		if err := h.store.SetTitle(in.ID, in.Title); err != nil {
-			return nil, nil, err
-		}
-	}
-	if len(in.Tags) > 0 {
-		if err := h.store.MergeTags(in.ID, in.Tags); err != nil {
-			return nil, nil, err
-		}
+	if err := h.store.Modify(in.ID, in.Title, in.Tags); err != nil {
+		return nil, nil, err
 	}
 	return h.result(in.ID)
 }

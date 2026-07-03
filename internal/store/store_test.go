@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -535,7 +536,26 @@ func TestCreateRejectsInvalidTypePriority(t *testing.T) {
 	}
 }
 
-func TestSetTypeAndPriority(t *testing.T) {
+// commitCount returns how many commits the ref advanced from tip old to the
+// current tip — used to prove a multi-field change lands as ONE commit.
+func commitCount(t *testing.T, s *Store, old string) int {
+	t.Helper()
+	now, err := s.tip()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := s.git.Run("rev-list", "--count", old+".."+now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func TestReclassifySetsBothInOneCommit(t *testing.T) {
 	s := newStore(t)
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
@@ -544,10 +564,8 @@ func TestSetTypeAndPriority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetType(q.ID, quest.TypeBug); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.SetPriority(q.ID, quest.PriorityHigh); err != nil {
+	before, _ := s.tip()
+	if err := s.Reclassify(q.ID, quest.TypeBug, quest.PriorityHigh); err != nil {
 		t.Fatal(err)
 	}
 	got, err := s.Get(q.ID)
@@ -555,32 +573,58 @@ func TestSetTypeAndPriority(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Type != quest.TypeBug || got.Priority != quest.PriorityHigh {
-		t.Errorf("after set: got %q/%q want bug/high", got.Type, got.Priority)
+		t.Errorf("after reclassify: got %q/%q want bug/high", got.Type, got.Priority)
+	}
+	if n := commitCount(t, s, before); n != 1 {
+		t.Errorf("reclassify of two fields must be one commit, got %d", n)
 	}
 }
 
-func TestSetTypeAndPriorityRejectInvalid(t *testing.T) {
+// Reclassify must be atomic: a valid type paired with an invalid priority is
+// rejected whole, leaving BOTH fields untouched — never landing the type change
+// and then failing on the priority.
+func TestReclassifyRejectsInvalidAtomically(t *testing.T) {
 	s := newStore(t)
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
 	}
-	q, err := s.Create("keep me", "", "", "", nil)
+	q, err := s.Create("keep me", "", "", "", nil) // defaults: feature/low
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetType(q.ID, quest.Type("chore")); err == nil {
-		t.Error("expected error for invalid type")
+	before, _ := s.tip()
+	if err := s.Reclassify(q.ID, quest.TypeBug, quest.Priority("urgent")); err == nil {
+		t.Fatal("expected error for invalid priority")
 	}
-	if err := s.SetPriority(q.ID, quest.Priority("urgent")); err == nil {
-		t.Error("expected error for invalid priority")
-	}
-	// The quest keeps its original defaulted values.
 	got, err := s.Get(q.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.Type != quest.TypeFeature || got.Priority != quest.PriorityLow {
-		t.Errorf("rejected sets mutated the quest: %q/%q", got.Type, got.Priority)
+		t.Errorf("rejected reclassify mutated the quest: %q/%q", got.Type, got.Priority)
+	}
+	if n := commitCount(t, s, before); n != 0 {
+		t.Errorf("rejected reclassify must write nothing, got %d commits", n)
+	}
+}
+
+// Reclassify treats an empty field as "leave unchanged", so a single-field
+// change touches only that field.
+func TestReclassifyEmptyFieldLeavesUnchanged(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Create("half", "", quest.TypeBug, quest.PriorityHigh, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Reclassify(q.ID, "", quest.PriorityLow); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get(q.ID)
+	if got.Type != quest.TypeBug || got.Priority != quest.PriorityLow {
+		t.Errorf("empty type should be left unchanged: got %q/%q want bug/low", got.Type, got.Priority)
 	}
 }
 
@@ -608,32 +652,65 @@ func TestAppendNoteAccumulates(t *testing.T) {
 	}
 }
 
-func TestSetTitleReplacesAndRejectsEmpty(t *testing.T) {
+func TestModifyTitleAndTagsInOneCommit(t *testing.T) {
 	s := newStore(t)
-	q, _ := s.Create("old", "", "", "", nil)
-	if err := s.SetTitle(q.ID, "new title"); err != nil {
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, _ := s.Create("old", "", "", "", map[string]string{"area": "cli", "keep": "yes"})
+	before, _ := s.tip()
+	err := s.Modify(q.ID, "new title", map[string]string{"area": "mcp", "new": "x", "keep": ""})
+	if err != nil {
 		t.Fatal(err)
 	}
 	got, _ := s.Get(q.ID)
 	if got.Title != "new title" {
 		t.Fatalf("title not replaced: %q", got.Title)
 	}
-	if err := s.SetTitle(q.ID, "   "); err == nil {
-		t.Fatal("empty title should error")
-	}
-}
-
-func TestMergeTagsAddsOverwritesDeletes(t *testing.T) {
-	s := newStore(t)
-	q, _ := s.Create("tagged", "", "", "", map[string]string{"area": "cli", "keep": "yes"})
-	if err := s.MergeTags(q.ID, map[string]string{"area": "mcp", "new": "x", "keep": ""}); err != nil {
-		t.Fatal(err)
-	}
-	got, _ := s.Get(q.ID)
 	if got.Tags["area"] != "mcp" || got.Tags["new"] != "x" {
 		t.Fatalf("merge/overwrite wrong: %+v", got.Tags)
 	}
 	if _, ok := got.Tags["keep"]; ok {
 		t.Fatalf("empty value should delete key: %+v", got.Tags)
+	}
+	if n := commitCount(t, s, before); n != 1 {
+		t.Errorf("title+tags change must be one commit, got %d", n)
+	}
+}
+
+// Modify must be atomic: a whitespace-only title is rejected whole, leaving the
+// title AND the tags untouched.
+func TestModifyRejectsBlankTitleAtomically(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, _ := s.Create("keep", "", "", "", map[string]string{"area": "cli"})
+	before, _ := s.tip()
+	if err := s.Modify(q.ID, "   ", map[string]string{"area": "mcp"}); err == nil {
+		t.Fatal("blank title should error")
+	}
+	got, _ := s.Get(q.ID)
+	if got.Title != "keep" || got.Tags["area"] != "cli" {
+		t.Errorf("rejected modify mutated the quest: %q %+v", got.Title, got.Tags)
+	}
+	if n := commitCount(t, s, before); n != 0 {
+		t.Errorf("rejected modify must write nothing, got %d commits", n)
+	}
+}
+
+// An empty title means "leave the title unchanged" — only the tags move.
+func TestModifyEmptyTitleKeepsTitle(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, _ := s.Create("stays", "", "", "", nil)
+	if err := s.Modify(q.ID, "", map[string]string{"area": "mcp"}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get(q.ID)
+	if got.Title != "stays" || got.Tags["area"] != "mcp" {
+		t.Errorf("empty title should keep title, tags should merge: %q %+v", got.Title, got.Tags)
 	}
 }

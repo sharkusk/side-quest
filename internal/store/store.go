@@ -440,20 +440,25 @@ func (s *Store) SetStatus(id string, st quest.Status) error {
 	})
 }
 
-// SetType sets a quest's type after validating it.
-func (s *Store) SetType(id string, t quest.Type) error {
-	if !t.Valid() {
-		return fmt.Errorf("invalid type %q", t)
+// Reclassify sets a quest's type and/or priority in a SINGLE commit. An empty
+// typ or prio leaves that field unchanged; a non-empty invalid value is
+// rejected before any write, so the change is atomic — a caller can never land
+// a new type but fail to apply the priority.
+func (s *Store) Reclassify(id string, typ quest.Type, prio quest.Priority) error {
+	if typ != "" && !typ.Valid() {
+		return fmt.Errorf("invalid type %q", typ)
 	}
-	return s.Update(id, func(q *quest.Quest) { q.Type = t })
-}
-
-// SetPriority sets a quest's priority after validating it.
-func (s *Store) SetPriority(id string, p quest.Priority) error {
-	if !p.Valid() {
-		return fmt.Errorf("invalid priority %q", p)
+	if prio != "" && !prio.Valid() {
+		return fmt.Errorf("invalid priority %q", prio)
 	}
-	return s.Update(id, func(q *quest.Quest) { q.Priority = p })
+	return s.Update(id, func(q *quest.Quest) {
+		if typ != "" {
+			q.Type = typ
+		}
+		if prio != "" {
+			q.Priority = prio
+		}
+	})
 }
 
 // AppendNote appends text to a quest's body as a new, UTC-timestamped entry,
@@ -478,19 +483,18 @@ func (s *Store) AppendNote(id, text string) error {
 	})
 }
 
-// SetTitle replaces a quest's title. An empty title is rejected — a quest must
-// keep a title.
-func (s *Store) SetTitle(id, title string) error {
-	if strings.TrimSpace(title) == "" {
+// Modify sets a quest's title and/or merges tags in a SINGLE commit. An empty
+// title leaves the title unchanged; a whitespace-only title is rejected before
+// any write. Tags follow merge semantics: a non-empty value sets/overwrites the
+// key, an empty value deletes it. Combining the two keeps the change atomic.
+func (s *Store) Modify(id, title string, tags map[string]string) error {
+	if title != "" && strings.TrimSpace(title) == "" {
 		return fmt.Errorf("title is empty")
 	}
-	return s.Update(id, func(q *quest.Quest) { q.Title = title })
-}
-
-// MergeTags merges tags into a quest's tag map: a non-empty value sets/overwrites
-// the key; an empty value deletes it.
-func (s *Store) MergeTags(id string, tags map[string]string) error {
 	return s.Update(id, func(q *quest.Quest) {
+		if title != "" {
+			q.Title = title
+		}
 		for k, v := range tags {
 			if v == "" {
 				delete(q.Tags, k)

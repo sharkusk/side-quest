@@ -248,17 +248,7 @@ func cmdReclassify(args []string) error {
 		return err
 	}
 	id := rest[0]
-	if typ != "" {
-		if err := s.SetType(id, quest.Type(typ)); err != nil {
-			return err
-		}
-	}
-	if prio != "" {
-		if err := s.SetPriority(id, quest.Priority(prio)); err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.Reclassify(id, quest.Type(typ), quest.Priority(prio))
 }
 
 func cmdConfig(args []string) error {

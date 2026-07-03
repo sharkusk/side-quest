@@ -338,7 +338,10 @@ single flag (`rev-parse --absolute-git-dir`); everything else works on far older
    ref`), surfacing all other errors.
 3. **The id is the filename**, never serialized into the quest file.
 4. **id allocation is atomic** — quest file + advanced counter in one commit.
-5. **git runs in `LC_ALL=C`** so stderr parsing is locale-independent.
+5. **Multi-field edits are atomic** — `reclassify` (type + priority) and
+   `update` (title + tags) validate every field up front and apply them in one
+   commit, so a bad value rejects the whole change rather than landing half of it.
+6. **git runs in `LC_ALL=C`** so stderr parsing is locale-independent.
 
 ## Glossary
 
