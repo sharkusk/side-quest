@@ -108,10 +108,13 @@ func TestLauncherFailsWithHint(t *testing.T) {
 }
 
 // Regression test: a relative $0 (the real shipped deployment, e.g. `./side-quest`
-// with the plugin's own bin/ on PATH) must not cause the step-2 self-check to
-// exec the launcher into itself forever. Under the old bug this hangs until the
-// context deadline; with the fix it terminates on its own with the install hint.
-func TestLauncherDoesNotRecurseOnRelativeInvocation(t *testing.T) {
+// with the plugin's own bin/ on PATH) must resolve the step-2 self-check correctly
+// (comparing an absolute SELF against found_abs) and terminate promptly at the
+// install hint, rather than mis-exec'ing the wrong thing. The context timeout is
+// a safety net, not a reproduction of an actual hang: POSIX shebang exec resolves
+// $0 to an absolute path on each hop, so even the uncanonicalized pre-fix code
+// self-heals after a couple of hops and terminates — it never hangs in practice.
+func TestLauncherRelativeInvocationResolvesSelf(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("dev\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -142,7 +145,7 @@ func TestLauncherDoesNotRecurseOnRelativeInvocation(t *testing.T) {
 	out, err := cmd.CombinedOutput()
 
 	if ctx.Err() != nil {
-		t.Fatalf("launcher hit context deadline (recursed on relative $0): %s", out)
+		t.Fatalf("launcher hit context deadline (did not terminate): %s", out)
 	}
 	if err == nil {
 		t.Fatalf("expected non-zero exit, got success: %s", out)
