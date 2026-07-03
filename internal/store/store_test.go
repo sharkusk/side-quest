@@ -386,6 +386,30 @@ func TestSetRequireQuestPersists(t *testing.T) {
 	}
 }
 
+func TestSetAutoTrailerPersists(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := s.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.AutoTrailer {
+		t.Fatal("fresh store should have auto_trailer=true (Default)")
+	}
+	if err := s.SetAutoTrailer(false); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = s.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AutoTrailer {
+		t.Fatal("SetAutoTrailer(false) did not persist")
+	}
+}
+
 func TestConfigEmptyStoreIsDefault(t *testing.T) {
 	s := newStore(t) // not initialized
 	cfg, err := s.Config()

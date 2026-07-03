@@ -510,6 +510,21 @@ func (s *Store) SetRequireQuest(v bool) error {
 	})
 }
 
+// SetAutoTrailer flips the auto_trailer flag on the ref (controls whether the
+// prepare-commit-msg hook injects the current-quest trailer).
+func (s *Store) SetAutoTrailer(v bool) error {
+	return s.mutate("side-quest: set auto_trailer", func(snap *Snapshot, tx *txn) error {
+		cfg := snap.Config
+		cfg.AutoTrailer = v
+		data, err := config.Marshal(cfg)
+		if err != nil {
+			return err
+		}
+		tx.put(configPath, data)
+		return nil
+	})
+}
+
 func contains(xs []string, x string) bool {
 	for _, v := range xs {
 		if v == x {

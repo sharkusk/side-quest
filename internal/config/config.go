@@ -17,6 +17,15 @@ const (
 	Random     Strategy = "random"     // SQ-a3f9c2 (6 hex)
 )
 
+// Valid reports whether s is one of the known id strategies.
+func (s Strategy) Valid() bool {
+	switch s {
+	case Sequential, Random:
+		return true
+	}
+	return false
+}
+
 // Tone selects the message register (used by the voice layer in a later phase).
 type Tone string
 

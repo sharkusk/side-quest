@@ -73,3 +73,16 @@ func TestRequireQuestAbsentKeyIsFalse(t *testing.T) {
 		t.Fatal("absent require_quest must default to false")
 	}
 }
+
+func TestStrategyValid(t *testing.T) {
+	for _, s := range []Strategy{Sequential, Random} {
+		if !s.Valid() {
+			t.Errorf("Strategy %q should be valid", s)
+		}
+	}
+	for _, s := range []Strategy{"", "seq", "rand", "Sequential"} {
+		if Strategy(s).Valid() {
+			t.Errorf("Strategy %q should be invalid", s)
+		}
+	}
+}
