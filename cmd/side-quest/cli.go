@@ -170,8 +170,9 @@ func cmdList(args []string) error {
 
 func cmdShow(args []string) error {
 	fs := newFlagSet("show")
-	var asJSON bool
+	var asJSON, noWrap bool
 	fs.BoolVar(&asJSON, "json", false, "emit JSON")
+	fs.BoolVar(&noWrap, "no-wrap", false, "print raw field values without word-wrapping")
 	rest, err := parseInterspersed(fs, args)
 	if err != nil {
 		return &usageErr{err.Error()}
@@ -190,7 +191,13 @@ func cmdShow(args []string) error {
 	if asJSON {
 		return emitJSON(os.Stdout, q)
 	}
-	renderShow(os.Stdout, q)
+	// Wrap to the terminal width, but only for an interactive terminal: piped
+	// output and --no-wrap both fall back to width 0 (unwrapped, script-stable).
+	width := 0
+	if !noWrap {
+		width = terminalWidth(os.Stdout)
+	}
+	renderShow(os.Stdout, q, width)
 	return nil
 }
 

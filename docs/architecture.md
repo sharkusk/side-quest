@@ -210,7 +210,10 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
 - `list` — list quests; filters `--status`/`--type`/`--priority` (validated,
   combined with AND) and `--json`.
 - `show <id>` — show one quest; `--json`. (`<id>` accepts shorthand: `11` or
-  `0011` for `SQ-0011`, everywhere an id is taken.)
+  `0011` for `SQ-0011`, everywhere an id is taken.) Long field values and body
+  lines are word-wrapped to the terminal width with a hanging indent; `--no-wrap`
+  prints raw values, and piped/redirected output (a non-terminal) is never
+  wrapped, so scripts see stable single-line fields.
 - `status <id> <status>` — set the lifecycle status.
 - `note <id> <text>` — append a note to a quest (the note text is every
   argument after the id, joined with spaces).
