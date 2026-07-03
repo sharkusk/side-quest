@@ -17,7 +17,7 @@ import (
 const usage = `usage: side-quest <command> [args]
 
   init                            create the quest ref (_config.yaml)
-  new <title> [--type --priority --context --tag k=v --current --json]
+  new [--type --priority --context --tag k=v --current --json] <title>
   list [--status --type --priority --json]   list quests (filters combine)
   show <id> [--json]              show one quest
   status <id> <status>            set a quest's status

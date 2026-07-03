@@ -1,5 +1,5 @@
-// Rendering helpers for the human CLI: JSON emission and (added in later tasks)
-// human-readable tables and detail views.
+// Rendering helpers for the human CLI: JSON emission, human-readable tables,
+// and detail views.
 package main
 
 import (

@@ -1,6 +1,7 @@
 // Human-facing CLI subcommands (init, new, list, show, status, reclassify,
 // config). Each handler parses its own flags with the stdlib flag package and
-// calls exactly one store method — validation lives in the store, not here.
+// calls one or more store methods. Validation lives in the store, except for
+// cmdList which validates its filter values.
 package main
 
 import (
