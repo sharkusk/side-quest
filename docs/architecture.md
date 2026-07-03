@@ -195,9 +195,10 @@ Handlers live in `cli.go`; rendering in `render.go`. Each command is a thin
 adapter over one `store` method — validation stays at the store write boundary
 (the sole exception: `list` validates its filter values). `--json` marshals the
 raw `quest.Quest`/`config.Config` structs, so the JSON keys are the Go field
-names; this is the stable machine surface the MCP layer reuses. Flags must
-precede positional arguments (stdlib `flag` behavior). Usage errors exit 2; all
-other errors exit 1.
+names; this is the stable machine surface the MCP layer reuses. Flags may be
+given before or after positional arguments: `parseInterspersed` (in `cli.go`)
+re-parses around each positional because stdlib `flag` stops at the first one.
+Usage errors exit 2; all other errors exit 1.
 
 The CLI relies on two store/config additions: `store.SetAutoTrailer` and
 `config.Strategy.Valid()`.

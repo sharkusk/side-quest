@@ -46,6 +46,27 @@ func newFlagSet(name string) *flag.FlagSet {
 	return fs
 }
 
+// parseInterspersed parses fs while allowing flags to appear before OR after
+// positional arguments. Go's stdlib flag package stops at the first
+// non-flag token, so `new "title" --tag x=y` would otherwise treat the
+// trailing flags as positionals. We work around that by parsing, peeling off
+// the one positional the parser stopped on, and re-parsing the remainder until
+// no tokens are left. Returns the collected positional arguments in order.
+func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
+	var positionals []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return nil, err
+		}
+		rest := fs.Args()
+		if len(rest) == 0 {
+			return positionals, nil
+		}
+		positionals = append(positionals, rest[0])
+		args = rest[1:]
+	}
+}
+
 func cmdInit(args []string) error {
 	if len(args) != 0 {
 		return &usageErr{"init takes no arguments"}
@@ -72,12 +93,12 @@ func cmdNew(args []string) error {
 	fs.Var(&tags, "tag", "tag as key=value (repeatable)")
 	fs.BoolVar(&setCurrent, "current", false, "also set as this worktree's current quest")
 	fs.BoolVar(&asJSON, "json", false, "emit the created quest as JSON")
-	if err := fs.Parse(args); err != nil {
+	rest, err := parseInterspersed(fs, args)
+	if err != nil {
 		return &usageErr{err.Error()}
 	}
-	rest := fs.Args()
 	if len(rest) != 1 {
-		return &usageErr{"new needs exactly one <title> (quote multi-word titles; put flags before it)"}
+		return &usageErr{"new needs exactly one <title> (quote multi-word titles)"}
 	}
 	s, err := openStore()
 	if err != nil {
@@ -107,7 +128,7 @@ func cmdList(args []string) error {
 	fs.StringVar(&typ, "type", "", "filter by type (bug|feature)")
 	fs.StringVar(&prio, "priority", "", "filter by priority (high|low)")
 	fs.BoolVar(&asJSON, "json", false, "emit JSON")
-	if err := fs.Parse(args); err != nil {
+	if _, err := parseInterspersed(fs, args); err != nil {
 		return &usageErr{err.Error()}
 	}
 	if status != "" && !quest.Status(status).Valid() {
@@ -151,10 +172,10 @@ func cmdShow(args []string) error {
 	fs := newFlagSet("show")
 	var asJSON bool
 	fs.BoolVar(&asJSON, "json", false, "emit JSON")
-	if err := fs.Parse(args); err != nil {
+	rest, err := parseInterspersed(fs, args)
+	if err != nil {
 		return &usageErr{err.Error()}
 	}
-	rest := fs.Args()
 	if len(rest) != 1 {
 		return &usageErr{"show needs exactly one <id>"}
 	}
@@ -193,10 +214,10 @@ func cmdReclassify(args []string) error {
 	var typ, prio string
 	fs.StringVar(&typ, "type", "", "new type (bug|feature)")
 	fs.StringVar(&prio, "priority", "", "new priority (high|low)")
-	if err := fs.Parse(args); err != nil {
+	rest, err := parseInterspersed(fs, args)
+	if err != nil {
 		return &usageErr{err.Error()}
 	}
-	rest := fs.Args()
 	if len(rest) != 1 {
 		return &usageErr{"reclassify needs exactly one <id>"}
 	}
@@ -239,7 +260,7 @@ func cmdConfigGet(args []string) error {
 	fs := newFlagSet("config get")
 	var asJSON bool
 	fs.BoolVar(&asJSON, "json", false, "emit JSON")
-	if err := fs.Parse(args); err != nil {
+	if _, err := parseInterspersed(fs, args); err != nil {
 		return &usageErr{err.Error()}
 	}
 	s, err := openStore()

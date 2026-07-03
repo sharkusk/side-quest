@@ -64,7 +64,7 @@ side-quest config get
 ```
 
 Add `--json` to `new`, `list`, `show`, or `config get` for machine-readable
-output. Flags come before the title/id positional argument.
+output. Flags may appear before or after the title/id positional argument.
 
 ## Tone
 

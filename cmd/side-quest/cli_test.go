@@ -227,6 +227,69 @@ func TestReclassifyBothFields(t *testing.T) {
 	}
 }
 
+// Flags may appear after the positional title/id as well as before it. Go's
+// stdlib flag package stops at the first positional, so these cases only work
+// because the CLI re-parses interspersed args (see parseInterspersed).
+func TestNewFlagsAfterTitle(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+
+	out, code := runBin(t, bin, dir,
+		"new", "Broken flag", "--type", "bug", "--priority", "high", "--tag", "area=cli", "--json")
+	if code != 0 {
+		t.Fatalf("new (flags after title) exit=%d out=%s", code, out)
+	}
+	var q quest.Quest
+	if err := json.Unmarshal([]byte(out), &q); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if q.Title != "Broken flag" || q.Type != quest.TypeBug || q.Priority != quest.PriorityHigh {
+		t.Fatalf("flags after title not applied: %+v", q)
+	}
+	if q.Tags["area"] != "cli" {
+		t.Fatalf("tag after title not recorded: %+v", q.Tags)
+	}
+	_ = s
+}
+
+func TestShowFlagAfterID(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+	t.Setenv("SIDE_QUEST_TONE", "plain")
+
+	out, _ := runBin(t, bin, dir, "new", "Show me")
+	id := idFromCreated(t, out)
+
+	out, code := runBin(t, bin, dir, "show", id, "--json")
+	if code != 0 {
+		t.Fatalf("show <id> --json exit=%d out=%s", code, out)
+	}
+	var q quest.Quest
+	if err := json.Unmarshal([]byte(out), &q); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if q.Title != "Show me" {
+		t.Fatalf("wrong quest: %+v", q)
+	}
+}
+
+func TestReclassifyFlagsAfterID(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	t.Setenv("SIDE_QUEST_TONE", "plain")
+
+	out, _ := runBin(t, bin, dir, "new", "Reclassify me")
+	id := idFromCreated(t, out)
+
+	if _, code := runBin(t, bin, dir, "reclassify", id, "--type", "bug", "--priority", "high"); code != 0 {
+		t.Fatalf("reclassify <id> --type ... exit nonzero")
+	}
+	q, _ := s.Get(id)
+	if q.Type != quest.TypeBug || q.Priority != quest.PriorityHigh {
+		t.Fatalf("reclassify (flags after id) wrong: %+v", q)
+	}
+}
+
 func TestReclassifyNoFlagIsUsageError(t *testing.T) {
 	bin := buildBinary(t)
 	dir, _ := newRepo(t)
