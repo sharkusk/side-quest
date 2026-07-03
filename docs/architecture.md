@@ -184,9 +184,12 @@ collapses duplicate env keys keeping the last value, so the store's scratch
 
 **Where the shims land, and composing with existing hooks:** install-hooks
 honors `core.hooksPath` when set, otherwise writes to `<common-git-dir>/hooks`.
-Each shim is a marker-guarded block (`# >>> side-quest >>>` … `# <<< side-quest
-<<<`): installing into an existing hook **appends** our block and leaves the rest
-intact, and re-installing replaces only our block (idempotent, never duplicated).
+Each shim calls the installing binary by absolute path, normalized to forward
+slashes so it runs under Git-for-Windows' MSYS sh (a `C:\…` path would break;
+`C:/…` works — SQ-0021). Each shim is a marker-guarded block (`# >>> side-quest
+>>>` … `# <<< side-quest <<<`): installing into an existing hook **appends** our
+block and leaves the rest intact, and re-installing replaces only our block
+(idempotent, never duplicated).
 It assumes the existing hook is POSIX-sh and runs our block last — a non-sh hook,
 or one that exits early, needs care (SQ-0020). A repo already driving a different
 bookkeeping system through `core.hooksPath` should retire it before adopting

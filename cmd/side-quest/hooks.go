@@ -43,7 +43,7 @@ func cmdInstallHooks(args []string) error {
 		return err
 	}
 
-	q := `"` + self + `"`
+	q := shimQuotedPath(self)
 	// commit-msg OMITS "|| true" so a require_quest reject (exit 1) blocks the
 	// commit; the other two never block the user's workflow.
 	shims := []struct{ name, body string }{
@@ -86,6 +86,20 @@ func resolveHooksDir(g *gitcmd.Git, cwd string) (string, error) {
 		common = filepath.Join(cwd, common)
 	}
 	return filepath.Join(common, "hooks"), nil
+}
+
+// shimQuotedPath returns the side-quest binary path quoted for a POSIX-sh hook,
+// normalized to forward slashes. Git hooks always run under sh — even on Windows,
+// via Git-for-Windows' MSYS sh, where a backslash is an escape and a C:\... drive
+// path is fragile — so the embedded path must use "/" (MSYS sh accepts C:/...).
+//
+// The conversion is done explicitly rather than with filepath.ToSlash, which
+// keys off the BUILD host's separator ('/' on Unix) and so would silently leave
+// a Windows path untouched when this binary is cross-compiled or tested on Unix.
+// A literal backslash in a Unix install path (pathological for a binary) is the
+// only case this would mangle, a trade we accept for correct Windows shims.
+func shimQuotedPath(self string) string {
+	return `"` + strings.ReplaceAll(self, `\`, "/") + `"`
 }
 
 // installOneHook creates a new hook or composes our marker-guarded block into an
