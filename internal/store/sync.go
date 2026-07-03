@@ -350,3 +350,27 @@ func countNew(from, to merge.Side) int {
 func mergeSideOf(r merge.Result) merge.Side {
 	return merge.Side{Config: r.Config, Quests: r.Quests}
 }
+
+// BootstrapFromTracking fast-forwards the live Ref to the tracking ref when the
+// live ref is absent or a strict ancestor of it — the fresh-clone case, where
+// quests should appear without a full sync. It never touches a diverged or ahead
+// live ref and does no network I/O, so it is safe to call on every command.
+func (s *Store) BootstrapFromTracking() error {
+	remote, err := s.trackingTip()
+	if err != nil || remote == "" {
+		return nil
+	}
+	local, err := s.tip()
+	if err != nil {
+		return err
+	}
+	switch {
+	case local == "":
+		_, err := s.git.Run("update-ref", Ref, remote)
+		return err
+	case local != remote && s.isAncestor(local, remote):
+		_, err := s.git.Run("update-ref", Ref, remote, local)
+		return err
+	}
+	return nil
+}

@@ -250,3 +250,31 @@ func TestSideAtEmptyCommit(t *testing.T) {
 		t.Errorf("empty commit should yield no quests, got %d", len(side.Quests))
 	}
 }
+
+func TestBootstrapAdoptsTrackingWhenLiveAbsent(t *testing.T) {
+	origin := newOrigin(t)
+	a := clone(t, origin)
+	if err := a.Init(); err != nil {
+		t.Fatal(err)
+	}
+	mustCreate(t, a)
+	if _, err := a.Sync("origin", SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	b := clone(t, origin)
+	// simulate a fetch having populated only the tracking ref (no live ref yet)
+	if _, err := b.git.Run("fetch", origin, FetchRefspec); err != nil {
+		t.Fatal(err)
+	}
+	if tip, _ := b.tip(); tip != "" {
+		t.Fatalf("precondition: live ref should be absent, got %s", tip)
+	}
+	if err := b.BootstrapFromTracking(); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := b.List()
+	if len(got) != 1 {
+		t.Fatalf("bootstrap should adopt 1 quest, got %d", len(got))
+	}
+}
