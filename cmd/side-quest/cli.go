@@ -16,6 +16,7 @@ import (
 
 	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/quest"
+	"github.com/sharkusk/side-quest/internal/store"
 )
 
 // usageErr marks a wrong-usage problem (missing arg, malformed flag). main()
@@ -104,7 +105,18 @@ func cmdInit(args []string) error {
 		return err
 	}
 	fmt.Println(voiceFor(s).Initialized())
+	noticeRandomIDs(s)
 	return nil
+}
+
+// noticeRandomIDs tells the user when Init selected the random strategy (because
+// a remote is configured — SQ-0030), since it deviates from the tidy sequential
+// default and is easy to miss. Silent for sequential; silent on any read error
+// (a cosmetic notice must never fail the command).
+func noticeRandomIDs(s *store.Store) {
+	if cfg, err := s.Config(); err == nil && cfg.IDStrategy == config.Random {
+		fmt.Println("side-quest: a remote is configured, so ids are random (e.g. SQ-a1b2c3) to avoid clashes across clones — override with `side-quest config set id_strategy sequential`.")
+	}
 }
 
 func cmdNew(args []string) error {

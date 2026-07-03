@@ -123,6 +123,52 @@ func TestInitCreatesRefAndConfig(t *testing.T) {
 	}
 }
 
+// TestInitDefaultsToRandomWithRemote (SQ-0030): a configured remote signals a
+// team/shared workflow, where sequential ids collide across offline clones, so
+// Init should default to the random strategy. Without a remote it stays sequential.
+func TestInitDefaultsToRandomWithRemote(t *testing.T) {
+	dir := t.TempDir()
+	g := gitcmd.New(dir)
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"config", "user.email", "t@example.com"},
+		{"config", "user.name", "Tester"},
+		{"remote", "add", "origin", t.TempDir()},
+	} {
+		if _, err := g.Run(args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := s.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IDStrategy != config.Random {
+		t.Errorf("Init with a remote should default to random ids, got %v", cfg.IDStrategy)
+	}
+}
+
+func TestInitStaysSequentialWithoutRemote(t *testing.T) {
+	s := newStore(t) // no remote configured
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := s.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IDStrategy != config.Sequential {
+		t.Errorf("Init without a remote should stay sequential, got %v", cfg.IDStrategy)
+	}
+}
+
 func TestInitTwiceFails(t *testing.T) {
 	s := newStore(t)
 	if err := s.Init(); err != nil {

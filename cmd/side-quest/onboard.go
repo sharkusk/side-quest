@@ -52,6 +52,7 @@ func cmdOnboard(args []string) error {
 	switch err := s.Init(); {
 	case err == nil:
 		fmt.Println(voiceFor(s).Initialized())
+		noticeRandomIDs(s) // clone→onboard usually has a remote, so ids default to random (SQ-0030)
 	case errors.Is(err, store.ErrAlreadyInitialized):
 		fmt.Println("side-quest: quest ref already present — leaving it as is.")
 	default:

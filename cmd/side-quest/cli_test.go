@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/sharkusk/side-quest/internal/config"
+	"github.com/sharkusk/side-quest/internal/gitcmd"
 	"github.com/sharkusk/side-quest/internal/quest"
 )
 
@@ -238,6 +239,29 @@ func TestNewBadTagExitsTwo(t *testing.T) {
 	_, code := runBin(t, bin, dir, "new", "--tag", "noequals", "Title")
 	if code != 2 {
 		t.Fatalf("expected exit 2 for malformed --tag, got %d", code)
+	}
+}
+
+// TestInitWithRemoteChoosesRandomAndSaysSo (SQ-0030): initializing a repo that
+// already has a remote defaults to random ids and tells the user.
+func TestInitWithRemoteChoosesRandomAndSaysSo(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+	g := gitcmd.New(dir)
+	if _, err := g.Run("remote", "add", "origin", t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	out, code := runBin(t, bin, dir, "init")
+	if code != 0 {
+		t.Fatalf("init exit=%d out=%s", code, out)
+	}
+	if !strings.Contains(out, "random") {
+		t.Errorf("expected a random-ids notice, got:\n%s", out)
+	}
+	// The created quest carries a random (hex) id, not SQ-0001.
+	cout, _ := runBin(t, bin, dir, "new", "a task", "--json")
+	if strings.Contains(cout, "SQ-0001") {
+		t.Errorf("expected a random id, got sequential:\n%s", cout)
 	}
 }
 

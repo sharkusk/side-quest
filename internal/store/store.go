@@ -251,7 +251,16 @@ func (s *Store) cas(oldTip, newCommit string) (bool, error) {
 // one's retry sees a non-empty tip and returns the error instead of committing
 // a second init on top (spec §5.3 CAS safety).
 func (s *Store) Init() error {
-	cfgBytes, err := config.Marshal(config.Default())
+	cfg := config.Default()
+	// A configured remote signals a shared/team workflow, where the sequential
+	// strategy collides across offline clones (two clones both mint SQ-0007 → same
+	// filename, different content). Default to random ids in that case so filenames
+	// never clash; a solo repo (no remote) keeps the tidy sequential default. The
+	// user can always override with `config set id_strategy` (spec §7, SQ-0030).
+	if s.hasRemote() {
+		cfg.IDStrategy = config.Random
+	}
+	cfgBytes, err := config.Marshal(cfg)
 	if err != nil {
 		return err
 	}
@@ -262,6 +271,13 @@ func (s *Store) Init() error {
 		tx.put(configPath, cfgBytes)
 		return nil
 	})
+}
+
+// hasRemote reports whether the repository has any configured remote. `git
+// remote` exits 0 and prints nothing when there are none.
+func (s *Store) hasRemote() bool {
+	out, err := s.git.Run("remote")
+	return err == nil && strings.TrimSpace(out) != ""
 }
 
 // allocID picks the next free id for the snapshot's strategy and returns it

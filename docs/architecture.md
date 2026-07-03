@@ -144,10 +144,15 @@ When you create a quest, the new quest file **and** the advanced id counter (`se
 mint the same `SQ-0001`: only one CAS wins; the loser rebuilds, sees the counter already
 advanced, and takes `SQ-0002`.
 
-- **sequential** (default): `SQ-` + zero-padded `seq_next`; the counter lives on the ref and
+- **sequential**: `SQ-` + zero-padded `seq_next`; the counter lives on the ref and
   advances in the allocating commit.
 - **random**: `SQ-` + 6 hex chars, for teams / concurrent offline clones where a shared
   counter can't be serialized.
+- **Which is the default is chosen at `init` by remote presence** (SQ-0030): a repo with a
+  configured remote — a shared/team workflow, where two offline clones would both mint
+  `SQ-0007` (same filename, different content) — defaults to **random**; a solo repo with no
+  remote defaults to the tidier **sequential**. `init` prints the choice, and it is always
+  overridable with `config set id_strategy`.
 - Both run an **existence guard** (skip any id whose file already exists), so the two id spaces
   can never collide at the file level, and switching strategies preserves `seq_next` so you can
   switch back later and resume the sequence.
