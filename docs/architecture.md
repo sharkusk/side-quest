@@ -190,11 +190,14 @@ slashes so it runs under Git-for-Windows' MSYS sh (a `C:\…` path would break;
 >>>` … `# <<< side-quest <<<`): installing into an existing hook **appends** our
 block and leaves the rest intact, and re-installing replaces only our block
 (idempotent, never duplicated).
-It assumes the existing hook is POSIX-sh and runs our block last — a non-sh hook,
-or one that exits early, needs care (SQ-0020). A repo already driving a different
-bookkeeping system through `core.hooksPath` should retire it before adopting
-side-quest (SQ-0022); the [manual-setup guide](manual-setup.md#existing-git-hooks)
-walks through this.
+Appending assumes the existing hook runs under a POSIX shell: a hook whose
+shebang names a non-sh interpreter (python, node, …) is **skipped with a warning**
+rather than corrupted (SQ-0020) — migrate it to call `side-quest <hook>` itself.
+Our block still runs **last**, so an existing hook that exits early can shadow it;
+that ordering caveat is documented but not yet enforced. A repo already driving a
+different bookkeeping system through `core.hooksPath` should retire it before
+adopting side-quest (SQ-0022); the
+[manual-setup guide](manual-setup.md#existing-git-hooks) walks through this.
 
 The **current-quest pointer** is worktree-local state (`<git-dir>/side-quest-current`),
 not ref state: each worktree has its own, and it never travels with a push.

@@ -52,8 +52,13 @@ func cmdInstallHooks(args []string) error {
 		{"post-commit", q + ` link HEAD || true`},
 	}
 	for _, sh := range shims {
-		if err := installOneHook(filepath.Join(hooksDir, sh.name), sh.body); err != nil {
+		outcome, err := installOneHook(filepath.Join(hooksDir, sh.name), sh.body)
+		if err != nil {
 			return err
+		}
+		if outcome == hookSkipped {
+			fmt.Fprintf(os.Stderr, "side-quest: SKIPPED the existing %s hook — it has a non-sh shebang, and appending our sh block would corrupt it.\n", sh.name)
+			fmt.Fprintf(os.Stderr, "  Migrate that hook to call `side-quest %s` itself, or remove it and re-run install-hooks.\n", sh.name)
 		}
 	}
 
@@ -102,18 +107,60 @@ func shimQuotedPath(self string) string {
 	return `"` + strings.ReplaceAll(self, `\`, "/") + `"`
 }
 
+// hookOutcome reports what installOneHook did to a hook file, so the caller can
+// message the user (a foreign hook composed into, or one skipped as unsafe).
+type hookOutcome int
+
+const (
+	hookCreated  hookOutcome = iota // wrote a fresh hook
+	hookUpdated                     // replaced our own marker block in place
+	hookComposed                    // appended our block to a user's existing hook
+	hookSkipped                     // left a non-sh hook untouched (would corrupt it)
+)
+
+// hookShebangCompatible reports whether content's interpreter can run our POSIX-sh
+// block. A missing shebang is compatible: git runs an extensionless hook via sh.
+// An explicit non-shell interpreter (python, node, ...) is not — appending sh
+// lines to it would corrupt the file.
+func hookShebangCompatible(content string) bool {
+	if !strings.HasPrefix(content, "#!") {
+		return true
+	}
+	line := content
+	if i := strings.IndexByte(content, '\n'); i >= 0 {
+		line = content[:i]
+	}
+	fields := strings.Fields(strings.TrimSpace(line[2:])) // drop "#!"
+	if len(fields) == 0 {
+		return true
+	}
+	interp := filepath.Base(fields[0])
+	if interp == "env" { // "#!/usr/bin/env bash" -> look at the next token
+		if len(fields) < 2 {
+			return true // degenerate "#!/usr/bin/env" with no interpreter
+		}
+		interp = filepath.Base(fields[1])
+	}
+	switch interp {
+	case "sh", "bash", "dash", "ash", "zsh", "ksh":
+		return true
+	}
+	return false
+}
+
 // installOneHook creates a new hook or composes our marker-guarded block into an
 // existing one (idempotent: re-install replaces our block, never duplicates it,
-// and never clobbers a user's own hook body).
-func installOneHook(path, body string) error {
+// and never clobbers a user's own hook body). It refuses to append to a hook with
+// a non-sh interpreter — that would corrupt it — and reports what it did.
+func installOneHook(path, body string) (hookOutcome, error) {
 	block := hookMarker + "\n" + body + "\n" + hookEndMarker + "\n"
 
 	existing, err := os.ReadFile(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return err
+			return 0, err
 		}
-		return writeExec(path, "#!/bin/sh\n"+block)
+		return hookCreated, writeExec(path, "#!/bin/sh\n"+block)
 	}
 
 	text := string(existing)
@@ -123,13 +170,18 @@ func installOneHook(path, body string) error {
 			if end < len(text) && text[end] == '\n' {
 				end++
 			}
-			return writeExec(path, text[:i]+block+text[end:])
+			return hookUpdated, writeExec(path, text[:i]+block+text[end:])
 		}
+	}
+	// A foreign hook with no side-quest block yet: only safe to append if it runs
+	// under a POSIX shell. Otherwise leave it entirely alone.
+	if !hookShebangCompatible(text) {
+		return hookSkipped, nil
 	}
 	if !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
-	return writeExec(path, text+block)
+	return hookComposed, writeExec(path, text+block)
 }
 
 // writeExec writes content and ensures the file is executable (WriteFile only

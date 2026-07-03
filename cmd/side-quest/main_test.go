@@ -400,6 +400,55 @@ func TestInstallHooksPushKeepsBranchAndQuests(t *testing.T) {
 	}
 }
 
+// TestInstallHooksSkipsNonShHook is the SQ-0020 correctness gate: a pre-existing
+// hook with a non-sh shebang must be left byte-for-byte intact (appending our sh
+// block would corrupt it), with a warning, while the other hooks still install.
+func TestInstallHooksSkipsNonShHook(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pyHook := filepath.Join(hooksDir, "commit-msg")
+	pyBody := "#!/usr/bin/env python3\nimport sys\nsys.exit(0)\n"
+	if err := os.WriteFile(pyHook, []byte(pyBody), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	out, code := runBin(t, bin, dir, "install-hooks")
+	if code != 0 {
+		t.Fatalf("install-hooks exit=%d out=%s", code, out)
+	}
+
+	// The python hook is untouched — no side-quest block appended.
+	got, err := os.ReadFile(pyHook)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != pyBody {
+		t.Errorf("non-sh commit-msg hook was modified:\n%s", got)
+	}
+	if strings.Contains(string(got), hookMarker) {
+		t.Error("side-quest block was appended to a non-sh hook (corruption)")
+	}
+	// The user is warned about the skip.
+	if !strings.Contains(out, "SKIPPED") || !strings.Contains(out, "commit-msg") {
+		t.Errorf("expected a skip warning naming commit-msg, got:\n%s", out)
+	}
+	// The other two hooks still installed normally.
+	for _, name := range []string{"prepare-commit-msg", "post-commit"} {
+		b, err := os.ReadFile(filepath.Join(hooksDir, name))
+		if err != nil || !strings.Contains(string(b), hookMarker) {
+			t.Errorf("hook %s did not install: err=%v", name, err)
+		}
+	}
+}
+
 func containsLine(s, want string) bool { return countLine(s, want) > 0 }
 
 func countLine(s, want string) int {
