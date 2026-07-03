@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/sharkusk/side-quest/internal/store"
 )
@@ -42,6 +43,26 @@ func cmdSync(args []string) error {
 	}
 	fmt.Printf("side-quest: %s %s: merged %d, renamed %d, pushed %t.\n",
 		prefix, rem, res.Merged, res.Renamed, res.Pushed)
+	return nil
+}
+
+// cmdPrePushHook is the git pre-push hook entry point. git passes the remote name
+// as args[0] (and URL as args[1]); we ignore the hook's stdin, since git omits a
+// non-fast-forward ref from it (see SQ-0032). It syncs the quest ref out-of-band
+// and NEVER blocks the user's branch push: any failure is a warning + exit 0.
+func cmdPrePushHook(args []string) error {
+	remote := "origin"
+	if len(args) > 0 && args[0] != "" {
+		remote = args[0]
+	}
+	s, err := openStore()
+	if err != nil {
+		return nil // not a side-quest repo state we can act on; let the push proceed
+	}
+	if _, err := s.Sync(remote, store.SyncOptions{NoVerify: true}); err != nil {
+		fmt.Fprintf(os.Stderr, "warning (side-quest): couldn't publish quests to %s: %v\n", remote, err)
+		fmt.Fprintln(os.Stderr, "                     run `side-quest sync` when back online.")
+	}
 	return nil
 }
 

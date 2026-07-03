@@ -58,6 +58,7 @@ func cmdInstallHooks(args []string) error {
 		{"prepare-commit-msg", q + ` prepare-commit-msg "$@" || true`},
 		{"commit-msg", q + ` commit-msg "$@"`},
 		{"post-commit", q + ` link HEAD || true`},
+		{"pre-push", q + ` pre-push "$@" || true`},
 	}
 	for _, sh := range shims {
 		outcome, err := installOneHook(filepath.Join(hooksDir, sh.name), sh.body)

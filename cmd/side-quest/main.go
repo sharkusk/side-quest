@@ -33,6 +33,7 @@ const usage = `usage: side-quest <command> [args]
   prepare-commit-msg <file> [..]  (hook) inject the current-quest trailer
   install-hooks                   install git hooks + refs/side-quest/* refspec
   sync [--dry-run] [--remote <name>]  reconcile quests with a remote (fetch+merge+push)
+  pre-push [<remote> <url>]        (hook) auto-sync quests on git push
   onboard                         one-shot repo setup: init + hooks + .mcp.json
   agents-md                       print the agent-guidance block for AGENTS.md
   serve                           run the stdio MCP server
@@ -103,6 +104,8 @@ func run(cmd string, args []string) error {
 		return cmdInstallHooks(args)
 	case "sync":
 		return cmdSync(args)
+	case "pre-push":
+		return cmdPrePushHook(args)
 	case "onboard":
 		return cmdOnboard(args)
 	case "agents-md":
