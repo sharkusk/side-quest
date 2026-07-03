@@ -96,3 +96,77 @@ func cmdNew(args []string) error {
 	fmt.Println(q.ID)
 	return nil
 }
+
+func cmdList(args []string) error {
+	fs := newFlagSet("list")
+	var status, typ, prio string
+	var asJSON bool
+	fs.StringVar(&status, "status", "", "filter by status")
+	fs.StringVar(&typ, "type", "", "filter by type (bug|feature)")
+	fs.StringVar(&prio, "priority", "", "filter by priority (high|low)")
+	fs.BoolVar(&asJSON, "json", false, "emit JSON")
+	if err := fs.Parse(args); err != nil {
+		return &usageErr{err.Error()}
+	}
+	if status != "" && !quest.Status(status).Valid() {
+		return fmt.Errorf("invalid status %q", status)
+	}
+	if typ != "" && !quest.Type(typ).Valid() {
+		return fmt.Errorf("invalid type %q", typ)
+	}
+	if prio != "" && !quest.Priority(prio).Valid() {
+		return fmt.Errorf("invalid priority %q", prio)
+	}
+	s, err := openStore()
+	if err != nil {
+		return err
+	}
+	all, err := s.List()
+	if err != nil {
+		return err
+	}
+	filtered := make([]*quest.Quest, 0, len(all))
+	for _, q := range all {
+		if status != "" && string(q.Status) != status {
+			continue
+		}
+		if typ != "" && string(q.Type) != typ {
+			continue
+		}
+		if prio != "" && string(q.Priority) != prio {
+			continue
+		}
+		filtered = append(filtered, q)
+	}
+	if asJSON {
+		return emitJSON(os.Stdout, filtered)
+	}
+	renderList(os.Stdout, filtered)
+	return nil
+}
+
+func cmdShow(args []string) error {
+	fs := newFlagSet("show")
+	var asJSON bool
+	fs.BoolVar(&asJSON, "json", false, "emit JSON")
+	if err := fs.Parse(args); err != nil {
+		return &usageErr{err.Error()}
+	}
+	rest := fs.Args()
+	if len(rest) != 1 {
+		return &usageErr{"show needs exactly one <id>"}
+	}
+	s, err := openStore()
+	if err != nil {
+		return err
+	}
+	q, err := s.Get(rest[0])
+	if err != nil {
+		return err
+	}
+	if asJSON {
+		return emitJSON(os.Stdout, q)
+	}
+	renderShow(os.Stdout, q)
+	return nil
+}

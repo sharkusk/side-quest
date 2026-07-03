@@ -93,3 +93,85 @@ func TestInitThenReinitErrors(t *testing.T) {
 		t.Fatalf("re-init should exit 1, got %d", code)
 	}
 }
+
+func TestListFilterAndJSON(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	runBin(t, bin, dir, "new", "--type", "bug", "--priority", "high", "A bug")
+	runBin(t, bin, dir, "new", "--type", "feature", "B feature")
+
+	// Human list shows both.
+	out, code := runBin(t, bin, dir, "list")
+	if code != 0 || !strings.Contains(out, "A bug") || !strings.Contains(out, "B feature") {
+		t.Fatalf("list exit=%d out=%s", code, out)
+	}
+
+	// Filter by type=bug returns only the bug, as JSON.
+	out, code = runBin(t, bin, dir, "list", "--type", "bug", "--json")
+	if code != 0 {
+		t.Fatalf("list --json exit=%d out=%s", code, out)
+	}
+	var got []quest.Quest
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if len(got) != 1 || got[0].Type != quest.TypeBug {
+		t.Fatalf("filter wrong: %+v", got)
+	}
+}
+
+func TestListEmptyPrintsNoQuests(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	out, code := runBin(t, bin, dir, "list")
+	if code != 0 || !strings.Contains(out, "no quests") {
+		t.Fatalf("empty list exit=%d out=%q", code, out)
+	}
+}
+
+func TestListInvalidFilterExitsOne(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	_, code := runBin(t, bin, dir, "list", "--type", "bugg")
+	if code != 1 {
+		t.Fatalf("invalid filter should exit 1, got %d", code)
+	}
+}
+
+func TestShowRendersAndJSON(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	out, _ := runBin(t, bin, dir, "new", "Show me")
+	id := strings.TrimSpace(out)
+
+	out, code := runBin(t, bin, dir, "show", id)
+	if code != 0 || !strings.Contains(out, "Show me") || !strings.Contains(out, id) {
+		t.Fatalf("show exit=%d out=%s", code, out)
+	}
+
+	out, code = runBin(t, bin, dir, "show", "--json", id)
+	if code != 0 {
+		t.Fatalf("show --json exit=%d out=%s", code, out)
+	}
+	var q quest.Quest
+	if err := json.Unmarshal([]byte(out), &q); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if q.Title != "Show me" {
+		t.Fatalf("wrong quest: %+v", q)
+	}
+}
+
+func TestShowMissingExitsOne(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	_, code := runBin(t, bin, dir, "show", "SQ-9999")
+	if code != 1 {
+		t.Fatalf("missing show should exit 1, got %d", code)
+	}
+}

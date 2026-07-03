@@ -18,6 +18,8 @@ const usage = `usage: side-quest <command> [args]
 
   init                            create the quest ref (_config.yaml)
   new <title> [--type --priority --context --tag k=v --current --json]
+  list [--status --type --priority --json]   list quests (filters combine)
+  show <id> [--json]              show one quest
   link <sha>                      apply a commit's Quest:/Completes: trailers
   current [<id> | --clear]        get / set / clear this worktree's active quest
   commit-msg <file>               (hook) warn or reject when a trailer is missing
@@ -46,6 +48,10 @@ func run(cmd string, args []string) error {
 		return cmdInit(args)
 	case "new":
 		return cmdNew(args)
+	case "list":
+		return cmdList(args)
+	case "show":
+		return cmdShow(args)
 	case "link":
 		return cmdLink(args)
 	case "current":
