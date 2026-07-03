@@ -68,7 +68,25 @@ side-quest config get
 Add `--json` to `new`, `list`, `show`, or `config get` for machine-readable output.
 Flags may appear before or after the title/id positional argument. Anywhere an
 `<id>` is expected you can use shorthand — `side-quest show 1` (or `0001`) is the
-same as `side-quest show SQ-0001`.
+same as `side-quest show SQ-0001`. Every command also prints its own help with
+`side-quest <command> -h`.
+
+**Tip — a shorter `sq`.** `side-quest` is a lot to type. Alias it to `sq`, which
+matches the plugin's `/sq` slash command:
+
+```sh
+# bash / zsh — add to ~/.bashrc or ~/.zshrc
+alias sq=side-quest
+```
+
+```powershell
+# PowerShell — add to $PROFILE
+Set-Alias sq side-quest
+```
+
+Then `sq list`, `sq show 1`, and so on. (An alias, not a shipped binary, so it
+works the same however you installed side-quest — `go install`, a release
+download, or your package manager.)
 
 ## Installation & setup
 
