@@ -351,6 +351,19 @@ func mergeSideOf(r merge.Result) merge.Side {
 	return merge.Side{Config: r.Config, Quests: r.Quests}
 }
 
+// Remotes returns the configured remote names (empty when there are none).
+func (s *Store) Remotes() ([]string, error) {
+	out, err := s.git.Run("remote")
+	if err != nil {
+		return nil, err
+	}
+	out = strings.TrimSpace(out)
+	if out == "" {
+		return nil, nil
+	}
+	return strings.Split(out, "\n"), nil
+}
+
 // BootstrapFromTracking fast-forwards the live Ref to the tracking ref when the
 // live ref is absent or a strict ancestor of it — the fresh-clone case, where
 // quests should appear without a full sync. It never touches a diverged or ahead
