@@ -233,7 +233,11 @@ raw `quest.Quest`/`config.Config` structs, so the JSON keys are the Go field
 names; this is the stable machine surface the MCP layer reuses. Flags may be
 given before or after positional arguments: `parseInterspersed` (in `cli.go`)
 re-parses around each positional because stdlib `flag` stops at the first one.
-Usage errors exit 2; all other errors exit 1.
+Usage errors exit 2; all other errors exit 1. `side-quest help` (or `-h`/`--help`)
+prints the top-level command list; `<cmd> -h`/`--help` prints that command's own
+synopsis and per-flag help (via `setUsage`, which renders the FlagSet's
+`PrintDefaults`). A help request is a success — it prints to stdout and exits 0,
+not the exit-2 usage-error path.
 
 The CLI relies on two store/config additions: `store.SetAutoTrailer` and
 `config.Strategy.Valid()`.

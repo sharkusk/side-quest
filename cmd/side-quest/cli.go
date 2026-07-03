@@ -5,6 +5,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -45,6 +46,28 @@ func newFlagSet(name string) *flag.FlagSet {
 	fs.SetOutput(io.Discard)
 	return fs
 }
+
+// setUsage gives fs the help screen shown for `<cmd> -h` / `--help`: a one-line
+// synopsis followed by every flag and its description (flag.PrintDefaults). The
+// flag package calls fs.Usage automatically on a help request, and parseInterspersed
+// turns the resulting flag.ErrHelp into a clean exit. Help prints to stdout — an
+// asked-for query is a success, not an error.
+func setUsage(fs *flag.FlagSet, synopsis string) {
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stdout, synopsis)
+		hasFlags := false
+		fs.VisitAll(func(*flag.Flag) { hasFlags = true })
+		if hasFlags {
+			fmt.Fprintln(os.Stdout, "\nflags:")
+			fs.SetOutput(os.Stdout)
+			fs.PrintDefaults()
+		}
+	}
+}
+
+// helpRequested reports whether a parse error is the flag package's help
+// sentinel — the command already printed its help and should exit 0.
+func helpRequested(err error) bool { return errors.Is(err, flag.ErrHelp) }
 
 // parseInterspersed parses fs while allowing flags to appear before OR after
 // positional arguments. Go's stdlib flag package stops at the first
@@ -87,13 +110,17 @@ func cmdNew(args []string) error {
 	var typ, prio, context string
 	var setCurrent, asJSON bool
 	var tags tagFlag
-	fs.StringVar(&typ, "type", "", "quest type (bug|feature)")
-	fs.StringVar(&prio, "priority", "", "quest priority (high|low)")
-	fs.StringVar(&context, "context", "", "context note")
-	fs.Var(&tags, "tag", "tag as key=value (repeatable)")
+	fs.StringVar(&typ, "type", "", "quest type: bug|feature (default feature)")
+	fs.StringVar(&prio, "priority", "", "quest priority: high|low (default low)")
+	fs.StringVar(&context, "context", "", "one-line context note (why the quest came up)")
+	fs.Var(&tags, "tag", "annotation as key=value; repeat for multiple tags")
 	fs.BoolVar(&setCurrent, "current", false, "also set as this worktree's current quest")
 	fs.BoolVar(&asJSON, "json", false, "emit the created quest as JSON")
+	setUsage(fs, "usage: side-quest new [flags] <title>\ncreate a quest; quote a multi-word title")
 	rest, err := parseInterspersed(fs, args)
+	if helpRequested(err) {
+		return nil
+	}
 	if err != nil {
 		return &usageErr{err.Error()}
 	}
@@ -124,11 +151,16 @@ func cmdList(args []string) error {
 	fs := newFlagSet("list")
 	var status, typ, prio string
 	var asJSON bool
-	fs.StringVar(&status, "status", "", "filter by status")
-	fs.StringVar(&typ, "type", "", "filter by type (bug|feature)")
-	fs.StringVar(&prio, "priority", "", "filter by priority (high|low)")
-	fs.BoolVar(&asJSON, "json", false, "emit JSON")
-	if _, err := parseInterspersed(fs, args); err != nil {
+	fs.StringVar(&status, "status", "", "filter by status: open|partial|done|deferred|discarded")
+	fs.StringVar(&typ, "type", "", "filter by type: bug|feature")
+	fs.StringVar(&prio, "priority", "", "filter by priority: high|low")
+	fs.BoolVar(&asJSON, "json", false, "emit the matching quests as JSON")
+	setUsage(fs, "usage: side-quest list [flags]\nlist quests; filters combine with AND")
+	_, err := parseInterspersed(fs, args)
+	if helpRequested(err) {
+		return nil
+	}
+	if err != nil {
 		return &usageErr{err.Error()}
 	}
 	if status != "" && !quest.Status(status).Valid() {
@@ -171,9 +203,13 @@ func cmdList(args []string) error {
 func cmdShow(args []string) error {
 	fs := newFlagSet("show")
 	var asJSON, noWrap bool
-	fs.BoolVar(&asJSON, "json", false, "emit JSON")
+	fs.BoolVar(&asJSON, "json", false, "emit the quest as JSON")
 	fs.BoolVar(&noWrap, "no-wrap", false, "print raw field values without word-wrapping")
+	setUsage(fs, "usage: side-quest show [flags] <id>\nshow one quest; <id> accepts shorthand (11 or 0011 for SQ-0011)")
 	rest, err := parseInterspersed(fs, args)
+	if helpRequested(err) {
+		return nil
+	}
 	if err != nil {
 		return &usageErr{err.Error()}
 	}
@@ -238,9 +274,13 @@ func cmdNote(args []string) error {
 func cmdReclassify(args []string) error {
 	fs := newFlagSet("reclassify")
 	var typ, prio string
-	fs.StringVar(&typ, "type", "", "new type (bug|feature)")
-	fs.StringVar(&prio, "priority", "", "new priority (high|low)")
+	fs.StringVar(&typ, "type", "", "new type: bug|feature (omit to leave unchanged)")
+	fs.StringVar(&prio, "priority", "", "new priority: high|low (omit to leave unchanged)")
+	setUsage(fs, "usage: side-quest reclassify [flags] <id>\nchange a quest's type and/or priority (at least one flag)")
 	rest, err := parseInterspersed(fs, args)
+	if helpRequested(err) {
+		return nil
+	}
 	if err != nil {
 		return &usageErr{err.Error()}
 	}
@@ -275,8 +315,13 @@ func cmdConfig(args []string) error {
 func cmdConfigGet(args []string) error {
 	fs := newFlagSet("config get")
 	var asJSON bool
-	fs.BoolVar(&asJSON, "json", false, "emit JSON")
-	if _, err := parseInterspersed(fs, args); err != nil {
+	fs.BoolVar(&asJSON, "json", false, "emit the configuration as JSON")
+	setUsage(fs, "usage: side-quest config get [flags]\nshow the effective on-ref configuration")
+	_, err := parseInterspersed(fs, args)
+	if helpRequested(err) {
+		return nil
+	}
+	if err != nil {
 		return &usageErr{err.Error()}
 	}
 	s, err := openStore()

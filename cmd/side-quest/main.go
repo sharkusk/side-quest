@@ -54,6 +54,9 @@ func main() {
 	case "version", "--version", "-v":
 		fmt.Println(version)
 		return
+	case "help", "--help", "-h":
+		fmt.Println(usage)
+		return
 	}
 	if err := run(os.Args[1], os.Args[2:]); err != nil {
 		var ue *usageErr

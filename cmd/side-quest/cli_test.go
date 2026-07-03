@@ -21,6 +21,35 @@ func idFromCreated(t *testing.T, out string) string {
 	return id
 }
 
+// TestPerCommandHelp: `<cmd> -h` / `--help` prints a clean, command-specific
+// help screen (synopsis + each flag with its description) and exits 0, rather
+// than the raw "flag: help requested" usage error.
+func TestPerCommandHelp(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	cases := []struct {
+		args     []string
+		contains []string
+	}{
+		{[]string{"new", "-h"}, []string{"side-quest new", "-type", "bug|feature", "-tag", "-current"}},
+		{[]string{"show", "--help"}, []string{"side-quest show", "-no-wrap", "-json"}},
+		{[]string{"list", "-h"}, []string{"side-quest list", "-status", "-priority"}},
+		{[]string{"reclassify", "-h"}, []string{"side-quest reclassify", "-type", "-priority"}},
+	}
+	for _, c := range cases {
+		out, code := runBin(t, bin, dir, c.args...)
+		if code != 0 {
+			t.Errorf("%v: exit=%d, want 0\n%s", c.args, code, out)
+		}
+		for _, want := range c.contains {
+			if !strings.Contains(out, want) {
+				t.Errorf("%v: help missing %q\n%s", c.args, want, out)
+			}
+		}
+	}
+}
+
 func TestNewCreatesQuestAndPrintsID(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)
