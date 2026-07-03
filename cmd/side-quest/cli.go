@@ -170,3 +170,47 @@ func cmdShow(args []string) error {
 	renderShow(os.Stdout, q)
 	return nil
 }
+
+func cmdStatus(args []string) error {
+	if len(args) != 2 {
+		return &usageErr{"status needs <id> <status>"}
+	}
+	s, err := openStore()
+	if err != nil {
+		return err
+	}
+	return s.SetStatus(args[0], quest.Status(args[1]))
+}
+
+func cmdReclassify(args []string) error {
+	fs := newFlagSet("reclassify")
+	var typ, prio string
+	fs.StringVar(&typ, "type", "", "new type (bug|feature)")
+	fs.StringVar(&prio, "priority", "", "new priority (high|low)")
+	if err := fs.Parse(args); err != nil {
+		return &usageErr{err.Error()}
+	}
+	rest := fs.Args()
+	if len(rest) != 1 {
+		return &usageErr{"reclassify needs exactly one <id>"}
+	}
+	if typ == "" && prio == "" {
+		return &usageErr{"reclassify needs --type and/or --priority"}
+	}
+	s, err := openStore()
+	if err != nil {
+		return err
+	}
+	id := rest[0]
+	if typ != "" {
+		if err := s.SetType(id, quest.Type(typ)); err != nil {
+			return err
+		}
+	}
+	if prio != "" {
+		if err := s.SetPriority(id, quest.Priority(prio)); err != nil {
+			return err
+		}
+	}
+	return nil
+}

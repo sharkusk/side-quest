@@ -20,6 +20,8 @@ const usage = `usage: side-quest <command> [args]
   new <title> [--type --priority --context --tag k=v --current --json]
   list [--status --type --priority --json]   list quests (filters combine)
   show <id> [--json]              show one quest
+  status <id> <status>            set a quest's status
+  reclassify <id> [--type --priority]  change a quest's type/priority
   link <sha>                      apply a commit's Quest:/Completes: trailers
   current [<id> | --clear]        get / set / clear this worktree's active quest
   commit-msg <file>               (hook) warn or reject when a trailer is missing
@@ -52,6 +54,10 @@ func run(cmd string, args []string) error {
 		return cmdList(args)
 	case "show":
 		return cmdShow(args)
+	case "status":
+		return cmdStatus(args)
+	case "reclassify":
+		return cmdReclassify(args)
 	case "link":
 		return cmdLink(args)
 	case "current":

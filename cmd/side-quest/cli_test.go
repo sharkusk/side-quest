@@ -175,3 +175,63 @@ func TestShowMissingExitsOne(t *testing.T) {
 		t.Fatalf("missing show should exit 1, got %d", code)
 	}
 }
+
+func TestStatusSetsAndRejects(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+
+	out, _ := runBin(t, bin, dir, "new", "Do a thing")
+	id := strings.TrimSpace(out)
+
+	if _, code := runBin(t, bin, dir, "status", id, "done"); code != 0 {
+		t.Fatalf("status done exit=%d", code)
+	}
+	q, _ := s.Get(id)
+	if q.Status != quest.StatusDone {
+		t.Fatalf("status not set: %+v", q)
+	}
+
+	if _, code := runBin(t, bin, dir, "status", id, "nope"); code != 1 {
+		t.Fatalf("invalid status should exit 1, got %d", code)
+	}
+}
+
+func TestReclassifyBothFields(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+
+	out, _ := runBin(t, bin, dir, "new", "Reclassify me")
+	id := strings.TrimSpace(out)
+
+	if _, code := runBin(t, bin, dir, "reclassify", "--type", "bug", "--priority", "high", id); code != 0 {
+		t.Fatalf("reclassify exit=%d", code)
+	}
+	q, _ := s.Get(id)
+	if q.Type != quest.TypeBug || q.Priority != quest.PriorityHigh {
+		t.Fatalf("reclassify wrong: %+v", q)
+	}
+}
+
+func TestReclassifyNoFlagIsUsageError(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	out, _ := runBin(t, bin, dir, "new", "x")
+	id := strings.TrimSpace(out)
+
+	if _, code := runBin(t, bin, dir, "reclassify", id); code != 2 {
+		t.Fatalf("reclassify with no flag should exit 2, got %d", code)
+	}
+}
+
+func TestReclassifyInvalidExitsOne(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	out, _ := runBin(t, bin, dir, "new", "x")
+	id := strings.TrimSpace(out)
+
+	if _, code := runBin(t, bin, dir, "reclassify", "--type", "bugg", id); code != 1 {
+		t.Fatalf("reclassify invalid type should exit 1, got %d", code)
+	}
+}
