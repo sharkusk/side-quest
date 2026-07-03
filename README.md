@@ -63,18 +63,22 @@ Flags may appear before or after the title/id positional argument.
 
 ## Installation & setup
 
-side-quest is a single Go binary plus per-project git hooks. Two steps: get the
-binary, then wire it into each repo you want to track. The three guides below
-cover each piece.
+side-quest is a single Go binary plus per-project git hooks, so setup is two
+steps: **get the binary**, then **wire it into the repo** you want to track.
 
-1. **[Install the binary](docs/install.md)** — a prebuilt release, `go install`,
-   or build from source.
-2. **[Manual setup](docs/manual-setup.md)** — `side-quest init` +
-   `install-hooks`, then register the MCP server and merge side-quest's guidance
-   into your `AGENTS.md`. The general path, for any MCP-capable agent.
-3. **[Claude Code plugin](docs/plugin.md)** — one command in Claude Code:
-   registers the MCP server, the `/sq` command, and the guidance skill, and
-   auto-provisions the binary. You still run `init` + `install-hooks` per repo.
+**1. Install the binary** — [a prebuilt release, `go install`, or build from
+source](docs/install.md).
+
+**2. Wire it into your repo** — every repo runs `side-quest init` +
+`install-hooks` to create the quest ref and hooks; then pick the **one** path
+that fits your agent:
+
+- **[Manual setup](docs/manual-setup.md)** — the general path for any
+  MCP-capable agent: register the MCP server and merge side-quest's guidance into
+  your `AGENTS.md`.
+- **[Claude Code plugin](docs/plugin.md)** — one command in Claude Code;
+  registers the MCP server, the `/sq` command, and the guidance skill, and
+  auto-provisions the binary.
 
 Moving between machines? See
 [Sharing quests across machines](docs/manual-setup.md#sharing-quests-across-machines).
