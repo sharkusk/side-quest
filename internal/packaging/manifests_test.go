@@ -87,3 +87,25 @@ func TestLicenseIsMIT(t *testing.T) {
 		t.Error("LICENSE missing copyright holder Marcus Kellerman")
 	}
 }
+
+func TestSqCommandDrivesQuestNew(t *testing.T) {
+	c := string(repoFile(t, "commands/sq.md"))
+	if !strings.Contains(c, "quest_new") {
+		t.Error("commands/sq.md must instruct the agent to call quest_new")
+	}
+	if !strings.Contains(c, "$ARGUMENTS") {
+		t.Error("commands/sq.md must consume $ARGUMENTS")
+	}
+}
+
+func TestAgentsDocPointsToSkill(t *testing.T) {
+	a := string(repoFile(t, "AGENTS.md"))
+	if !strings.Contains(a, "skills/side-quest/SKILL.md") {
+		t.Error("AGENTS.md must reference skills/side-quest/SKILL.md")
+	}
+	for _, want := range []string{"Quest:", "Completes:", "current"} {
+		if !strings.Contains(a, want) {
+			t.Errorf("AGENTS.md missing mention of %q", want)
+		}
+	}
+}
