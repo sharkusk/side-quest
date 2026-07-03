@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -70,13 +71,12 @@ func TestListToolsExposesTen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// TODO(task4): becomes 10 once the six mutation tools are registered.
-	if len(lt.Tools) != 4 {
+	if len(lt.Tools) != 10 {
 		names := make([]string, len(lt.Tools))
 		for i, tl := range lt.Tools {
 			names[i] = tl.Name
 		}
-		t.Fatalf("want 4 tools, got %d: %v", len(lt.Tools), names)
+		t.Fatalf("want 10 tools, got %d: %v", len(lt.Tools), names)
 	}
 }
 
@@ -154,5 +154,95 @@ func TestGetCurrentEmpty(t *testing.T) {
 	}
 	if res.IsError {
 		t.Fatalf("get_current errored: %s", contentText(t, res))
+	}
+}
+
+func TestSetStatusAndReclassify(t *testing.T) {
+	cs, ctx := dialTest(t, newTestStore(t))
+	res, _ := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_new", Arguments: map[string]any{"title": "x"}})
+	var q quest.Quest
+	json.Unmarshal([]byte(contentText(t, res)), &q)
+
+	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_set_status", Arguments: map[string]any{"id": q.ID, "status": "done"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("set_status error: %s", contentText(t, res))
+	}
+	var done quest.Quest
+	json.Unmarshal([]byte(contentText(t, res)), &done)
+	if done.Status != quest.StatusDone {
+		t.Fatalf("status not set: %+v", done)
+	}
+
+	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_reclassify", Arguments: map[string]any{"id": q.ID, "priority": "high"}})
+	var re quest.Quest
+	json.Unmarshal([]byte(contentText(t, res)), &re)
+	if re.Priority != quest.PriorityHigh {
+		t.Fatalf("reclassify failed: %+v", re)
+	}
+
+	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_set_status", Arguments: map[string]any{"id": q.ID, "status": "nope"}})
+	if !res.IsError {
+		t.Fatal("invalid status should be a tool error")
+	}
+	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_reclassify", Arguments: map[string]any{"id": q.ID}})
+	if !res.IsError {
+		t.Fatal("reclassify with no field should be a tool error")
+	}
+}
+
+func TestUpdateAndNote(t *testing.T) {
+	cs, ctx := dialTest(t, newTestStore(t))
+	res, _ := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_new", Arguments: map[string]any{"title": "orig", "tags": map[string]any{"keep": "yes"}}})
+	var q quest.Quest
+	json.Unmarshal([]byte(contentText(t, res)), &q)
+
+	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_update", Arguments: map[string]any{"id": q.ID, "title": "renamed", "tags": map[string]any{"area": "mcp", "keep": ""}}})
+	var up quest.Quest
+	json.Unmarshal([]byte(contentText(t, res)), &up)
+	if up.Title != "renamed" || up.Tags["area"] != "mcp" {
+		t.Fatalf("update wrong: %+v", up)
+	}
+	if _, ok := up.Tags["keep"]; ok {
+		t.Fatalf("empty tag value should delete: %+v", up.Tags)
+	}
+
+	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_note", Arguments: map[string]any{"id": q.ID, "text": "learned something"}})
+	var noted quest.Quest
+	json.Unmarshal([]byte(contentText(t, res)), &noted)
+	if !strings.Contains(noted.Body, "learned something") {
+		t.Fatalf("note not appended: body=%q", noted.Body)
+	}
+
+	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_update", Arguments: map[string]any{"id": q.ID}})
+	if !res.IsError {
+		t.Fatal("update with nothing to change should be a tool error")
+	}
+}
+
+func TestSetCurrentAndLink(t *testing.T) {
+	cs, ctx := dialTest(t, newTestStore(t))
+	res, _ := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_new", Arguments: map[string]any{"title": "cur"}})
+	var q quest.Quest
+	json.Unmarshal([]byte(contentText(t, res)), &q)
+
+	if _, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_set_current", Arguments: map[string]any{"id": q.ID}}); err != nil {
+		t.Fatal(err)
+	}
+	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_get_current", Arguments: map[string]any{}})
+	if !strings.Contains(contentText(t, res), q.ID) {
+		t.Fatalf("current not set: %s", contentText(t, res))
+	}
+	// clear
+	cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_set_current", Arguments: map[string]any{"clear": true}})
+	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_get_current", Arguments: map[string]any{}})
+	if strings.Contains(contentText(t, res), q.ID) {
+		t.Fatalf("current not cleared: %s", contentText(t, res))
+	}
+	// link_commit tolerates an unknown/most-any sha argument shape (Link is tolerant of unknown ids)
+	if _, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_link_commit", Arguments: map[string]any{"sha": "HEAD"}}); err != nil {
+		t.Fatal(err)
 	}
 }

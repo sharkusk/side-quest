@@ -18,6 +18,12 @@ func (h *handlers) register(s *sdk.Server) {
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_list", Description: "List quests, optionally filtered by status/type/priority (AND)."}, h.questList)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_show", Description: "Show one quest by id."}, h.questShow)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_get_current", Description: "Return this worktree's current quest id (empty if none)."}, h.questGetCurrent)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_status", Description: "Set a quest's lifecycle status (open|partial|done|deferred|discarded)."}, h.questSetStatus)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_reclassify", Description: "Change a quest's type and/or priority."}, h.questReclassify)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_update", Description: "Update a quest's title and/or tags (a tag with an empty value is deleted)."}, h.questUpdate)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_note", Description: "Append a timestamped note to a quest's body (non-destructive)."}, h.questNote)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_current", Description: "Set this worktree's current quest by id, or clear it with clear:true."}, h.questSetCurrent)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_link_commit", Description: "Apply a commit's Quest:/Completes: trailers to the referenced quests."}, h.questLinkCommit)
 }
 
 // --- input types ---
@@ -134,4 +140,114 @@ func (h *handlers) questGetCurrent(ctx context.Context, req *sdk.CallToolRequest
 	return jsonResult(struct {
 		Current string `json:"current"`
 	}{cur})
+}
+
+type statusIn struct {
+	ID     string `json:"id" jsonschema:"the quest id"`
+	Status string `json:"status" jsonschema:"open|partial|done|deferred|discarded"`
+}
+
+type reclassifyIn struct {
+	ID       string `json:"id" jsonschema:"the quest id"`
+	Type     string `json:"type,omitempty" jsonschema:"new type (bug|feature)"`
+	Priority string `json:"priority,omitempty" jsonschema:"new priority (high|low)"`
+}
+
+type updateIn struct {
+	ID    string            `json:"id" jsonschema:"the quest id"`
+	Title string            `json:"title,omitempty" jsonschema:"new title"`
+	Tags  map[string]string `json:"tags,omitempty" jsonschema:"tags to merge; empty value deletes a key"`
+}
+
+type noteIn struct {
+	ID   string `json:"id" jsonschema:"the quest id"`
+	Text string `json:"text" jsonschema:"the note text to append"`
+}
+
+type setCurrentIn struct {
+	ID    string `json:"id,omitempty" jsonschema:"the quest id to make current"`
+	Clear bool   `json:"clear,omitempty" jsonschema:"clear the current quest instead of setting it"`
+}
+
+type shaIn struct {
+	SHA string `json:"sha" jsonschema:"the commit sha whose trailers to apply"`
+}
+
+func (h *handlers) questSetStatus(ctx context.Context, req *sdk.CallToolRequest, in statusIn) (*sdk.CallToolResult, any, error) {
+	if err := h.store.SetStatus(in.ID, quest.Status(in.Status)); err != nil {
+		return nil, nil, err
+	}
+	return h.result(in.ID)
+}
+
+func (h *handlers) questReclassify(ctx context.Context, req *sdk.CallToolRequest, in reclassifyIn) (*sdk.CallToolResult, any, error) {
+	if in.Type == "" && in.Priority == "" {
+		return nil, nil, fmt.Errorf("reclassify needs type and/or priority")
+	}
+	if in.Type != "" {
+		if err := h.store.SetType(in.ID, quest.Type(in.Type)); err != nil {
+			return nil, nil, err
+		}
+	}
+	if in.Priority != "" {
+		if err := h.store.SetPriority(in.ID, quest.Priority(in.Priority)); err != nil {
+			return nil, nil, err
+		}
+	}
+	return h.result(in.ID)
+}
+
+func (h *handlers) questUpdate(ctx context.Context, req *sdk.CallToolRequest, in updateIn) (*sdk.CallToolResult, any, error) {
+	if in.Title == "" && in.Tags == nil {
+		return nil, nil, fmt.Errorf("update needs title and/or tags")
+	}
+	if in.Title != "" {
+		if err := h.store.SetTitle(in.ID, in.Title); err != nil {
+			return nil, nil, err
+		}
+	}
+	if in.Tags != nil {
+		if err := h.store.MergeTags(in.ID, in.Tags); err != nil {
+			return nil, nil, err
+		}
+	}
+	return h.result(in.ID)
+}
+
+func (h *handlers) questNote(ctx context.Context, req *sdk.CallToolRequest, in noteIn) (*sdk.CallToolResult, any, error) {
+	if err := h.store.AppendNote(in.ID, in.Text); err != nil {
+		return nil, nil, err
+	}
+	return h.result(in.ID)
+}
+
+func (h *handlers) questSetCurrent(ctx context.Context, req *sdk.CallToolRequest, in setCurrentIn) (*sdk.CallToolResult, any, error) {
+	if in.Clear {
+		if err := h.store.ClearCurrent(); err != nil {
+			return nil, nil, err
+		}
+		return jsonResult(struct {
+			OK bool `json:"ok"`
+		}{true})
+	}
+	if in.ID == "" {
+		return nil, nil, fmt.Errorf("set_current needs an id (or clear:true)")
+	}
+	if err := h.store.SetCurrent(in.ID); err != nil {
+		return nil, nil, err
+	}
+	return jsonResult(struct {
+		OK      bool   `json:"ok"`
+		Current string `json:"current"`
+	}{true, in.ID})
+}
+
+func (h *handlers) questLinkCommit(ctx context.Context, req *sdk.CallToolRequest, in shaIn) (*sdk.CallToolResult, any, error) {
+	if err := h.store.Link(in.SHA); err != nil {
+		return nil, nil, err
+	}
+	return jsonResult(struct {
+		OK  bool   `json:"ok"`
+		SHA string `json:"sha"`
+	}{true, in.SHA})
 }
