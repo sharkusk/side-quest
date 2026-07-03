@@ -1,6 +1,12 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/sharkusk/side-quest/internal/gitcmd"
+	"github.com/sharkusk/side-quest/internal/store"
+)
 
 // TestHookShebangCompatible: appending our POSIX-sh block is safe only when the
 // existing hook runs under a POSIX shell. A hook with an explicit non-sh
@@ -44,5 +50,52 @@ func TestShimQuotedPathNormalizesSlashes(t *testing.T) {
 		if got := shimQuotedPath(c.in); got != c.want {
 			t.Errorf("shimQuotedPath(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+// TestAddRefspecMigratesOldConfig: a pre-sync install left the old
+// refs/side-quest/*:refs/side-quest/* refspec on both fetch and push.
+// addRefspec must migrate it — removing the old fetch+push entries, adding
+// the new tracking-ref fetch refspec, keeping HEAD as push, and never
+// re-adding a quest push refspec (the pre-push hook publishes it) — and stay
+// idempotent on a second call.
+func TestAddRefspecMigratesOldConfig(t *testing.T) {
+	dir := t.TempDir()
+	g := gitcmd.New(dir)
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"remote", "add", "origin", "https://example.com/x.git"},
+		// simulate a pre-sync install:
+		{"config", "--add", "remote.origin.fetch", "refs/side-quest/*:refs/side-quest/*"},
+		{"config", "--add", "remote.origin.push", "HEAD"},
+		{"config", "--add", "remote.origin.push", "refs/side-quest/*:refs/side-quest/*"},
+	} {
+		if _, err := g.Run(args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	addRefspec(g)
+
+	fetch, _ := g.Run("config", "--get-all", "remote.origin.fetch")
+	if strings.Contains(fetch, "refs/side-quest/*:refs/side-quest/*") {
+		t.Errorf("old fetch refspec not removed:\n%s", fetch)
+	}
+	if !strings.Contains(fetch, store.FetchRefspec) {
+		t.Errorf("new fetch refspec missing:\n%s", fetch)
+	}
+	push, _ := g.Run("config", "--get-all", "remote.origin.push")
+	if strings.Contains(push, "refs/side-quest/*:refs/side-quest/*") {
+		t.Errorf("old quest push refspec not removed:\n%s", push)
+	}
+	if !strings.Contains(push, "HEAD") {
+		t.Errorf("HEAD push refspec should remain:\n%s", push)
+	}
+
+	// idempotent: a second call does not duplicate or re-add the old ones
+	addRefspec(g)
+	fetch2, _ := g.Run("config", "--get-all", "remote.origin.fetch")
+	if strings.Count(fetch2, store.FetchRefspec) != 1 {
+		t.Errorf("fetch refspec duplicated:\n%s", fetch2)
 	}
 }

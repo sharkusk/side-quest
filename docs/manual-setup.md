@@ -79,13 +79,23 @@ agent-facing guidance see [`AGENTS.md`](../AGENTS.md) and
 ## Sharing quests across machines
 
 Custom refs like `refs/side-quest/quests` are not fetched or pushed by default.
-`side-quest install-hooks` configures both refspecs on `origin`, so once it has
-run:
+`side-quest install-hooks` configures a fetch refspec on `origin` (and migrates
+any pre-sync install off its old refspecs), so once it has run:
 
-- `git fetch` / `git pull` also retrieve quest updates (the fetch refspec is
-  additive — your normal fetch is unchanged).
-- `git push` sends your current branch **and** the quest ref together (the push
-  refspec keeps pushing your branch; it does not replace it).
+```
+# Fetch the remote quest ref into a local tracking ref (never clobbers your
+# live quests — sync merges from it):
+git config --add remote.origin.fetch 'refs/side-quest/quests:refs/side-quest-remote/quests'
+
+# Keep pushing your current branch. Do NOT add a quest push refspec — the
+# side-quest pre-push hook publishes refs/side-quest/quests for you.
+git config --add remote.origin.push HEAD
+```
+
+- `git fetch` / `git pull` retrieve quest updates into the tracking ref
+  `refs/side-quest-remote/quests` (your normal fetch is unchanged).
+- `git push` publishes the quest ref via the side-quest pre-push hook, alongside
+  your current branch — there is no quest push refspec.
 
 A fresh `git clone` does **not** include the quest ref (Git skips custom refs on
 clone) — run `side-quest install-hooks` in the clone, then `git fetch`, to pull

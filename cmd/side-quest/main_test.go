@@ -346,11 +346,13 @@ func TestInstallHooksFromSubdirectory(t *testing.T) {
 	}
 }
 
-// TestInstallHooksPushKeepsBranchAndQuests is the SQ-0016 regression: a bare
-// `git push` after install-hooks must send BOTH the current branch AND the quest
-// refs. Before the fix, the lone refs/side-quest/* push refspec disabled
-// push.default so the branch was silently skipped.
-func TestInstallHooksPushKeepsBranchAndQuests(t *testing.T) {
+// TestInstallHooksPushKeepsBranch is the SQ-0016 regression: a bare `git push`
+// after install-hooks must still send the current branch. Before the fix, the
+// lone refs/side-quest/* push refspec disabled push.default so the branch was
+// silently skipped. As of the sync migration (SQ-0031), install-hooks no longer
+// configures a quest push refspec at all — the pre-push hook publishes the quest
+// ref instead — so a bare push must NOT land it.
+func TestInstallHooksPushKeepsBranch(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)
 	if err := s.Init(); err != nil {
@@ -387,7 +389,8 @@ func TestInstallHooksPushKeepsBranchAndQuests(t *testing.T) {
 		t.Fatalf("install-hooks exit=%d", code)
 	}
 
-	// Bare push: must land BOTH the branch and the quest ref.
+	// Bare push: must land the branch. The quest ref is no longer pushed by a
+	// refspec (the pre-push hook publishes it instead).
 	if _, err := g.Run("push", "origin"); err != nil {
 		t.Fatalf("push: %v", err)
 	}
@@ -395,8 +398,8 @@ func TestInstallHooksPushKeepsBranchAndQuests(t *testing.T) {
 	if _, err := rg.Run("show-ref", "--verify", "refs/heads/main"); err != nil {
 		t.Errorf("branch not pushed (SQ-0016 regression): %v", err)
 	}
-	if _, err := rg.Run("show-ref", "--verify", "refs/side-quest/quests"); err != nil {
-		t.Errorf("quest ref not pushed: %v", err)
+	if _, err := rg.Run("show-ref", "--verify", "refs/side-quest/quests"); err == nil {
+		t.Errorf("quest ref was pushed via refspec, but should only be published by the pre-push hook")
 	}
 }
 
