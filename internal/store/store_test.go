@@ -482,3 +482,52 @@ func TestCreateRejectsInvalidTypePriority(t *testing.T) {
 		t.Errorf("rejected creates wrote quests: %v", snap.IDs)
 	}
 }
+
+func TestSetTypeAndPriority(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Create("reclassify me", "", "", "", nil) // defaults: feature/low
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetType(q.ID, quest.TypeBug); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetPriority(q.ID, quest.PriorityHigh); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Get(q.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Type != quest.TypeBug || got.Priority != quest.PriorityHigh {
+		t.Errorf("after set: got %q/%q want bug/high", got.Type, got.Priority)
+	}
+}
+
+func TestSetTypeAndPriorityRejectInvalid(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Create("keep me", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetType(q.ID, quest.Type("chore")); err == nil {
+		t.Error("expected error for invalid type")
+	}
+	if err := s.SetPriority(q.ID, quest.Priority("urgent")); err == nil {
+		t.Error("expected error for invalid priority")
+	}
+	// The quest keeps its original defaulted values.
+	got, err := s.Get(q.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Type != quest.TypeFeature || got.Priority != quest.PriorityLow {
+		t.Errorf("rejected sets mutated the quest: %q/%q", got.Type, got.Priority)
+	}
+}

@@ -43,6 +43,12 @@ quests/
 The quest **id is the filename** (`quests/SQ-0001.md` → `SQ-0001`); it is never stored inside
 the file, so there is no second source of truth to drift.
 
+Each quest's frontmatter carries `title`, `status` (open/partial/done/deferred/discarded),
+`type` (bug/feature), `priority` (high/low), `created`, an optional `completed`, `commits`,
+an optional `context`, and optional `tags`. `type` and `priority` are constrained enums with
+defaults (`feature`/`low`) applied at creation; like `status`, they are validated only at the
+write boundary (`Create`/`SetType`/`SetPriority`), never on read.
+
 ## Reads
 
 Reads dump objects straight out of git — no checkout:
@@ -179,8 +185,9 @@ not ref state: each worktree has its own, and it never travels with a push.
 | `internal/trailer` | Parse Quest:/Completes: trailers + the commit-msg decision | pure |
 
 **CRUD** — Create, Read, Update, Delete — the basic persistence operations. Today the store
-implements Create (`Create`), Read (`Get`/`List`), and Update (`SetStatus`/`AddCommit`/
-`Update`/`SetStrategy`). Delete is not built yet (the `txn.del` plumbing exists for it).
+implements Create (`Create`), Read (`Get`/`List`), and Update (`SetStatus`/`SetType`/
+`SetPriority`/`AddCommit`/`Update`/`SetStrategy`). Delete is not built yet (the `txn.del`
+plumbing exists for it).
 
 ## Dependencies
 

@@ -440,6 +440,22 @@ func (s *Store) SetStatus(id string, st quest.Status) error {
 	})
 }
 
+// SetType sets a quest's type after validating it.
+func (s *Store) SetType(id string, t quest.Type) error {
+	if !t.Valid() {
+		return fmt.Errorf("invalid type %q", t)
+	}
+	return s.Update(id, func(q *quest.Quest) { q.Type = t })
+}
+
+// SetPriority sets a quest's priority after validating it.
+func (s *Store) SetPriority(id string, p quest.Priority) error {
+	if !p.Valid() {
+		return fmt.Errorf("invalid priority %q", p)
+	}
+	return s.Update(id, func(q *quest.Quest) { q.Priority = p })
+}
+
 // AddCommit appends sha to a quest's commit list (deduped). When complete is
 // true it also closes the quest (used by the Completes: trailer in a later
 // phase).

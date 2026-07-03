@@ -39,6 +39,8 @@ Quick glossary:
 - **CAS (compare-and-swap)** — move the ref only if it still equals the expected old commit;
   how concurrent writers avoid lost updates without locking.
 - **CRUD** — Create, Read, Update, Delete — the basic persistence operations the store exposes.
+- **type / priority** — every quest carries a `type` (bug/feature) and a `priority`
+  (high/low), constrained enums that default to feature/low when a quick capture omits them.
 - **trailer** — `Quest: SQ-xxxx` / `Completes: SQ-xxxx` lines in a commit
   message; a `post-commit` hook reads them and links the commit to the quest
   (`Quest: none` opts a chore out).
