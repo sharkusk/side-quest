@@ -284,7 +284,7 @@ plumbing exists for it).
 
 ## Dependencies
 
-- **Go ≥ 1.22** — build + runtime (pure Go, no CGo; single static binary).
+- **Go ≥ 1.25** — build + runtime (pure Go, no CGo; single static binary).
 - **`git` ≥ 2.13** (May 2017) — invoked as a subprocess for all storage.
 - **`gopkg.in/yaml.v3`** — YAML frontmatter + config parsing.
 
@@ -365,3 +365,12 @@ same repository.
 - **Releases** are produced by GoReleaser (`.goreleaser.yaml`) via a tag-triggered
   GitHub Actions workflow: six targets (darwin/linux/windows × amd64/arm64), archived
   with README + LICENSE, plus `checksums.txt`.
+
+## Credits & permissions
+
+side-quest's `dcc` tone is an original homage to *Dungeon Crawler Carl* by Matt
+Dinniman — no verbatim book/show text is included or shipped. Verbatim catch
+phrases are never distributed with side-quest; the `dcc-superfan` tone only loads
+them from a file you create yourself, at `~/.config/side-quest/superfan-lines.txt`
+(see [`superfan-lines.example.txt`](../superfan-lines.example.txt) for the format).
+Public or committed use of verbatim phrases requires permission from the author.

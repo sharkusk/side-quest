@@ -174,11 +174,3 @@ agent-facing guidance see [`AGENTS.md`](AGENTS.md) and
 - **Importer** — a best-effort importer for existing `TODO.md` / `COMPLETED.md`
   files (planned).
 - **`sync`** — a command to pull/push the quest ref across machines (planned).
-
-## Credits & permissions
-
-side-quest's output has a bit of personality under the hood. Its flavored voice is
-an original homage to *Dungeon Crawler Carl* by Matt Dinniman — no verbatim
-book/show text is included or shipped. Verbatim catch phrases are never distributed
-with side-quest; they load only from a file you create yourself. Public or committed
-use of verbatim phrases requires permission from the author.

@@ -124,6 +124,12 @@ func TestReadmeReframedAndToneRemoved(t *testing.T) {
 	if strings.Contains(r, "go install github.com/sharkusk/side-quest@latest") {
 		t.Error("README still has the broken root-path go install command")
 	}
+	if strings.Contains(r, "Dungeon Crawler") {
+		t.Error("README must not mention Dungeon Crawler (voice attribution moved to docs/architecture.md)")
+	}
+	if strings.Contains(r, "Credits & permissions") {
+		t.Error("README must not have a Credits & permissions heading (attribution moved to docs/architecture.md)")
+	}
 }
 
 func TestArchitectureHasToneAndPackaging(t *testing.T) {
@@ -133,5 +139,11 @@ func TestArchitectureHasToneAndPackaging(t *testing.T) {
 	}
 	if !strings.Contains(a, "CLAUDE_PLUGIN_ROOT") && !strings.Contains(a, "launcher") {
 		t.Error("architecture.md should document the plugin launcher/packaging")
+	}
+	if !strings.Contains(a, "Dungeon Crawler") {
+		t.Error("architecture.md must contain the Dungeon Crawler voice attribution")
+	}
+	if !strings.Contains(a, "Credits & permissions") {
+		t.Error("architecture.md must have a Credits & permissions heading")
 	}
 }
