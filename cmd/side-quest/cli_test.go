@@ -9,18 +9,28 @@ import (
 	"github.com/sharkusk/side-quest/internal/quest"
 )
 
+// idFromCreated extracts the quest id from the plain-tone `new` confirmation
+// ("created SQ-0001"), for tests that create a quest via the human path and
+// then act on the returned id.
+func idFromCreated(t *testing.T, out string) string {
+	t.Helper()
+	id := strings.TrimPrefix(strings.TrimSpace(out), "created ")
+	if !strings.HasPrefix(id, "SQ-") {
+		t.Fatalf("expected an SQ- id, got %q", out)
+	}
+	return id
+}
+
 func TestNewCreatesQuestAndPrintsID(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)
+	t.Setenv("SIDE_QUEST_TONE", "plain")
 
 	out, code := runBin(t, bin, dir, "new", "Fix the parser")
 	if code != 0 {
 		t.Fatalf("new exit=%d out=%s", code, out)
 	}
-	id := strings.TrimSpace(out)
-	if !strings.HasPrefix(id, "SQ-") {
-		t.Fatalf("expected an SQ- id, got %q", id)
-	}
+	id := idFromCreated(t, out)
 	q, err := s.Get(id)
 	if err != nil {
 		t.Fatal(err)
@@ -125,6 +135,7 @@ func TestListFilterAndJSON(t *testing.T) {
 func TestListEmptyPrintsNoQuests(t *testing.T) {
 	bin := buildBinary(t)
 	dir, _ := newRepo(t)
+	t.Setenv("SIDE_QUEST_TONE", "plain")
 
 	out, code := runBin(t, bin, dir, "list")
 	if code != 0 || !strings.Contains(out, "no quests") {
@@ -145,9 +156,10 @@ func TestListInvalidFilterExitsOne(t *testing.T) {
 func TestShowRendersAndJSON(t *testing.T) {
 	bin := buildBinary(t)
 	dir, _ := newRepo(t)
+	t.Setenv("SIDE_QUEST_TONE", "plain")
 
 	out, _ := runBin(t, bin, dir, "new", "Show me")
-	id := strings.TrimSpace(out)
+	id := idFromCreated(t, out)
 
 	out, code := runBin(t, bin, dir, "show", id)
 	if code != 0 || !strings.Contains(out, "Show me") || !strings.Contains(out, id) {
@@ -180,9 +192,10 @@ func TestShowMissingExitsOne(t *testing.T) {
 func TestStatusSetsAndRejects(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)
+	t.Setenv("SIDE_QUEST_TONE", "plain")
 
 	out, _ := runBin(t, bin, dir, "new", "Do a thing")
-	id := strings.TrimSpace(out)
+	id := idFromCreated(t, out)
 
 	if _, code := runBin(t, bin, dir, "status", id, "done"); code != 0 {
 		t.Fatalf("status done exit=%d", code)
@@ -200,9 +213,10 @@ func TestStatusSetsAndRejects(t *testing.T) {
 func TestReclassifyBothFields(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)
+	t.Setenv("SIDE_QUEST_TONE", "plain")
 
 	out, _ := runBin(t, bin, dir, "new", "Reclassify me")
-	id := strings.TrimSpace(out)
+	id := idFromCreated(t, out)
 
 	if _, code := runBin(t, bin, dir, "reclassify", "--type", "bug", "--priority", "high", id); code != 0 {
 		t.Fatalf("reclassify exit=%d", code)
@@ -283,6 +297,42 @@ func TestConfigSetTone(t *testing.T) {
 
 	if _, code := runBin(t, bin, dir, "config", "set", "tone", "loud"); code != 1 {
 		t.Fatal("set tone loud: want exit 1")
+	}
+}
+
+// TestNewJSONNeutralAcrossTones locks in the invariant that --json output
+// never carries tone flavor, regardless of SIDE_QUEST_TONE.
+func TestNewJSONNeutralAcrossTones(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	for _, tone := range []string{"plain", "dcc", ""} {
+		t.Setenv("SIDE_QUEST_TONE", tone)
+		out, code := runBin(t, bin, dir, "new", "--json", "A title")
+		if code != 0 {
+			t.Fatalf("new --json tone=%q exit=%d out=%s", tone, code, out)
+		}
+		for _, word := range []string{"System", "crawler", "dungeon"} {
+			if strings.Contains(out, word) {
+				t.Errorf("--json under tone %q leaked flavor word %q: %s", tone, word, out)
+			}
+		}
+	}
+}
+
+// TestNewHumanFlavoredContainsID locks in that the human `new` confirmation
+// still surfaces the created quest's id, even under a non-default tone.
+func TestNewHumanFlavoredContainsID(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	t.Setenv("SIDE_QUEST_TONE", "plain")
+	out, code := runBin(t, bin, dir, "new", "A title")
+	if code != 0 {
+		t.Fatalf("new exit=%d out=%s", code, out)
+	}
+	if !strings.Contains(out, "SQ-") {
+		t.Errorf("human new output missing id: %q", out)
 	}
 }
 

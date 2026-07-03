@@ -57,7 +57,7 @@ func cmdInit(args []string) error {
 	if err := s.Init(); err != nil {
 		return err
 	}
-	fmt.Println("side-quest: initialized")
+	fmt.Println(voiceFor(s).Initialized())
 	return nil
 }
 
@@ -95,7 +95,7 @@ func cmdNew(args []string) error {
 	if asJSON {
 		return emitJSON(os.Stdout, q)
 	}
-	fmt.Println(q.ID)
+	fmt.Println(voiceFor(s).QuestCreated(q.ID))
 	return nil
 }
 
@@ -143,7 +143,7 @@ func cmdList(args []string) error {
 	if asJSON {
 		return emitJSON(os.Stdout, filtered)
 	}
-	renderList(os.Stdout, filtered)
+	renderList(os.Stdout, filtered, voiceFor(s))
 	return nil
 }
 
@@ -181,7 +181,11 @@ func cmdStatus(args []string) error {
 	if err != nil {
 		return err
 	}
-	return s.SetStatus(args[0], quest.Status(args[1]))
+	if err := s.SetStatus(args[0], quest.Status(args[1])); err != nil {
+		return err
+	}
+	fmt.Println(voiceFor(s).StatusSet(args[0], quest.Status(args[1])))
+	return nil
 }
 
 func cmdReclassify(args []string) error {

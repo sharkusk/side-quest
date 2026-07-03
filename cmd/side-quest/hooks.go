@@ -58,7 +58,7 @@ func cmdInstallHooks(args []string) error {
 	}
 
 	addRefspec(g) // best-effort
-	fmt.Println("side-quest: hooks installed in", hooksDir)
+	fmt.Println(bestEffortVoice().HooksInstalled(hooksDir))
 	return nil
 }
 

@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/store"
 	"github.com/sharkusk/side-quest/internal/trailer"
 )
@@ -23,7 +24,7 @@ const usage = `usage: side-quest <command> [args]
   status <id> <status>            set a quest's status
   reclassify <id> [--type --priority]  change a quest's type/priority
   config get [--json]             show effective config
-  config set <key> <value>        set require_quest | auto_trailer | id_strategy
+  config set <key> <value>        set require_quest | auto_trailer | id_strategy | tone
   link <sha>                      apply a commit's Quest:/Completes: trailers
   current [<id> | --clear]        get / set / clear this worktree's active quest
   commit-msg <file>               (hook) warn or reject when a trailer is missing
@@ -136,10 +137,12 @@ func cmdCommitMsg(args []string) error {
 	if err != nil {
 		return nil // can't read the message -> don't block the commit
 	}
+	tone := config.ToneDCC
 	requireQuest := false
 	if s, err := openStore(); err == nil {
 		if cfg, err := s.Config(); err == nil {
 			requireQuest = cfg.RequireQuest
+			tone = cfg.Tone
 		}
 	}
 	switch trailer.Decision(string(msg), requireQuest) {
@@ -148,7 +151,7 @@ func cmdCommitMsg(args []string) error {
 		fmt.Fprintln(os.Stderr, "  Add e.g.  Quest: SQ-0001   (or  Quest: none  for a genuine chore).")
 		os.Exit(1)
 	case trailer.Warn:
-		fmt.Fprintln(os.Stderr, "side-quest: no Quest: trailer on this commit. (Add 'Quest: none' to silence.)")
+		fmt.Fprintln(os.Stderr, newVoice(tone).MissingTrailer())
 	}
 	return nil
 }

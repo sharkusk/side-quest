@@ -13,6 +13,7 @@ import (
 
 	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/quest"
+	"github.com/sharkusk/side-quest/internal/voice"
 )
 
 // emitJSON writes v as indented JSON followed by a newline. The value is a raw
@@ -25,9 +26,9 @@ func emitJSON(w io.Writer, v any) error {
 }
 
 // renderList prints an aligned table of quests, or a friendly line when empty.
-func renderList(w io.Writer, quests []*quest.Quest) {
+func renderList(w io.Writer, quests []*quest.Quest, v *voice.Voice) {
 	if len(quests) == 0 {
-		fmt.Fprintln(w, "no quests")
+		fmt.Fprintln(w, v.EmptyList())
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
