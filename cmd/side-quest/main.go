@@ -5,6 +5,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -15,6 +16,8 @@ import (
 
 const usage = `usage: side-quest <command> [args]
 
+  init                            create the quest ref (_config.yaml)
+  new <title> [--type --priority --context --tag k=v --current --json]
   link <sha>                      apply a commit's Quest:/Completes: trailers
   current [<id> | --clear]        get / set / clear this worktree's active quest
   commit-msg <file>               (hook) warn or reject when a trailer is missing
@@ -27,6 +30,11 @@ func main() {
 		os.Exit(2)
 	}
 	if err := run(os.Args[1], os.Args[2:]); err != nil {
+		var ue *usageErr
+		if errors.As(err, &ue) {
+			fmt.Fprintln(os.Stderr, "side-quest:", ue.msg)
+			os.Exit(2)
+		}
 		fmt.Fprintln(os.Stderr, "side-quest:", err)
 		os.Exit(1)
 	}
@@ -34,6 +42,10 @@ func main() {
 
 func run(cmd string, args []string) error {
 	switch cmd {
+	case "init":
+		return cmdInit(args)
+	case "new":
+		return cmdNew(args)
 	case "link":
 		return cmdLink(args)
 	case "current":
