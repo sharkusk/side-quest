@@ -14,8 +14,8 @@ link between every quest and the git commits that address it.
 
 > **Status: CLI + MCP server + plugin packaging ready.** The quest store, git
 > hooks, CLI (init/new/list/show/status/reclassify/config), MCP server
-> (`side-quest serve`), and the Claude Code plugin are built and tested.
-> A `sync` command to move quests across machines is planned (see "Roadmap").
+> (`side-quest serve`), quest sync across machines, and the Claude Code plugin
+> are built and tested.
 
 ## The problem it solves
 
@@ -108,7 +108,13 @@ binary depends on your agent; setting up each repo is the same either way.
 creates the quest ref, installs the git hooks, and writes a project `.mcp.json`
 if absent. (Or do it by hand with `side-quest init` + `side-quest install-hooks`.)
 
-Moving between machines? See
+### Working with others
+
+Once onboarded, quests sync automatically: every `git push` reconciles your quest
+ref with the remote's, merging in anything a teammate or your other machine added
+— no extra command needed. See [`docs/sync.md`](docs/sync.md) for how that
+merge works, or run `side-quest sync` to reconcile without pushing (e.g. after
+working offline). For wiring the refspec by hand instead of via `onboard`, see
 [Sharing quests across machines](docs/manual-setup.md#sharing-quests-across-machines).
 
 ## Development
@@ -138,6 +144,3 @@ Moving between machines? See
   (the test suite already isolates via temp repos). Quest data is per-repo on
   `refs/side-quest/*`, so working in this repo cannot touch another project's quests.
 
-## Roadmap
-
-- **`sync`** — a command to pull/push the quest ref across machines (planned).

@@ -21,13 +21,14 @@ to paste; it is safe to re-run. To do it by hand instead:
 
 ```
 side-quest init            # create the quest ref
-side-quest install-hooks   # install git hooks + the refs/side-quest/* refspec
+side-quest install-hooks   # install git hooks + the refs/side-quest/quests fetch refspec
 ```
 
 `init` creates the orphan ref (`refs/side-quest/quests`) that stores quests, off
 your main history and never checked out. `install-hooks` installs the
-`post-commit` and `prepare-commit-msg` shims and configures the fetch/push
-refspecs so quests travel with `git fetch` / `git push` (see
+`post-commit`, `prepare-commit-msg`, and `pre-push` shims, and configures the
+fetch refspec so quests travel into a local tracking ref with `git fetch` — the
+`pre-push` shim is what publishes them on `git push` (see
 [Sharing quests across machines](#sharing-quests-across-machines)). Both are
 one-time, per-repo.
 
@@ -106,5 +107,6 @@ explicitly:
 git push origin refs/side-quest/quests
 ```
 
-A dedicated `sync` command that automates this is **planned** (see the
-[README roadmap](../README.md#roadmap)).
+`side-quest sync` automates all of the above — fetch, merge, and push — and is
+also what the `pre-push` hook runs on every `git push`. See
+[`docs/sync.md`](sync.md) for how the merge works.
