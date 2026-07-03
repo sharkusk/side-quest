@@ -5,7 +5,7 @@ new ideas, follow-ups, and research tangents that occur to you while working on 
 else — without derailing your current session, and with a clean two-way link between quests
 and the git commits that address them.
 
-> **Status: pre-implementation.** The design is complete; the tool is not built yet.
+> **Status: CLI ready; further phases in progress.** The quest store, git hooks, and CLI commands (init/new/list/show/status/reclassify/config) are built and tested. MCP server, voice/tone, babelmap importer, and plugin packaging remain in development.
 > See the design spec:
 > [`docs/superpowers/specs/2026-07-02-side-quest-design.md`](docs/superpowers/specs/2026-07-02-side-quest-design.md)
 
@@ -66,5 +66,4 @@ side-quest config get
 Add `--json` to `new`, `list`, `show`, or `config get` for machine-readable
 output. Flags come before the title/id positional argument.
 
-A full README (quickstart, CLI/MCP reference, plugin install, configuration) ships with the
-implementation.
+The MCP server, voice/tone layer, babelmap importer, and plugin distribution are in development.
