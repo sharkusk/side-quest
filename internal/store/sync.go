@@ -239,6 +239,95 @@ func (s *Store) writeMerge(local, remote string, dryRun bool) (SyncResult, error
 	return res, nil
 }
 
+// SyncOptions tunes a sync. DryRun computes and reports without writing/pushing;
+// NoVerify skips hooks on the internal quest-ref push (set by the pre-push hook to
+// avoid re-entering itself).
+type SyncOptions struct {
+	DryRun   bool
+	NoVerify bool
+}
+
+const maxSyncTries = 10
+
+// Sync fetches the remote quest ref into the tracking ref, reconciles the live
+// ref with a domain merge, and publishes the result, retrying on a lost push
+// race. It never mutates the remote in DryRun.
+func (s *Store) Sync(remote string, opts SyncOptions) (SyncResult, error) {
+	var last SyncResult
+	for try := 0; try < maxSyncTries; try++ {
+		if _, err := s.git.Run("fetch", remote, FetchRefspec); err != nil && !isMissingRemoteRef(err) {
+			return SyncResult{}, fmt.Errorf("fetch %s: %w", remote, err)
+		}
+		res, err := s.reconcile(opts.DryRun)
+		if err != nil {
+			return SyncResult{}, err
+		}
+		last = res
+
+		local, err := s.tip()
+		if err != nil {
+			return SyncResult{}, err
+		}
+		remoteTip, err := s.trackingTip()
+		if err != nil {
+			return SyncResult{}, err
+		}
+		// Nothing to publish if the remote already contains local.
+		if local == "" || local == remoteTip || s.isAncestor(local, remoteTip) {
+			last.UpToDate = last.UpToDate || (res.Merged == 0 && res.Renamed == 0)
+			return last, nil
+		}
+		if opts.DryRun {
+			return last, nil
+		}
+
+		if err := s.push(remote, opts.NoVerify); err == nil {
+			last.Pushed = true
+			return last, nil
+		} else if !isNonFastForward(err) {
+			return SyncResult{}, err
+		}
+		// lost the race: loop, re-fetch, re-merge.
+	}
+	return SyncResult{}, fmt.Errorf("sync: %s stayed contended after %d tries", Ref, maxSyncTries)
+}
+
+// push publishes the live quest ref to remote. noVerify skips hooks so the
+// pre-push hook's own publish does not re-enter the hook.
+func (s *Store) push(remote string, noVerify bool) error {
+	args := []string{"push"}
+	if noVerify {
+		args = append(args, "--no-verify")
+	}
+	args = append(args, remote, Ref+":"+Ref)
+	_, err := s.git.Run(args...)
+	return err
+}
+
+// isMissingRemoteRef reports whether err is git's fetch failure because the
+// remote has no quest ref yet (nobody has ever synced/pushed there). This is
+// expected before the first sync, not a real failure: reconcile() already
+// treats an empty TrackingRef as "no remote data". gitcmd pins LC_ALL=C, so the
+// English text is stable.
+func isMissingRemoteRef(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "couldn't find remote ref")
+}
+
+// isNonFastForward reports whether err is git's rejection of a diverged push (the
+// retryable case). gitcmd pins LC_ALL=C, so the English text is stable.
+func isNonFastForward(err error) bool {
+	if err == nil {
+		return false
+	}
+	m := err.Error()
+	return strings.Contains(m, "non-fast-forward") ||
+		strings.Contains(m, "fetch first") ||
+		strings.Contains(m, "rejected")
+}
+
 // countNew counts ids in `to` that are absent from or differ from `from`.
 func countNew(from, to merge.Side) int {
 	n := 0

@@ -189,6 +189,57 @@ func TestSideAtReadsQuestsAndTouch(t *testing.T) {
 	}
 }
 
+func TestSyncConvergesAndInherits(t *testing.T) {
+	origin := newOrigin(t)
+	a := clone(t, origin)
+	if err := a.Init(); err != nil {
+		t.Fatal(err)
+	}
+	mustCreate(t, a)
+	if _, err := a.Sync("origin", SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	b := clone(t, origin)
+	if _, err := b.Sync("origin", SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// diverge
+	if _, err := a.Create("a work", "", "", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Sync("origin", SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Create("b work", "", "", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Sync("origin", SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	// a syncs again and must converge to b's merged tree
+	if _, err := a.Sync("origin", SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	al, _ := a.List()
+	bl, _ := b.List()
+	if len(al) != len(bl) || len(al) != 3 {
+		t.Fatalf("did not converge: a=%d b=%d (want 3 each)", len(al), len(bl))
+	}
+
+	// inheritance: a second sync on a settled clone does nothing (no new commit)
+	before, _ := a.tip()
+	res, err := a.Sync("origin", SyncOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, _ := a.tip()
+	if before != after || !res.UpToDate {
+		t.Errorf("settled clone re-merged: before=%s after=%s res=%+v", before, after, res)
+	}
+}
+
 func TestSideAtEmptyCommit(t *testing.T) {
 	s := newStore(t)
 	side, err := s.sideAt("")
