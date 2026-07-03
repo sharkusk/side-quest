@@ -17,17 +17,47 @@ func TestStatusValid(t *testing.T) {
 	}
 }
 
+func TestTypeValid(t *testing.T) {
+	for _, ty := range []Type{TypeBug, TypeFeature} {
+		if !ty.Valid() {
+			t.Errorf("%q should be valid", ty)
+		}
+	}
+	if Type("bogus").Valid() {
+		t.Error("bogus type should be invalid")
+	}
+	if Type("").Valid() {
+		t.Error("empty type should be invalid")
+	}
+}
+
+func TestPriorityValid(t *testing.T) {
+	for _, p := range []Priority{PriorityHigh, PriorityLow} {
+		if !p.Valid() {
+			t.Errorf("%q should be valid", p)
+		}
+	}
+	if Priority("bogus").Valid() {
+		t.Error("bogus priority should be invalid")
+	}
+	if Priority("").Valid() {
+		t.Error("empty priority should be invalid")
+	}
+}
+
 func TestMarshalRoundTrip(t *testing.T) {
 	created := time.Date(2026, 7, 2, 14, 3, 11, 0, time.UTC)
 	q := &Quest{
-		ID:      "SQ-0001", // must NOT appear in the serialized bytes
-		Title:   "Crash stack-trace diagnostic",
-		Status:  StatusOpen,
-		Created: created,
-		Commits: []string{"a62d4fa"},
-		Context: "branch=main head=a62d4fa\nCaptured while debugging.",
-		Tags:    map[string]string{"area": "engine"},
-		Body:    "Full prose description.\nWith two lines.",
+		ID:       "SQ-0001", // must NOT appear in the serialized bytes
+		Title:    "Crash stack-trace diagnostic",
+		Status:   StatusOpen,
+		Type:     TypeBug,
+		Priority: PriorityHigh,
+		Created:  created,
+		Commits:  []string{"a62d4fa"},
+		Context:  "branch=main head=a62d4fa\nCaptured while debugging.",
+		Tags:     map[string]string{"area": "engine"},
+		Body:     "Full prose description.\nWith two lines.",
 	}
 	data, err := Marshal(q)
 	if err != nil {
@@ -49,6 +79,15 @@ func TestMarshalRoundTrip(t *testing.T) {
 	}
 	if got.Title != q.Title || got.Status != q.Status {
 		t.Errorf("title/status mismatch: %+v", got)
+	}
+	if got.Type != TypeBug {
+		t.Errorf("type: got %q want bug", got.Type)
+	}
+	if got.Priority != PriorityHigh {
+		t.Errorf("priority: got %q want high", got.Priority)
+	}
+	if !strings.Contains(string(data), "type: bug") || !strings.Contains(string(data), "priority: high") {
+		t.Fatalf("type/priority not serialized into frontmatter:\n%s", data)
 	}
 	if !got.Created.Equal(created) {
 		t.Errorf("created: got %v want %v", got.Created, created)

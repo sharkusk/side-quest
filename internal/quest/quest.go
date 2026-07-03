@@ -37,6 +37,47 @@ func (s Status) Valid() bool {
 	return false
 }
 
+// Type is the kind of work a quest represents. Like Status, it is a named
+// string type with a Valid method and a small set of allowed values.
+type Type string
+
+const (
+	TypeBug     Type = "bug"
+	TypeFeature Type = "feature"
+)
+
+// Valid reports whether t is one of the known types.
+func (t Type) Valid() bool {
+	switch t {
+	case TypeBug, TypeFeature:
+		return true
+	}
+	return false
+}
+
+// DefaultType is applied when a quest is created without an explicit type.
+const DefaultType = TypeFeature
+
+// Priority is how urgent a quest is.
+type Priority string
+
+const (
+	PriorityHigh Priority = "high"
+	PriorityLow  Priority = "low"
+)
+
+// Valid reports whether p is one of the known priorities.
+func (p Priority) Valid() bool {
+	switch p {
+	case PriorityHigh, PriorityLow:
+		return true
+	}
+	return false
+}
+
+// DefaultPriority is applied when a quest is created without an explicit priority.
+const DefaultPriority = PriorityLow
+
 // Quest is one tracked unit of work.
 //
 // Struct tags (the `yaml:"..."` strings) are metadata read by the YAML library
@@ -48,6 +89,8 @@ type Quest struct {
 
 	Title     string            `yaml:"title"`
 	Status    Status            `yaml:"status"`
+	Type      Type              `yaml:"type"`
+	Priority  Priority          `yaml:"priority"`
 	Created   time.Time         `yaml:"created"`
 	Completed *time.Time        `yaml:"completed,omitempty"` // pointer => can be absent/null
 	Commits   []string          `yaml:"commits"`
