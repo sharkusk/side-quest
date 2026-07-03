@@ -46,3 +46,38 @@ func TestBuildMergeCommitHasTwoParents(t *testing.T) {
 		t.Fatalf("tree = %q, want only quests/SQ-0003.md", names)
 	}
 }
+
+func TestSideAtReadsQuestsAndTouch(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	a := mustCreate(t, s) // SQ-0001
+	tip, _ := s.tip()
+
+	side, err := s.sideAt(tip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := side.Quests[a.ID]; !ok {
+		t.Fatalf("sideAt missing %s: %v", a.ID, side.Quests)
+	}
+
+	if err := s.fillTouch(&side, tip, []string{a.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if side.Touch[a.ID].IsZero() {
+		t.Errorf("touch time for %s not populated", a.ID)
+	}
+}
+
+func TestSideAtEmptyCommit(t *testing.T) {
+	s := newStore(t)
+	side, err := s.sideAt("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(side.Quests) != 0 {
+		t.Errorf("empty commit should yield no quests, got %d", len(side.Quests))
+	}
+}
