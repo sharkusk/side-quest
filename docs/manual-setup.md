@@ -28,7 +28,7 @@ side-quest install-hooks   # install git hooks + the refs/side-quest/quests fetc
 
 `init` creates the orphan ref (`refs/side-quest/quests`) that stores quests, off
 your main history and never checked out. `install-hooks` installs the
-`post-commit`, `prepare-commit-msg`, and `pre-push` shims, and configures the
+`prepare-commit-msg`, `commit-msg`, `post-commit`, and `pre-push` shims, and configures the
 fetch refspec so quests travel into a local tracking ref with `git fetch` — the
 `pre-push` shim is what publishes them on `git push` (see
 [Sharing quests across machines](#sharing-quests-across-machines)). The shims
