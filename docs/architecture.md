@@ -520,10 +520,16 @@ same repository.
 - **Versioning:** the root `VERSION` file is the single source of truth; `plugin.json`'s
   `version` matches it (test-enforced); the release tag is `v` + `VERSION`. The binary
   reports its version via `side-quest version`, stamped at release build time by
-  GoReleaser (`-ldflags "-X main.version=<tag>"`); plain builds report `dev`. The
-  same `main.version` is threaded into `mcp.NewServer`, so the version the MCP
-  server advertises to clients tracks `side-quest version` rather than a separate
-  hardcoded constant that could drift (SQ-0044).
+  GoReleaser (`-ldflags "-X main.version=<tag>"`). Dev builds via the `Makefile`
+  (`build`/`install`) self-stamp `main.version` from `git describe --tags
+  --always --dirty` (e.g. `590a5ae`, `v0.1.0-6-g590a5ae`, or `…-dirty`), falling
+  back to `dev` outside a git repo — so a dogfood binary reports the exact commit
+  it was built from, and a stale MCP server (advertising an older commit than
+  HEAD) is visible at a glance (SQ-0050). A bare `go build`/`go install` with no
+  ldflags still reports `dev`. The same `main.version` is threaded into
+  `mcp.NewServer`, so the version the MCP server advertises to clients tracks
+  `side-quest version` rather than a separate hardcoded constant that could drift
+  (SQ-0044).
 - **Releases** are produced by GoReleaser (`.goreleaser.yaml`) via a tag-triggered
   GitHub Actions workflow: six targets (darwin/linux/windows × amd64/arm64), archived
   with README + LICENSE, plus `checksums.txt`.

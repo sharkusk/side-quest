@@ -154,9 +154,11 @@ func TestReadmeReframedAndToneRemoved(t *testing.T) {
 func TestDevMakefileDogfoodsHead(t *testing.T) {
 	mk := string(repoFile(t, "Makefile"))
 	for _, want := range []string{
-		"go install ./cmd/side-quest", // HEAD -> $GOBIN, what bare `side-quest` resolves to
-		"install-hooks",               // repoint the git-hook shims at the fresh binary
-		"commands/sq.md",              // link the /sq command into .claude/commands
+		"go install",       // HEAD -> $GOBIN, what bare `side-quest` resolves to
+		"./cmd/side-quest", // the install target
+		"-X main.version=", // dev builds self-stamp the git-describe version (SQ-0050)
+		"install-hooks",    // repoint the git-hook shims at the fresh binary
+		"commands/sq.md",   // link the /sq command into .claude/commands
 	} {
 		if !strings.Contains(mk, want) {
 			t.Errorf("Makefile dogfood workflow missing %q", want)

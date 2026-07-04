@@ -11,16 +11,25 @@ ifeq ($(GOBIN),)
 GOBIN := $(shell go env GOPATH)/bin
 endif
 
+# Stamp dev builds with the git-describe version so `side-quest version` and the
+# MCP-advertised ServerInfo report the actual build commit (e.g. 590a5ae, or
+# v0.1.0-6-g590a5ae once tagged, -dirty for an uncommitted tree) instead of an
+# opaque "dev" — making a stale dogfood binary/server legible at a glance
+# (SQ-0050). Falls back to "dev" outside a git repo. Releases don't use this: the
+# GoReleaser workflow stamps main.version from the tag.
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -X main.version=$(VERSION)
+
 .PHONY: build install test vet dev
 
 # build a local ./side-quest from HEAD (gitignored; handy for ad-hoc runs).
 build:
-	go build -o $(BIN) ./cmd/side-quest
+	go build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/side-quest
 
 # install HEAD to $(GOBIN) — the binary that bare `side-quest` (the .mcp.json MCP
 # server) and the installed git-hook shims resolve to.
 install:
-	go install ./cmd/side-quest
+	go install -ldflags "$(LDFLAGS)" ./cmd/side-quest
 
 test:
 	go test ./...

@@ -183,13 +183,17 @@ working offline). For wiring the refspec by hand instead of via `onboard`, see
   plugin's `/sq` command into `.claude/commands/`. Re-run `make dev` (or just
   `make install`) after code changes, then **restart the MCP server** so it
   reloads the new binary. There's no separate MCP artifact to update — `serve`
-  *is* the binary.
+  *is* the binary. `make` builds self-stamp the version from `git describe`, so
+  `side-quest version` (and the server's advertised version) report the exact
+  commit — if the running server names an older commit than your `HEAD`, that's
+  your cue you skipped the restart.
 - **Dogfooding your dev build on another repo:** `make install` puts HEAD on your
   `PATH` (via `GOBIN`), and `PATH` is global — so a dev build is available in any
   repo. In the *other* repo, once: run `~/go/bin/side-quest onboard` (use the
   `GOBIN` binary explicitly so the hook shims bake in that stable path, which
   `make install` keeps refreshing). That creates the quest ref, installs hooks,
-  writes `.mcp.json`, and prints the AGENTS.md snippet to merge; add `/sq` by
+  writes `.mcp.json`, and merges the guidance into that repo's `AGENTS.md` as a
+  marker-wrapped block it can later refresh in place; add `/sq` by
   installing the plugin globally or symlinking `commands/sq.md` into that repo's
   `.claude/commands/`. Steady state: edit side-quest → `make install` here →
   **restart the MCP server** there (hooks need no re-install — they point at
