@@ -162,6 +162,12 @@ working offline). For wiring the refspec by hand instead of via `onboard`, see
   go vet ./...
   ```
 
+- **CI:** the [`ci`](.github/workflows/ci.yml) workflow runs build/vet/test on
+  Linux, macOS, and Windows for every push to `main` and every pull request. The
+  Windows job is load-bearing, not incidental: it runs the end-to-end hook test
+  under Git for Windows' MSYS `sh`, proving the extensionless shims actually fire
+  and invoke the `.exe` — the one thing a Unix runner can't verify (SQ-0034).
+
 - **Cutting a release:** bump `VERSION` and `plugin.json`'s `version` together, then
   `git tag v$(cat VERSION) && git push --tags`. The release workflow runs GoReleaser
   and publishes the six platform archives + `checksums.txt`. The build requires the

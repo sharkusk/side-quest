@@ -192,7 +192,10 @@ collapses duplicate env keys keeping the last value, so the store's scratch
 honors `core.hooksPath` when set, otherwise writes to `<common-git-dir>/hooks`.
 Each shim calls the installing binary by absolute path, normalized to forward
 slashes so it runs under Git-for-Windows' MSYS sh (a `C:\…` path would break;
-`C:/…` works — SQ-0021). Each shim is a marker-guarded block (`# >>> side-quest
+`C:/…` works — SQ-0021). That path fix was unit-tested on Unix only until the
+`ci` workflow added a `windows-latest` job that runs the end-to-end hook test
+under real Git-for-Windows MSYS sh, verifying the extensionless shims actually
+execute and invoke the `.exe` (SQ-0034). Each shim is a marker-guarded block (`# >>> side-quest
 >>>` … `# <<< side-quest <<<`): installing into an existing hook **appends** our
 block and leaves the rest intact, and re-installing replaces only our block
 (idempotent, never duplicated). The block carries a version stamp
