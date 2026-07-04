@@ -25,6 +25,11 @@ install-hooks` run once, to create the quest ref and install the git hooks (see
 run them. Your own shell's `PATH` does **not** include the plugin's binary — to
 run these yourself from a terminal, [install side-quest](install.md) first.
 
+The git hooks rely on that same `PATH`: an agent-run `git commit` finds
+`side-quest` and records the link, while a commit from your own terminal only
+does so if you've [installed side-quest](install.md) there — otherwise the
+hook skips cleanly.
+
 **Restart the Claude Code session** after installing so the MCP server, the `/sq`
 command, and the skill load.
 

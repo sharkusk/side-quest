@@ -31,15 +31,25 @@ your main history and never checked out. `install-hooks` installs the
 `post-commit`, `prepare-commit-msg`, and `pre-push` shims, and configures the
 fetch refspec so quests travel into a local tracking ref with `git fetch` — the
 `pre-push` shim is what publishes them on `git push` (see
-[Sharing quests across machines](#sharing-quests-across-machines)). Both are
-one-time, per-repo.
+[Sharing quests across machines](#sharing-quests-across-machines)). The shims
+call `side-quest` via your `PATH` (not by an absolute path), so the installed
+block is identical on every machine — you can commit it into a shared hooks
+dir — and it skips with a warning if `side-quest` is not on the `PATH` git runs
+under. Both are one-time, per-repo.
 
 ### Existing git hooks
 
 Already have a git hook framework? (Husky, pre-commit, or a custom setup via
 `core.hooksPath`.) `install-hooks` composes into whatever hooks directory git
 uses, appending its own marker-guarded block without clobbering yours — and it
-tells you when it does. It **warns** if `core.hooksPath` is set (that dir usually
+tells you when it does. Because the appended block invokes `side-quest` via
+`PATH`, it is safe to **commit** into a shared hook — it carries no
+machine-local path. The trade-off: the hook needs `side-quest` on the `PATH`
+that git runs under. A terminal or agent that has side-quest on `PATH` works; a
+GUI client or cron job launched without it simply skips the side-quest step
+(with a warning) rather than failing. See the `PATH` note under [Wire up your
+agent](#wire-up-your-agent) — the hooks share that dependency. It **warns** if
+`core.hooksPath` is set (that dir usually
 belongs to another framework) and whenever it appends to a hook that already had
 content, and it **skips** — leaving untouched — any hook whose shebang names a
 non-sh interpreter (a Python or Node hook), since appending shell lines would
