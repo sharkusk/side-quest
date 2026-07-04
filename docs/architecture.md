@@ -267,9 +267,11 @@ reinforcement surfaces.
 
 The skill and `AGENTS.md` are **opt-in reinforcement**, not the baseline: the
 Claude plugin bundles the skill; a non-Claude user opts into `AGENTS.md` with
-`onboard --agents-md`. All three surfaces derive from the same `guidance.Core` — a
-test in `internal/packaging` asserts `AGENTS.md` and `skills/side-quest/SKILL.md`
-contain it verbatim, so they cannot drift from the source.
+`onboard --agents-md`. All three surfaces derive from the same `guidance.Core`.
+The agent-agnostic block is embedded from `internal/guidance/agents.md` (exposed
+as `guidance.Agents`); a guard test there asserts it stays unwrapped and contains
+`guidance.Core`, and a test in `internal/packaging` asserts
+`skills/side-quest/SKILL.md` contains the core verbatim — so none can drift.
 
 The **AGENTS.md guidance** uses the same drift-defeating pattern (SQ-0047). The
 emitted block is wrapped in HTML-comment markers (`<!-- >>> side-quest >>> -->` …

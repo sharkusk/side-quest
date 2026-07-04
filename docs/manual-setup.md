@@ -92,8 +92,8 @@ start.
 The server exposes: `quest_new`, `quest_list`, `quest_show`, `quest_set_status`,
 `quest_reclassify`, `quest_update`, `quest_note`, `quest_set_current`,
 `quest_get_current`, `quest_link_commit`. Responses are neutral JSON. For
-agent-facing guidance see [`AGENTS.md`](../AGENTS.md) and
-[`skills/side-quest/SKILL.md`](../skills/side-quest/SKILL.md).
+agent-facing guidance, run `side-quest agents-md` (the agent-agnostic block) or
+see [`skills/side-quest/SKILL.md`](../skills/side-quest/SKILL.md).
 
 ## Customizing guidance for your project
 

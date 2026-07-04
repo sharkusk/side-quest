@@ -211,10 +211,10 @@ Two optional surfaces *reinforce* it when you want more than the baseline:
 - [`skills/side-quest/SKILL.md`](skills/side-quest/SKILL.md) — the Claude-plugin
   form, loaded automatically by the [Claude Code plugin](docs/plugin.md) and
   surfaced as the `/sq` capture command.
-- [`AGENTS.md`](AGENTS.md) — agent-agnostic, for non-Claude tools.
-  `side-quest onboard --agents-md` merges it into your project's own `AGENTS.md`
-  as a marker-wrapped, version-stamped block it refreshes in place; `side-quest
-  agents-md` prints it for a manual paste.
+- **Agent-agnostic guidance**, for non-Claude tools — run `side-quest agents-md`
+  to print it, or `side-quest onboard --agents-md` to merge it into your
+  project's own `AGENTS.md` as a marker-wrapped, version-stamped block it
+  refreshes in place.
 
 ### Working with others
 
