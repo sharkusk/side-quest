@@ -358,6 +358,13 @@ context (branch/HEAD/cwd/current-quest, via `internal/capture.Mechanical`) ahead
 of the agent's narrative note, and only moves the current-quest pointer when
 `set_current:true`. stdout carries only JSON-RPC; diagnostics go to stderr.
 
+On startup `serve` compares its own build version against the `side-quest` found
+on `PATH` (which the git hooks and the human CLI invoke) and, if they differ,
+prints a one-line warning to stderr (SQ-0039). An auto-updated plugin can run a
+bundled binary for `serve` while a separately-installed `side-quest` stays on
+`PATH`; the check surfaces that drift. It is best-effort and never blocks: no
+`side-quest` on `PATH`, the same executable, or a failed lookup all stay silent.
+
 The three store mutators the update tools use — `AppendNote` (append a dated note
 to the body), `SetTitle`, and `MergeTags` (empty value deletes a key) — live in
 `store` beside the other setters.
