@@ -108,6 +108,20 @@ binary depends on your agent; setting up each repo is the same either way.
 creates the quest ref, installs the git hooks, and writes a project `.mcp.json`
 if absent. (Or do it by hand with `side-quest init` + `side-quest install-hooks`.)
 
+### Working with agents
+
+An MCP-capable agent drives side-quest through the `side-quest serve` tools, but
+what makes it useful is the *guidance* the agent loads alongside them — the reflex
+to capture a stray idea without derailing, and the commit-trailer contract that
+links work to quests. That guidance ships as two mirrored files:
+
+- [`AGENTS.md`](AGENTS.md) — agent-agnostic. Merge it into your project's own
+  `AGENTS.md` (the [manual setup](docs/manual-setup.md) does this, or run
+  `side-quest agents-md` to print the block).
+- [`skills/side-quest/SKILL.md`](skills/side-quest/SKILL.md) — the same guidance in
+  Claude-plugin form, loaded automatically by the [Claude Code plugin](docs/plugin.md)
+  and surfaced as the `/sq` capture command.
+
 ### Working with others
 
 Once onboarded, quests sync automatically: every `git push` reconciles your quest
