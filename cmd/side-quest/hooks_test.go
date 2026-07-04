@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -163,6 +165,125 @@ func TestGuardedShimIsPathRelative(t *testing.T) {
 	}
 	if strings.Contains(blocking, "|| true") {
 		t.Errorf("commit-msg must NOT append || true (it must be able to block):\n%s", blocking)
+	}
+}
+
+// runHook writes script to a temp executable and runs it under sh with exactly
+// the given PATH, returning stdout, stderr, and the exit code. A controlled PATH
+// lets a test simulate the binary being present (a stub dir) or absent.
+func runHook(t *testing.T, script, pathEnv string, args ...string) (string, string, int) {
+	t.Helper()
+	f := filepath.Join(t.TempDir(), "hook")
+	if err := os.WriteFile(f, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("sh", append([]string{f}, args...)...)
+	cmd.Env = []string{"PATH=" + pathEnv}
+	var so, se bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &so, &se
+	err := cmd.Run()
+	code := 0
+	if ee, ok := err.(*exec.ExitError); ok {
+		code = ee.ExitCode()
+	} else if err != nil {
+		t.Fatalf("run hook: %v", err)
+	}
+	return so.String(), se.String(), code
+}
+
+// stubSideQuest writes a fake `side-quest` that exits exitCode into a fresh dir,
+// and returns that dir so a test can put it on PATH.
+func stubSideQuest(t *testing.T, exitCode int) string {
+	t.Helper()
+	dir := t.TempDir()
+	script := fmt.Sprintf("#!/bin/sh\nexit %d\n", exitCode)
+	if err := os.WriteFile(filepath.Join(dir, "side-quest"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// renderHook builds a complete, runnable hook file the way installOneHook does
+// for a fresh hook: shebang + the marker-guarded block.
+func renderHook(body string) string {
+	return "#!/bin/sh\n" + hookBlock(body, "test")
+}
+
+// TestCommitMsgShimMissingBinaryNeverBlocks (SQ-0058): with side-quest absent,
+// the blocking commit-msg hook must still exit 0 (commit proceeds) and warn.
+func TestCommitMsgShimMissingBinaryNeverBlocks(t *testing.T) {
+	_, se, code := runHook(t, renderHook(guardedShim(`commit-msg "$@"`, true)), "/nonexistent")
+	if code != 0 {
+		t.Errorf("missing binary must not block the commit, got exit %d", code)
+	}
+	if !strings.Contains(se, "not on PATH") {
+		t.Errorf("expected a skip warning on stderr, got:\n%s", se)
+	}
+}
+
+// TestCommitMsgShimBlocksOnReject (SQ-0058): a present side-quest that rejects
+// (exit 1) must propagate non-zero so the commit is blocked.
+func TestCommitMsgShimBlocksOnReject(t *testing.T) {
+	_, _, code := runHook(t, renderHook(guardedShim(`commit-msg "$@"`, true)), stubSideQuest(t, 1))
+	if code == 0 {
+		t.Errorf("a rejecting side-quest must block the commit (non-zero exit), got 0")
+	}
+}
+
+// TestCommitMsgShimPassesOnAccept (SQ-0058): a present side-quest that accepts
+// (exit 0) leaves the commit unblocked.
+func TestCommitMsgShimPassesOnAccept(t *testing.T) {
+	_, _, code := runHook(t, renderHook(guardedShim(`commit-msg "$@"`, true)), stubSideQuest(t, 0))
+	if code != 0 {
+		t.Errorf("an accepting side-quest must allow the commit, got exit %d", code)
+	}
+}
+
+// TestNonBlockingShimMissingBinarySkips (SQ-0058): a non-blocking hook
+// (post-commit) exits 0 and warns when the binary is absent.
+func TestNonBlockingShimMissingBinarySkips(t *testing.T) {
+	_, se, code := runHook(t, renderHook(guardedShim("link HEAD", false)), "/nonexistent")
+	if code != 0 {
+		t.Errorf("non-blocking shim must exit 0 when binary missing, got %d", code)
+	}
+	if !strings.Contains(se, "not on PATH") {
+		t.Errorf("expected a skip warning, got:\n%s", se)
+	}
+}
+
+// TestShimComposeSafetyFlowsThrough (SQ-0058): the else branch must NOT early-exit
+// — content after our block still runs. Simulate a composed hook: our block then
+// a trailing `echo AFTER`, binary absent; AFTER must still print.
+func TestShimComposeSafetyFlowsThrough(t *testing.T) {
+	script := "#!/bin/sh\n" + hookBlock(guardedShim("link HEAD", false), "test") + "echo AFTER\n"
+	so, _, code := runHook(t, script, "/nonexistent")
+	if code != 0 {
+		t.Errorf("hook should exit 0, got %d", code)
+	}
+	if !strings.Contains(so, "AFTER") {
+		t.Errorf("content after the block must still run (no early exit), stdout:\n%s", so)
+	}
+}
+
+// TestInstallOneHookMigratesAbsoluteToPathRelative (SQ-0058): re-installing over
+// an old absolute-path block replaces it in place (hookUpdated) with the portable
+// shim, dropping the machine-local path — the migration path for existing installs.
+func TestInstallOneHookMigratesAbsoluteToPathRelative(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "post-commit")
+	old := `"/Users/x/go/bin/side-quest" link HEAD || true`
+	if _, _, err := installOneHook(path, old, "0.0.9"); err != nil {
+		t.Fatal(err)
+	}
+	oc, prev, err := installOneHook(path, guardedShim("link HEAD", false), "0.1.0")
+	if err != nil || oc != hookUpdated || prev != "0.0.9" {
+		t.Fatalf("migrate: oc=%v prev=%q err=%v", oc, prev, err)
+	}
+	got := readFileStr(t, path)
+	if strings.Contains(got, "/Users/x/go/bin/side-quest") {
+		t.Errorf("old absolute path not removed:\n%s", got)
+	}
+	if !strings.Contains(got, "command -v side-quest") {
+		t.Errorf("portable shim not written:\n%s", got)
 	}
 }
 
