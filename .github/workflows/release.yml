@@ -17,7 +17,10 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          # Track the toolchain floor from the go.mod `go` directive (currently
+          # 1.25) so a release is always cut with the required Go — one source of
+          # truth, no drift when the directive is bumped (SQ-0006).
+          go-version-file: 'go.mod'
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: '~> v2'

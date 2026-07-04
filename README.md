@@ -148,8 +148,11 @@ working offline). For wiring the refspec by hand instead of via `onboard`, see
 
 - **Cutting a release:** bump `VERSION` and `plugin.json`'s `version` together, then
   `git tag v$(cat VERSION) && git push --tags`. The release workflow runs GoReleaser
-  and publishes the six platform archives + `checksums.txt`. Validate the config
-  locally with `goreleaser check` and `goreleaser build --snapshot --clean`.
+  and publishes the six platform archives + `checksums.txt`. The build requires the
+  Go toolchain named by the `go` directive in `go.mod` (currently **1.25**); CI pins
+  it via `go-version-file: go.mod`, so bumping the directive moves the release
+  toolchain with it. Validate the config locally with `goreleaser check` and
+  `goreleaser build --snapshot --clean`.
 - **Developing side-quest while using it elsewhere:** keep the released
   `side-quest` on your `PATH` for the project you track in production; for
   development, build a local `./side-quest` (`go build -o side-quest ./cmd/side-quest`)
