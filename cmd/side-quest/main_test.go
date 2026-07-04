@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -12,10 +13,21 @@ import (
 	"github.com/sharkusk/side-quest/internal/store"
 )
 
+// exePath returns a temp binary path, carrying the .exe suffix Windows requires
+// to build and then exec a Go binary — without it, `go build -o` produces
+// side-quest.exe while the tests try to run a nonexistent extensionless path.
+func exePath(dir string) string {
+	bin := filepath.Join(dir, "side-quest")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
+	return bin
+}
+
 // buildBinary compiles cmd/side-quest to a temp path and returns it.
 func buildBinary(t *testing.T) string {
 	t.Helper()
-	bin := filepath.Join(t.TempDir(), "side-quest")
+	bin := exePath(t.TempDir())
 	out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput()
 	if err != nil {
 		t.Fatalf("build failed: %v\n%s", err, out)

@@ -2,7 +2,6 @@ package main
 
 import (
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -23,7 +22,7 @@ func TestVersionReportsDevByDefault(t *testing.T) {
 
 // A release build injects the version via ldflags; the binary must report it.
 func TestVersionReflectsLdflags(t *testing.T) {
-	bin := filepath.Join(t.TempDir(), "side-quest")
+	bin := exePath(t.TempDir())
 	out, err := exec.Command("go", "build",
 		"-ldflags", "-X main.version=9.9.9", "-o", bin, ".").CombinedOutput()
 	if err != nil {

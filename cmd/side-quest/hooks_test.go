@@ -15,7 +15,7 @@ import (
 // test can simulate an upgrade (two builds with different versions).
 func buildBinaryVersion(t *testing.T, ver string) string {
 	t.Helper()
-	bin := filepath.Join(t.TempDir(), "side-quest")
+	bin := exePath(t.TempDir())
 	out, err := exec.Command("go", "build", "-ldflags", "-X main.version="+ver, "-o", bin, ".").CombinedOutput()
 	if err != nil {
 		t.Fatalf("build %s: %v\n%s", ver, err, out)
