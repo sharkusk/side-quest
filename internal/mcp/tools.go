@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sharkusk/side-quest/internal/capture"
@@ -75,14 +74,8 @@ func (h *handlers) result(id string) (*sdk.CallToolResult, any, error) {
 func (h *handlers) questNew(ctx context.Context, req *sdk.CallToolRequest, in newIn) (*sdk.CallToolResult, any, error) {
 	cur, _ := h.store.Current()
 	dir, _ := os.Getwd()
-	var parts []string
-	if mech := capture.Mechanical(dir, cur); mech != "" {
-		parts = append(parts, mech)
-	}
-	if in.Context != "" {
-		parts = append(parts, in.Context)
-	}
-	q, err := h.store.Create(in.Title, strings.Join(parts, "\n\n"), quest.Type(in.Type), quest.Priority(in.Priority), in.Tags)
+	body := capture.Body(dir, cur, in.Context)
+	q, err := h.store.Create(in.Title, body, quest.Type(in.Type), quest.Priority(in.Priority), in.Tags)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/sharkusk/side-quest/internal/capture"
 	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/quest"
 	"github.com/sharkusk/side-quest/internal/store"
@@ -145,7 +146,13 @@ func cmdNew(args []string) error {
 	if err != nil {
 		return err
 	}
-	q, err := s.Create(rest[0], context, quest.Type(typ), quest.Priority(prio), tags.m)
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	cur, _ := s.Current()
+	body := capture.Body(cwd, cur, context)
+	q, err := s.Create(rest[0], body, quest.Type(typ), quest.Priority(prio), tags.m)
 	if err != nil {
 		return err
 	}

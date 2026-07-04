@@ -28,3 +28,19 @@ func Mechanical(dir, currentQuest string) string {
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
+
+// Body composes the context stored on a new quest: the mechanical capture for
+// the worktree at dir, followed by the user's own context note. Either may be
+// empty (the mechanical part is empty only outside a readable cwd). It is the
+// single shape shared by the CLI and MCP create paths, so both record the same
+// provenance.
+func Body(dir, currentQuest, userContext string) string {
+	var parts []string
+	if mech := Mechanical(dir, currentQuest); mech != "" {
+		parts = append(parts, mech)
+	}
+	if userContext != "" {
+		parts = append(parts, userContext)
+	}
+	return strings.Join(parts, "\n\n")
+}

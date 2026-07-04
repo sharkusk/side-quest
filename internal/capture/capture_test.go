@@ -28,6 +28,25 @@ func TestMechanicalInRepo(t *testing.T) {
 	}
 }
 
+func TestBodyCombinesMechanicalThenContext(t *testing.T) {
+	dir := t.TempDir() // not a git repo: mechanical is just the cwd line
+
+	// With a user note, the mechanical capture comes first, joined by a blank line.
+	got := Body(dir, "", "why now")
+	if !strings.HasPrefix(got, "cwd:") {
+		t.Errorf("mechanical capture should lead:\n%s", got)
+	}
+	if !strings.HasSuffix(got, "\n\nwhy now") {
+		t.Errorf("user context should follow after a blank line:\n%s", got)
+	}
+
+	// Empty user context yields just the mechanical capture, no trailing separator.
+	only := Body(dir, "", "")
+	if only != Mechanical(dir, "") {
+		t.Errorf("empty context should equal mechanical alone: %q vs %q", only, Mechanical(dir, ""))
+	}
+}
+
 func TestMechanicalBestEffortNoCurrent(t *testing.T) {
 	dir := t.TempDir() // not a git repo
 	out := Mechanical(dir, "")

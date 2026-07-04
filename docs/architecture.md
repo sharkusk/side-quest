@@ -252,7 +252,8 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
 - `init` — create the quest ref.
 - `new <title>` — create a quest; flags `--type`, `--priority`, `--context`,
   `--tag k=v` (repeatable), `--current` (also set the worktree's current quest),
-  `--json`.
+  `--json`. Records the same mechanical context (branch/HEAD/cwd/current-quest,
+  via `internal/capture.Body`) ahead of `--context` as the MCP `quest_new`.
 - `list` — list quests; filters `--status`/`--type`/`--priority` (validated,
   combined with AND) and `--json`.
 - `show <id>` — show one quest; `--json`. (`<id>` accepts shorthand: `11` or

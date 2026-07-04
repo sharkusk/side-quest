@@ -215,6 +215,33 @@ func TestNewFlagsTypePriorityTagCurrentJSON(t *testing.T) {
 	}
 }
 
+func TestNewCapturesMechanicalContext(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+	// A commit so branch/head resolve for the capture.
+	if _, err := gitcmd.New(dir).Run("commit", "--allow-empty", "-q", "-m", "root"); err != nil {
+		t.Fatal(err)
+	}
+
+	out, code := runBin(t, bin, dir, "new", "--context", "why now", "--json", "Do a thing")
+	if code != 0 {
+		t.Fatalf("new exit=%d out=%s", code, out)
+	}
+	var q quest.Quest
+	if err := json.Unmarshal([]byte(out), &q); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	for _, want := range []string{"branch:", "head:", "cwd:", "why now"} {
+		if !strings.Contains(q.Context, want) {
+			t.Errorf("quest context missing %q:\n%s", want, q.Context)
+		}
+	}
+	// Mechanical capture precedes the user's own context.
+	if strings.Index(q.Context, "branch:") > strings.Index(q.Context, "why now") {
+		t.Errorf("user context should follow mechanical capture:\n%s", q.Context)
+	}
+}
+
 func TestNewInvalidTypeExitsNonZeroEmptyRef(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)
