@@ -254,8 +254,9 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   `--tag k=v` (repeatable), `--current` (also set the worktree's current quest),
   `--json`. Records the same mechanical context (branch/HEAD/cwd/current-quest,
   via `internal/capture.Body`) ahead of `--context` as the MCP `quest_new`.
-- `list` — list quests; filters `--status`/`--type`/`--priority` (validated,
-  combined with AND) and `--json`.
+- `list` — list quests; filters `--status`/`--type`/`--priority` (validated),
+  `--tag k=v` (repeatable; a quest matches only if it has every given tag),
+  combined with AND, and `--json`.
 - `show <id>` — show one quest; `--json`. (`<id>` accepts shorthand: `11` or
   `0011` for `SQ-0011`, everywhere an id is taken.) Long field values and body
   lines are word-wrapped to the terminal width with a hanging indent; `--no-wrap`

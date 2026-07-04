@@ -211,6 +211,24 @@ func TestQuestListFilterAndInvalid(t *testing.T) {
 	}
 }
 
+func TestQuestListTagFilter(t *testing.T) {
+	cs, ctx := dialTest(t, newTestStore(t))
+	cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_new", Arguments: map[string]any{"title": "a", "tags": map[string]any{"area": "cli", "phase": "5"}}})
+	cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_new", Arguments: map[string]any{"title": "b", "tags": map[string]any{"area": "mcp"}}})
+
+	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_list", Arguments: map[string]any{"tags": map[string]any{"area": "cli"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []quest.Quest
+	if err := json.Unmarshal([]byte(contentText(t, res)), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Tags["area"] != "cli" {
+		t.Fatalf("tag filter wrong, want one area=cli quest: %+v", got)
+	}
+}
+
 func TestGetCurrentEmpty(t *testing.T) {
 	cs, ctx := dialTest(t, newTestStore(t))
 	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_get_current", Arguments: map[string]any{}})

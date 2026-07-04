@@ -172,9 +172,11 @@ func cmdList(args []string) error {
 	fs := newFlagSet("list")
 	var status, typ, prio string
 	var asJSON bool
+	var tags tagFlag
 	fs.StringVar(&status, "status", "", "filter by status: open|partial|done|deferred|discarded")
 	fs.StringVar(&typ, "type", "", "filter by type: bug|feature")
 	fs.StringVar(&prio, "priority", "", "filter by priority: high|low")
+	fs.Var(&tags, "tag", "filter by tag key=value; repeat for AND across tags")
 	fs.BoolVar(&asJSON, "json", false, "emit the matching quests as JSON")
 	setUsage(fs, "usage: side-quest list [flags]\nlist quests; filters combine with AND")
 	_, err := parseInterspersed(fs, args)
@@ -210,6 +212,9 @@ func cmdList(args []string) error {
 			continue
 		}
 		if prio != "" && string(q.Priority) != prio {
+			continue
+		}
+		if !quest.MatchTags(q.Tags, tags.m) {
 			continue
 		}
 		filtered = append(filtered, q)

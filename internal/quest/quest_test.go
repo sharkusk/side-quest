@@ -137,3 +137,30 @@ func TestNormalizeID(t *testing.T) {
 		})
 	}
 }
+
+func TestMatchTags(t *testing.T) {
+	have := map[string]string{"area": "cli", "phase": "5"}
+	cases := []struct {
+		name string
+		want map[string]string
+		ok   bool
+	}{
+		{"empty filter matches all", nil, true},
+		{"single pair present", map[string]string{"area": "cli"}, true},
+		{"all pairs present", map[string]string{"area": "cli", "phase": "5"}, true},
+		{"value mismatch", map[string]string{"area": "map"}, false},
+		{"missing key", map[string]string{"owner": "me"}, false},
+		{"one of two missing", map[string]string{"area": "cli", "owner": "me"}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := MatchTags(have, c.want); got != c.ok {
+				t.Errorf("MatchTags(%v, %v) = %v, want %v", have, c.want, got, c.ok)
+			}
+		})
+	}
+	// A nil have with a non-empty filter never matches.
+	if MatchTags(nil, map[string]string{"area": "cli"}) {
+		t.Error("nil tags should not match a non-empty filter")
+	}
+}

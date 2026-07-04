@@ -79,6 +79,19 @@ func (p Priority) Valid() bool {
 // DefaultPriority is applied when a quest is created without an explicit priority.
 const DefaultPriority = PriorityLow
 
+// MatchTags reports whether have satisfies every key/value pair in want (an AND
+// over the filter). An empty want matches anything; a want pair whose key is
+// absent from have, or present with a different value, fails the match. Used by
+// the CLI and MCP list filters.
+func MatchTags(have, want map[string]string) bool {
+	for k, v := range want {
+		if have[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
 // Quest is one tracked unit of work.
 //
 // Struct tags (the `yaml:"..."` strings) are metadata read by the YAML library

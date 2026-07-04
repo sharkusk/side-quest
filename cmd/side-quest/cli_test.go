@@ -242,6 +242,25 @@ func TestNewCapturesMechanicalContext(t *testing.T) {
 	}
 }
 
+func TestListTagFilter(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+	runBin(t, bin, dir, "new", "--tag", "area=cli", "One")
+	runBin(t, bin, dir, "new", "--tag", "area=map", "Two")
+
+	out, code := runBin(t, bin, dir, "list", "--tag", "area=cli", "--json")
+	if code != 0 {
+		t.Fatalf("list exit=%d out=%s", code, out)
+	}
+	var got []quest.Quest
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if len(got) != 1 || got[0].Tags["area"] != "cli" {
+		t.Fatalf("tag filter wrong, want one area=cli quest: %+v", got)
+	}
+}
+
 func TestNewInvalidTypeExitsNonZeroEmptyRef(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)

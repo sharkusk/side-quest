@@ -25,7 +25,7 @@ func (h *handlers) register(s *sdk.Server) {
 
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_new", Description: "Capture a new quest. Mechanical git context (branch/head/cwd/current) is recorded automatically; pass a one-sentence narrative in context.",
 		InputSchema: enumSchema[newIn](map[string][]string{"type": types, "priority": prios})}, h.questNew)
-	sdk.AddTool(s, &sdk.Tool{Name: "quest_list", Description: "List quests, optionally filtered by status/type/priority (AND).",
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_list", Description: "List quests, optionally filtered by status/type/priority/tags (AND).",
 		InputSchema: enumSchema[listIn](map[string][]string{"status": statuses, "type": types, "priority": prios})}, h.questList)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_show", Description: "Show one quest by id."}, h.questShow)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_get_current", Description: "Return this worktree's current quest id (empty if none)."}, h.questGetCurrent)
@@ -77,9 +77,10 @@ type newIn struct {
 }
 
 type listIn struct {
-	Status   string `json:"status,omitempty" jsonschema:"filter by status"`
-	Type     string `json:"type,omitempty" jsonschema:"filter by type (bug|feature)"`
-	Priority string `json:"priority,omitempty" jsonschema:"filter by priority (high|low)"`
+	Status   string            `json:"status,omitempty" jsonschema:"filter by status"`
+	Type     string            `json:"type,omitempty" jsonschema:"filter by type (bug|feature)"`
+	Priority string            `json:"priority,omitempty" jsonschema:"filter by priority (high|low)"`
+	Tags     map[string]string `json:"tags,omitempty" jsonschema:"filter by tags; a quest matches only if it has every given key with the given value"`
 }
 
 type idIn struct {
@@ -150,6 +151,9 @@ func (h *handlers) questList(ctx context.Context, req *sdk.CallToolRequest, in l
 			continue
 		}
 		if in.Priority != "" && string(q.Priority) != in.Priority {
+			continue
+		}
+		if !quest.MatchTags(q.Tags, in.Tags) {
 			continue
 		}
 		filtered = append(filtered, q)
