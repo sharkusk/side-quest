@@ -21,13 +21,14 @@ to paste; it is safe to re-run. To do it by hand instead:
 
 ```
 side-quest init            # create the quest ref
-side-quest install-hooks   # install git hooks + the refs/side-quest/* refspec
+side-quest install-hooks   # install git hooks + the refs/side-quest/quests fetch refspec
 ```
 
 `init` creates the orphan ref (`refs/side-quest/quests`) that stores quests, off
 your main history and never checked out. `install-hooks` installs the
-`post-commit` and `prepare-commit-msg` shims and configures the fetch/push
-refspecs so quests travel with `git fetch` / `git push` (see
+`post-commit`, `prepare-commit-msg`, and `pre-push` shims, and configures the
+fetch refspec so quests travel into a local tracking ref with `git fetch` — the
+`pre-push` shim is what publishes them on `git push` (see
 [Sharing quests across machines](#sharing-quests-across-machines)). Both are
 one-time, per-repo.
 
@@ -79,13 +80,23 @@ agent-facing guidance see [`AGENTS.md`](../AGENTS.md) and
 ## Sharing quests across machines
 
 Custom refs like `refs/side-quest/quests` are not fetched or pushed by default.
-`side-quest install-hooks` configures both refspecs on `origin`, so once it has
-run:
+`side-quest install-hooks` configures a fetch refspec on `origin` (and migrates
+any pre-sync install off its old refspecs), so once it has run:
 
-- `git fetch` / `git pull` also retrieve quest updates (the fetch refspec is
-  additive — your normal fetch is unchanged).
-- `git push` sends your current branch **and** the quest ref together (the push
-  refspec keeps pushing your branch; it does not replace it).
+```
+# Fetch the remote quest ref into a local tracking ref (never clobbers your
+# live quests — sync merges from it):
+git config --add remote.origin.fetch 'refs/side-quest/quests:refs/side-quest-remote/quests'
+
+# Keep pushing your current branch. Do NOT add a quest push refspec — the
+# side-quest pre-push hook publishes refs/side-quest/quests for you.
+git config --add remote.origin.push HEAD
+```
+
+- `git fetch` / `git pull` retrieve quest updates into the tracking ref
+  `refs/side-quest-remote/quests` (your normal fetch is unchanged).
+- `git push` publishes the quest ref via the side-quest pre-push hook, alongside
+  your current branch — there is no quest push refspec.
 
 A fresh `git clone` does **not** include the quest ref (Git skips custom refs on
 clone) — run `side-quest install-hooks` in the clone, then `git fetch`, to pull
@@ -96,5 +107,6 @@ explicitly:
 git push origin refs/side-quest/quests
 ```
 
-A dedicated `sync` command that automates this is **planned** (see the
-[README roadmap](../README.md#roadmap)).
+`side-quest sync` automates all of the above — fetch, merge, and push — and is
+also what the `pre-push` hook runs on every `git push`. See
+[`docs/sync.md`](sync.md) for how the merge works.

@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/sharkusk/side-quest/internal/gitcmd"
+	"github.com/sharkusk/side-quest/internal/store"
 )
 
 const (
@@ -14,8 +16,8 @@ const (
 	hookEndMarker = "# <<< side-quest <<<"
 )
 
-// cmdInstallHooks writes (or composes into) the three git hooks and adds the
-// refs/side-quest/* refspec. Shims call THIS binary by absolute path, so the
+// cmdInstallHooks writes (or composes into) the three git hooks and migrates
+// origin's refspecs to the sync model. Shims call THIS binary by absolute path, so the
 // hooks always run the exact side-quest that installed them (no PATH reliance).
 func cmdInstallHooks(args []string) error {
 	cwd, err := os.Getwd()
@@ -56,6 +58,7 @@ func cmdInstallHooks(args []string) error {
 		{"prepare-commit-msg", q + ` prepare-commit-msg "$@" || true`},
 		{"commit-msg", q + ` commit-msg "$@"`},
 		{"post-commit", q + ` link HEAD || true`},
+		{"pre-push", q + ` pre-push "$@" || true`},
 	}
 	for _, sh := range shims {
 		outcome, err := installOneHook(filepath.Join(hooksDir, sh.name), sh.body)
@@ -202,23 +205,33 @@ func writeExec(path, content string) error {
 	return os.Chmod(path, 0o755)
 }
 
-// addRefspec adds push+fetch refspecs for refs/side-quest/* to origin so quest
-// data travels with the repo. Best-effort: no origin -> a note, no error.
+// addRefspec migrates origin's refspecs to the sync model: the quest ref is
+// fetched into a SEPARATE tracking ref (never clobbering the live ref), and is no
+// longer pushed by git's refspec — the pre-push hook publishes it. Best-effort:
+// no origin -> a note, no error. Idempotent, and it removes the pre-sync
+// refspecs so upgrades converge.
 func addRefspec(g *gitcmd.Git) {
 	if _, err := g.Run("remote", "get-url", "origin"); err != nil {
 		fmt.Println("side-quest: no 'origin' remote — skipped refspec (add it later or use sync).")
 		return
 	}
-	const refspec = "refs/side-quest/*:refs/side-quest/*"
-	ensureConfigContains(g, "remote.origin.fetch", refspec)
-	// A configured remote.origin.push disables push.default entirely, so pushing
-	// only the quest refspec would make a bare `git push` send quests but SKIP
-	// the user's branch. Restore current-branch push explicitly with "HEAD" (it
-	// pushes the checked-out branch to a like-named remote branch, matching
-	// push.default's "current" intent without pushing other branches), then add
-	// the quest refs alongside it. See SQ-0016.
+	const oldRefspec = "refs/side-quest/*:refs/side-quest/*"
+	unsetConfigValue(g, "remote.origin.fetch", oldRefspec)
+	unsetConfigValue(g, "remote.origin.push", oldRefspec)
+	// Fetch the remote quest ref into the tracking ref sync merges from.
+	ensureConfigContains(g, "remote.origin.fetch", store.FetchRefspec)
+	// Keep pushing the current branch (a configured push refspec disables
+	// push.default, so we restore current-branch push explicitly). The quest ref
+	// is intentionally NOT pushed here — the pre-push hook publishes it.
 	ensureConfigContains(g, "remote.origin.push", "HEAD")
-	ensureConfigContains(g, "remote.origin.push", refspec)
+}
+
+// unsetConfigValue removes every occurrence of an exact value from a multi-valued
+// git config key. git matches --unset-all against a value regex, so we anchor and
+// escape the value. A "key/value not found" (exit 5) is fine.
+func unsetConfigValue(g *gitcmd.Git, key, value string) {
+	re := "^" + regexp.QuoteMeta(value) + "$"
+	_, _ = g.Run("config", "--unset-all", key, re)
 }
 
 // ensureConfigContains adds val to a multi-valued git config key unless already present.

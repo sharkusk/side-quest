@@ -346,11 +346,13 @@ func TestInstallHooksFromSubdirectory(t *testing.T) {
 	}
 }
 
-// TestInstallHooksPushKeepsBranchAndQuests is the SQ-0016 regression: a bare
-// `git push` after install-hooks must send BOTH the current branch AND the quest
-// refs. Before the fix, the lone refs/side-quest/* push refspec disabled
-// push.default so the branch was silently skipped.
-func TestInstallHooksPushKeepsBranchAndQuests(t *testing.T) {
+// TestInstallHooksPushKeepsBranch is the SQ-0016 regression: a bare `git push`
+// after install-hooks must still send the current branch. Before the fix, the
+// lone refs/side-quest/* push refspec disabled push.default so the branch was
+// silently skipped. As of the sync migration (SQ-0031), install-hooks no longer
+// configures a quest push refspec at all — instead, the pre-push hook (SQ-0032)
+// publishes the quest ref out-of-band during the same push.
+func TestInstallHooksPushKeepsBranch(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)
 	if err := s.Init(); err != nil {
@@ -387,7 +389,14 @@ func TestInstallHooksPushKeepsBranchAndQuests(t *testing.T) {
 		t.Fatalf("install-hooks exit=%d", code)
 	}
 
-	// Bare push: must land BOTH the branch and the quest ref.
+	// No push refspec configures the quest ref directly — only the pre-push
+	// hook publishes it.
+	if out, err := g.Run("config", "--get-all", "remote.origin.push"); err == nil && strings.Contains(out, "side-quest") {
+		t.Errorf("a push refspec still configures the quest ref: %q", out)
+	}
+
+	// Bare push: must land the branch, and the pre-push hook publishes the
+	// quest ref alongside it.
 	if _, err := g.Run("push", "origin"); err != nil {
 		t.Fatalf("push: %v", err)
 	}
@@ -396,7 +405,7 @@ func TestInstallHooksPushKeepsBranchAndQuests(t *testing.T) {
 		t.Errorf("branch not pushed (SQ-0016 regression): %v", err)
 	}
 	if _, err := rg.Run("show-ref", "--verify", "refs/side-quest/quests"); err != nil {
-		t.Errorf("quest ref not pushed: %v", err)
+		t.Errorf("pre-push hook should have published the quest ref: %v", err)
 	}
 }
 

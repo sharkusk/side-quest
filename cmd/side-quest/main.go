@@ -32,6 +32,8 @@ const usage = `usage: side-quest <command> [args]
   commit-msg <file>               (hook) warn or reject when a trailer is missing
   prepare-commit-msg <file> [..]  (hook) inject the current-quest trailer
   install-hooks                   install git hooks + refs/side-quest/* refspec
+  sync [--dry-run] [--remote <name>]  reconcile quests with a remote (fetch+merge+push)
+  pre-push [<remote> <url>]        (hook) auto-sync quests on git push
   onboard                         one-shot repo setup: init + hooks + .mcp.json
   agents-md                       print the agent-guidance block for AGENTS.md
   serve                           run the stdio MCP server
@@ -100,6 +102,10 @@ func run(cmd string, args []string) error {
 		return cmdPrepareCommitMsg(args)
 	case "install-hooks":
 		return cmdInstallHooks(args)
+	case "sync":
+		return cmdSync(args)
+	case "pre-push":
+		return cmdPrePushHook(args)
 	case "onboard":
 		return cmdOnboard(args)
 	case "agents-md":
@@ -118,7 +124,12 @@ func openStore() (*store.Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return store.Open(cwd)
+	s, err := store.Open(cwd)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.BootstrapFromTracking() // fresh-clone convenience; local-only, safe to ignore
+	return s, nil
 }
 
 func cmdLink(args []string) error {

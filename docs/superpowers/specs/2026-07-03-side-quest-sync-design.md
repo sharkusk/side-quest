@@ -226,8 +226,8 @@ Resolution, fully deterministic so every clone computes the same outcome:
    lexicographically smaller marshaled byte string keeps the id.
 2. The loser is re-keyed to `PREFIX-<first 6 hex of SHA-256 of its marshaled bytes>` — the
    same shape as a random id, identical on every clone, astronomically unlikely to
-   re-collide. In the vanishing case that the derived id is already taken in the union, take
-   the next 6 hex characters of the same hash (still deterministic).
+   re-collide. In the vanishing case that the derived id is already taken in the union, widen
+   the id by 2 more hex characters of the same hash (6 → 8 → 10 → …, still deterministic).
 3. A note is appended to the loser recording the rename (`renamed from SQ-0007 on sync: id
    collision`), and a `Renamed` event is emitted for reporting.
 

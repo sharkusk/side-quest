@@ -166,17 +166,18 @@ by thin hook shims that call the `side-quest` binary. All logic lives in Go.
 - `Completes: SQ-0001` — append the hash **and** close the quest.
 - `Quest: none` — explicit escape hatch: a genuine chore, not linked.
 
-Three hooks, installed by `side-quest install-hooks` (which writes/composes
-marker-guarded shims and adds `refs/side-quest/*` fetch and push refspecs to
-`origin`; the push side also adds `HEAD` so a bare `git push` still sends the
-current branch alongside the quest refs, rather than replacing it — see
-SQ-0016):
+Four hooks, installed by `side-quest install-hooks` (which writes/composes
+marker-guarded shims and configures the `refs/side-quest/quests` fetch refspec
+on `origin`, so a bare `git push` still sends the current branch via the
+existing `HEAD` push refspec — see SQ-0016 and, for the quest ref's own publish
+path, [Sync](#sync)):
 
-| Hook | Does | Blocks the commit? |
+| Hook | Does | Blocks the commit/push? |
 |---|---|---|
 | `prepare-commit-msg` | If a current quest is set and `auto_trailer` is on, inject `Quest: <current>`. | Never |
 | `commit-msg` | No trailer present → **warn** (assisted) or **reject** (when `require_quest` is on). `Quest: none` satisfies both. | Only on an intentional `require_quest` reject |
 | `post-commit` | Run `side-quest link HEAD`: parse the just-made commit's trailers and update each referenced quest. | Never |
+| `pre-push` | Sync the quest ref with the remote being pushed to (see [Sync](#sync)). | Never — warns and exits 0 on any failure |
 
 **Why this closes the chicken-and-egg:** `post-commit` runs *after* the hash
 exists, and the quest update is a separate commit on the orphan ref whose own
@@ -210,6 +211,38 @@ The **current-quest pointer** is worktree-local state (`<git-dir>/side-quest-cur
 not ref state: each worktree has its own, and it never travels with a push.
 Setting it requires the target quest to exist — a missing id is rejected, so the
 pointer can never dangle and `prepare-commit-msg` cannot inject a bogus trailer.
+
+## Sync
+
+Two clones of the quest ref can each gain commits independently, which git's ordinary
+fetch/push can't reconcile (no working checkout exists to run `git merge` against). side-quest
+solves this with a real three-way merge, run automatically by a `pre-push` hook and available
+as `side-quest sync` for manual recovery. The full model — why the ref diverges, the tracking
+ref, the merge rules, the id-collision handling, convergence, and the safety guarantees — is
+its own document: **[`docs/sync.md`](sync.md)**. Summary of the moving parts, for orientation:
+
+- **`internal/merge` is a pure function**, `Merge(base, local, remote Side) (Result, []Event)`
+  — no git, no clock, no I/O. It implements every merge rule (per-id add/unchanged/both-changed,
+  scalar last-writer-wins by touch time, commits/tags/notes union, id-collision resolution,
+  config `seq_next = max`) as a deterministic function of its inputs, which is what makes the
+  rules exhaustively table-testable and convergence provable.
+- **`internal/store/sync.go` does the git plumbing**: it fetches the remote quest ref into a
+  tracking ref, reads the three snapshots (`sideAt`) and the touch times the merge needs
+  (`fillTouch`), calls `merge.Merge`, and writes the result as a real **two-parent merge
+  commit** via a new `buildMergeCommit`/`commitTx` helper (`store.go`) — the same scratch-index
+  machinery `buildCommit` uses for ordinary mutations, generalized to take an arbitrary parent
+  list and build its tree from an empty base rather than reading a single parent's tree. `Sync`
+  then runs a fetch-merge-push loop, retrying on a lost push race the same way `mutate`'s CAS
+  loop retries a lost ref-update race.
+- **The refspec changed.** The fetch refspec now maps the remote quest ref into a *separate*
+  tracking ref, `refs/side-quest-remote/quests` (`store.FetchRefspec`), instead of the old
+  `refs/side-quest/*:refs/side-quest/*`, which pointed fetch directly at the live ref and left
+  it either stale (on divergence) or silently clobbered (on a fast-forward). The push refspec
+  no longer includes the quest ref at all — only `HEAD` (which `install-hooks` itself
+  configures as `remote.origin.push`), so a bare `git push` still sends your
+  branch — because the quest ref is now published by the `pre-push` hook, which can guarantee
+  it's fast-forwardable at push time in a way a static refspec cannot. `install-hooks`/`onboard`
+  migrate old installs to the new refspecs idempotently (`addRefspec` in `cmd/side-quest/hooks.go`).
 
 ## Command-line interface (`cmd/side-quest`)
 

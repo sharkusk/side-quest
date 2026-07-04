@@ -178,6 +178,24 @@ func (s *Store) mutate(msg string, build func(snap *Snapshot, tx *txn) error) er
 // buildCommit stages tx into a scratch index and returns a new commit whose
 // parent is `parent` ("" for the first, parentless commit).
 func (s *Store) buildCommit(parent, msg string, tx *txn) (string, error) {
+	var parents []string
+	if parent != "" {
+		parents = []string{parent}
+	}
+	return s.commitTx(parent, parents, msg, tx)
+}
+
+// buildMergeCommit stages tx into a scratch index built from EMPTY (so the
+// tree is exactly tx's files, never a union with a parent's tree) and returns
+// a commit with the given parents. Used by sync to record a 3-way merge as
+// real two-parent history.
+func (s *Store) buildMergeCommit(parents []string, msg string, tx *txn) (string, error) {
+	return s.commitTx("", parents, msg, tx)
+}
+
+// commitTx stages tx into a fresh scratch index — seeded from readFrom's tree,
+// or empty when readFrom is "" — and returns a commit with the given parents.
+func (s *Store) commitTx(readFrom string, parents []string, msg string, tx *txn) (string, error) {
 	idxFile, err := os.CreateTemp(s.gitDir, "sq-index-*")
 	if err != nil {
 		return "", err
@@ -188,8 +206,8 @@ func (s *Store) buildCommit(parent, msg string, tx *txn) (string, error) {
 
 	g := s.git.WithEnv("GIT_INDEX_FILE=" + idxPath)
 
-	if parent != "" {
-		if _, err := g.Run("read-tree", parent); err != nil {
+	if readFrom != "" {
+		if _, err := g.Run("read-tree", readFrom); err != nil {
 			return "", err
 		}
 	} else {
@@ -217,8 +235,10 @@ func (s *Store) buildCommit(parent, msg string, tx *txn) (string, error) {
 		return "", err
 	}
 	args := []string{"commit-tree", tree, "-m", msg}
-	if parent != "" {
-		args = []string{"commit-tree", tree, "-p", parent, "-m", msg}
+	for _, p := range parents {
+		if p != "" {
+			args = append(args, "-p", p)
+		}
 	}
 	return g.Run(args...)
 }
