@@ -95,14 +95,19 @@ re-run after an upgrade — the guidance is a marker-wrapped, version-stamped bl
 `onboard` refreshes in place (your own `AGENTS.md` content is left untouched).
 (Or do it by hand with `side-quest init` + `side-quest install-hooks`.)
 
-**3. Capture your first quest** — ask your agent to note a follow-up, or run
+**3. Capture your first quest** — ask your agent to note a follow-up, type
+`/sq fix the flaky parser test` (Claude Code plugin), or run
 `side-quest new "Fix the flaky parser test" --type bug`. That's the loop
 started.
 
 ## Using it
 
-Your agent drives side-quest through the `side-quest serve` MCP tools, but every
-action is also a CLI command:
+With the [Claude Code plugin](docs/plugin.md), the one action worth a keystroke —
+capture — is a slash command: **`/sq <idea>`** files a new quest and drops you
+straight back into what you were doing. It's capture-only, on purpose: that's the
+"don't break flow" primitive. Everything else — list, show, status, link, note —
+runs through your agent's `side-quest serve` MCP tools, and every action is also a
+CLI command:
 
 ```
 side-quest new "Fix the flaky parser test" --type bug --priority high
@@ -147,6 +152,49 @@ Set-Alias sq side-quest
 
 (An alias, not a shipped binary, so it works the same however you installed
 side-quest.)
+
+### The same loop, with an agent or without
+
+side-quest needs no AI assistant — the git hooks and the quest↔commit link fire
+the same whether a human or an agent writes the trailer. An agent just removes the
+friction of *remembering* to capture.
+
+**With an agent (Claude Code plugin):**
+
+```text
+you    /sq flaky parser test — started failing after the timer refactor
+agent  Captured as SQ-0042.        ← you never left the diff
+
+  … later …
+
+you    let's fix that flaky parser test
+agent  [pulls up SQ-0042, sets it current, writes the fix]
+       Committing with "Completes: SQ-0042".
+       → the post-commit hook links the hash back; SQ-0042 is done.
+```
+
+**On your own (CLI):**
+
+```sh
+# mid-task: capture the tangent, keep working — don't switch to it
+side-quest new "Flaky parser test — fails since the timer refactor" --type bug
+#   → SQ-0042
+
+# later, when you actually start on it: make it the active quest
+side-quest current SQ-0042
+
+# do the work, then commit. the prepare-commit-msg hook fills in
+# "Quest: SQ-0042" from the active quest — or write "Completes: SQ-0042"
+# yourself to link *and* close in one shot
+git commit -am "Fix flaky parser test"
+
+# the post-commit hook already wrote the commit hash back onto SQ-0042;
+# it's linked. mark it done:
+side-quest status SQ-0042 done
+```
+
+Either way the commit and the quest end up linked both directions — no second
+commit on your branch, nothing typed twice.
 
 ### Working with agents
 
