@@ -292,6 +292,16 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
 - `status <id> <status>` — set the lifecycle status.
 - `note <id> <text>` — append a note to a quest (the note text is every
   argument after the id, joined with spaces).
+- `relink <id> <old-sha> <new-sha>` — repoint a recorded commit after a rebase
+  rewrites its hash. The old sha is matched against the stored hashes **by
+  prefix** and never git-resolved (it is typically dangling post-rebase); the new
+  sha is resolved to its canonical hash. Order is preserved and the result
+  deduped (`store.ReplaceCommit`). A rebase auto-links the new commit via the
+  `post-commit`/`pre-push` hooks but cannot remove the old, dangling entry — this
+  is the corrective for that (SQ-0048).
+- `unlink <id> <sha>` — remove a recorded commit from a quest (prefix-matched,
+  `store.RemoveCommit`). Both are CLI-only corrective commands; an agent runs
+  them via the shell rather than an MCP tool, since relinking is a rare manual fix.
 - `edit <id>` — open the quest's Markdown (frontmatter + body) in `$EDITOR`
   (`VISUAL`→`EDITOR`→`vi`) and write the saved buffer back via `store.Replace`.
   The id is the filename, never part of the buffer, so it cannot be edited. A

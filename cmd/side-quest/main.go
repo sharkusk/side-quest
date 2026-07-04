@@ -28,6 +28,8 @@ const usage = `usage: side-quest <command> [args]
   config get [--json]             show effective config
   config set <key> <value>        set require_quest | auto_trailer | id_strategy | tone
   link <sha>                      apply a commit's Quest:/Completes: trailers
+  relink <id> <old-sha> <new-sha> repoint a recorded commit after a rebase
+  unlink <id> <sha>               remove a recorded commit from a quest
   current [<id> | --clear]        get / set / clear this worktree's active quest
   commit-msg <file>               (hook) warn or reject when a trailer is missing
   prepare-commit-msg <file> [..]  (hook) inject the current-quest trailer
@@ -94,6 +96,10 @@ func run(cmd string, args []string) error {
 		return cmdConfig(args)
 	case "link":
 		return cmdLink(args)
+	case "relink":
+		return cmdRelink(args)
+	case "unlink":
+		return cmdUnlink(args)
 	case "current":
 		return cmdCurrent(args)
 	case "commit-msg":
@@ -141,6 +147,45 @@ func cmdLink(args []string) error {
 		return err
 	}
 	return s.Link(args[0])
+}
+
+// cmdRelink swaps a quest's recorded commit for a new one — the fix for a rebase
+// that rewrote a linked commit's sha (SQ-0048). The old sha is matched by prefix
+// against the stored hashes (it may be dangling, so it is never git-resolved);
+// the new sha is resolved to its canonical hash.
+func cmdRelink(args []string) error {
+	if len(args) != 3 {
+		return &usageErr{"relink needs <id> <old-sha> <new-sha>"}
+	}
+	s, err := openStore()
+	if err != nil {
+		return err
+	}
+	newSha, err := s.ResolveCommit(args[2])
+	if err != nil {
+		return fmt.Errorf("new commit %q not found: %w", args[2], err)
+	}
+	if err := s.ReplaceCommit(args[0], args[1], newSha); err != nil {
+		return err
+	}
+	fmt.Printf("side-quest: relinked %s (%s → %s)\n", args[0], args[1], newSha)
+	return nil
+}
+
+// cmdUnlink removes a recorded commit from a quest, matching by prefix (SQ-0048).
+func cmdUnlink(args []string) error {
+	if len(args) != 2 {
+		return &usageErr{"unlink needs <id> <sha>"}
+	}
+	s, err := openStore()
+	if err != nil {
+		return err
+	}
+	if err := s.RemoveCommit(args[0], args[1]); err != nil {
+		return err
+	}
+	fmt.Printf("side-quest: unlinked %s from %s\n", args[1], args[0])
+	return nil
 }
 
 func cmdCurrent(args []string) error {

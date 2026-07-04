@@ -102,6 +102,52 @@ func TestCurrentSelectionIsVoiced(t *testing.T) {
 	}
 }
 
+// TestRelinkAndUnlinkCommands (SQ-0048): after a rebase rewrites a linked
+// commit's sha, `relink` swaps the recorded (old, short) sha for the new one, and
+// `unlink` removes a recorded sha — both matching by prefix so a now-dangling old
+// sha still works.
+func TestRelinkAndUnlinkCommands(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	_ = s.Init()
+	q, err := s.Create("rebase me", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := gitcmd.New(dir)
+	mkCommit := func(msg string) string {
+		if _, err := g.Run("commit", "--allow-empty", "-q", "-m", msg); err != nil {
+			t.Fatal(err)
+		}
+		sha, err := g.Run("rev-parse", "HEAD")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return sha
+	}
+	c1 := mkCommit("one")
+	c2 := mkCommit("two")
+	if err := s.AddCommit(q.ID, c1, false); err != nil {
+		t.Fatal(err)
+	}
+
+	// relink the old (prefix) sha to the new one
+	if out, code := runBin(t, bin, dir, "relink", q.ID, c1[:10], c2); code != 0 {
+		t.Fatalf("relink exit=%d out=%q", code, out)
+	}
+	if got, _ := s.Get(q.ID); len(got.Commits) != 1 || got.Commits[0] != c2 {
+		t.Fatalf("relink did not swap: %v", got.Commits)
+	}
+
+	// unlink the remaining sha by prefix
+	if out, code := runBin(t, bin, dir, "unlink", q.ID, c2[:10]); code != 0 {
+		t.Fatalf("unlink exit=%d out=%q", code, out)
+	}
+	if got, _ := s.Get(q.ID); len(got.Commits) != 0 {
+		t.Fatalf("unlink did not remove: %v", got.Commits)
+	}
+}
+
 // TestShowAcceptsShorthandID proves the id shorthand reaches through the CLI
 // frontend: `show 1` finds the same quest as `show SQ-0001` and renders the
 // canonical id.

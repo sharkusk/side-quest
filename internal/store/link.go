@@ -2,7 +2,10 @@ package store
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
+	"github.com/sharkusk/side-quest/internal/quest"
 	"github.com/sharkusk/side-quest/internal/trailer"
 )
 
@@ -37,4 +40,87 @@ func (s *Store) Link(sha string) error {
 		}
 	}
 	return nil
+}
+
+// ResolveCommit canonicalizes a sha or ref to its full commit hash via git, the
+// same resolution Link applies — so a caller can normalize a user-supplied new
+// sha to the stored form before a ReplaceCommit.
+func (s *Store) ResolveCommit(sha string) (string, error) {
+	return s.git.Run("rev-parse", sha)
+}
+
+// ReplaceCommit swaps a recorded commit for a new one — the corrective a rebase
+// needs, since rewriting history leaves the old (now-dangling) sha recorded with
+// no way to reach the new one. oldPrefix matches a stored hash by prefix, so it
+// works even after the old commit is gone from the object store (no git resolve
+// on it); newSha takes its slot, order preserved, deduped if already present.
+// Errors if oldPrefix matches nothing or is ambiguous (SQ-0048).
+func (s *Store) ReplaceCommit(id, oldPrefix, newSha string) error {
+	q, err := s.Get(id)
+	if err != nil {
+		return err
+	}
+	full, err := matchCommit(q.Commits, oldPrefix)
+	if err != nil {
+		return err
+	}
+	return s.Update(id, func(q *quest.Quest) {
+		seen := make(map[string]bool, len(q.Commits))
+		out := q.Commits[:0]
+		for _, c := range q.Commits {
+			if c == full {
+				c = newSha
+			}
+			if !seen[c] {
+				seen[c] = true
+				out = append(out, c)
+			}
+		}
+		q.Commits = out
+	})
+}
+
+// RemoveCommit unlinks a recorded commit from a quest, matching shaPrefix against
+// the stored hashes by prefix. Errors if nothing matches or the prefix is
+// ambiguous (SQ-0048).
+func (s *Store) RemoveCommit(id, shaPrefix string) error {
+	q, err := s.Get(id)
+	if err != nil {
+		return err
+	}
+	full, err := matchCommit(q.Commits, shaPrefix)
+	if err != nil {
+		return err
+	}
+	return s.Update(id, func(q *quest.Quest) {
+		out := q.Commits[:0]
+		for _, c := range q.Commits {
+			if c != full {
+				out = append(out, c)
+			}
+		}
+		q.Commits = out
+	})
+}
+
+// matchCommit resolves a user-supplied sha prefix to the single stored commit it
+// names, or an error when it matches none or more than one. A minimum length
+// guards against a stray short string sweeping up an unintended commit.
+func matchCommit(commits []string, prefix string) (string, error) {
+	if len(prefix) < 4 {
+		return "", fmt.Errorf("commit %q is too short (give at least 4 characters)", prefix)
+	}
+	var match string
+	for _, c := range commits {
+		if strings.HasPrefix(c, prefix) {
+			if match != "" && match != c {
+				return "", fmt.Errorf("commit %q is ambiguous — it matches several linked commits", prefix)
+			}
+			match = c
+		}
+	}
+	if match == "" {
+		return "", fmt.Errorf("no linked commit matches %q", prefix)
+	}
+	return match, nil
 }

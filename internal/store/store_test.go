@@ -434,6 +434,58 @@ func TestAddCommitAppendsAndDedupes(t *testing.T) {
 	}
 }
 
+// TestReplaceCommit (SQ-0048): a rebase rewrites a linked commit's sha, leaving
+// the old (now-dangling) sha recorded. ReplaceCommit swaps it for the new one by
+// prefix — without asking git to resolve the dead old sha — preserving order and
+// deduping if the new sha was already present.
+func TestReplaceCommit(t *testing.T) {
+	s := newStore(t)
+	_ = s.Init()
+	q, _ := s.Create("rebased", "", "", "", nil)
+	old := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	keep := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	fresh := "cccccccccccccccccccccccccccccccccccccccc"
+	_ = s.AddCommit(q.ID, old, false)
+	_ = s.AddCommit(q.ID, keep, false)
+
+	// prefix match on the dead old sha, replaced in place with the fresh one
+	if err := s.ReplaceCommit(q.ID, "aaaaaaa", fresh); err != nil {
+		t.Fatalf("ReplaceCommit: %v", err)
+	}
+	got, _ := s.Get(q.ID)
+	if len(got.Commits) != 2 || got.Commits[0] != fresh || got.Commits[1] != keep {
+		t.Fatalf("replace wrong/position not preserved: %v", got.Commits)
+	}
+
+	// no match surfaces an error, doesn't silently no-op
+	if err := s.ReplaceCommit(q.ID, "deadbeef", fresh); err == nil {
+		t.Error("ReplaceCommit with no matching old sha should error")
+	}
+}
+
+// TestRemoveCommit (SQ-0048): unlink a recorded commit by prefix, erroring when
+// nothing matches.
+func TestRemoveCommit(t *testing.T) {
+	s := newStore(t)
+	_ = s.Init()
+	q, _ := s.Create("unlinkme", "", "", "", nil)
+	a := "1111111111111111111111111111111111111111"
+	b := "2222222222222222222222222222222222222222"
+	_ = s.AddCommit(q.ID, a, false)
+	_ = s.AddCommit(q.ID, b, false)
+
+	if err := s.RemoveCommit(q.ID, "1111111"); err != nil {
+		t.Fatalf("RemoveCommit: %v", err)
+	}
+	got, _ := s.Get(q.ID)
+	if len(got.Commits) != 1 || got.Commits[0] != b {
+		t.Fatalf("remove wrong: %v", got.Commits)
+	}
+	if err := s.RemoveCommit(q.ID, "9999999"); err == nil {
+		t.Error("RemoveCommit with no match should error")
+	}
+}
+
 func TestSetStrategyPreservesSeqNext(t *testing.T) {
 	s := newStore(t)
 	_ = s.Init()
