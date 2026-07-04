@@ -1,6 +1,12 @@
 package store
 
 import (
+	"crypto/sha256"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -248,6 +254,168 @@ func TestSideAtEmptyCommit(t *testing.T) {
 	}
 	if len(side.Quests) != 0 {
 		t.Errorf("empty commit should yield no quests, got %d", len(side.Quests))
+	}
+}
+
+// userWork is a fingerprint of everything side-quest must never touch: the
+// user's branches, their staged index, and their working tree. Every field is
+// content-addressed, so any change — a moved ref, a restaged file, an edited or
+// deleted worktree file — shows up as an inequality.
+type userWork struct {
+	heads     string // "refs/heads/<name> <sha>" lines for every local branch
+	indexHash string // sha256 over the raw .git/index bytes
+	tree      string // sorted "relpath sha256" lines for every file except .git
+}
+
+// captureUserWork fingerprints the three protected surfaces of s's clone.
+func captureUserWork(t *testing.T, s *Store) userWork {
+	t.Helper()
+	top, err := s.git.Run("rev-parse", "--show-toplevel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	heads, err := s.git.Run("for-each-ref", "--format=%(refname) %(objectname)", "refs/heads")
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx, err := os.ReadFile(filepath.Join(s.gitDir, "index"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return userWork{
+		heads:     heads,
+		indexHash: fmt.Sprintf("%x", sha256.Sum256(idx)),
+		tree:      hashTree(t, top),
+	}
+}
+
+// hashTree returns a stable "relpath sha256" listing of every file under root
+// except the .git directory, so any content edit, addition, or deletion in the
+// working tree changes the result.
+func hashTree(t *testing.T, root string) string {
+	t.Helper()
+	var lines []string
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if d.Name() == ".git" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, p)
+		if err != nil {
+			return err
+		}
+		lines = append(lines, fmt.Sprintf("%s %x", rel, sha256.Sum256(b)))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Strings(lines)
+	return strings.Join(lines, "\n")
+}
+
+// TestSyncNeverTouchesUserWork is the executable form of the branch-safety
+// invariant: a full diverge -> fetch -> merge -> push cycle on the quest ref
+// must leave the user's branches, index, and working tree byte-for-byte
+// unchanged. side-quest may only ever write refs/side-quest/*.
+func TestSyncNeverTouchesUserWork(t *testing.T) {
+	origin := newOrigin(t)
+
+	// a is the "other" clone that diverges the shared quest ref.
+	a := clone(t, origin)
+	if err := a.Init(); err != nil {
+		t.Fatal(err)
+	}
+	mustCreate(t, a) // SQ-0001 shared base
+	if _, err := a.Sync("origin", SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// b is the clone whose branches/index/worktree we guard.
+	b := clone(t, origin)
+	if _, err := b.Sync("origin", SyncOptions{}); err != nil { // adopt the base
+		t.Fatal(err)
+	}
+
+	// Give b real, dirty user work that spans all three protected surfaces:
+	// a committed branch, a staged-but-uncommitted change (index != HEAD), an
+	// unstaged edit (worktree != index), and an untracked file. A careless sync
+	// that ran plain git against the real index/worktree would disturb one of
+	// these.
+	top, err := b.git.Run("rev-parse", "--show-toplevel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, content string) {
+		if err := os.WriteFile(filepath.Join(top, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("README.md", "committed v1\n")
+	if _, err := b.git.Run("add", "README.md"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.git.Run("commit", "-qm", "user work"); err != nil {
+		t.Fatal(err)
+	}
+	write("README.md", "staged v2\n")
+	if _, err := b.git.Run("add", "README.md"); err != nil { // index = v2, HEAD = v1
+		t.Fatal(err)
+	}
+	write("README.md", "worktree v3\n") // worktree = v3 (unstaged)
+	write("scratch.txt", "untracked\n") // untracked file
+
+	before := captureUserWork(t, b)
+	beforeTip, err := b.tip()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Full cycle: a advances origin, b advances locally, then b.Sync must
+	// fetch a's advance, three-way merge, and push the result.
+	if _, err := a.Create("a work", "", "", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Sync("origin", SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Create("b work", "", "", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Sync("origin", SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Positive control: the quest ref must actually have advanced, or the
+	// "user work unchanged" assertions below would be vacuously true. (Merged
+	// is documented as an unreliable signal, so we check the tip directly.)
+	afterTip, err := b.tip()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterTip == beforeTip {
+		t.Fatalf("quest ref did not advance (%s); the sync cycle was a no-op", beforeTip)
+	}
+
+	// The guarantee: not one byte of the user's branches, index, or worktree moved.
+	after := captureUserWork(t, b)
+	if after.heads != before.heads {
+		t.Errorf("refs/heads changed:\n before=%q\n after =%q", before.heads, after.heads)
+	}
+	if after.indexHash != before.indexHash {
+		t.Errorf("index bytes changed: before=%s after=%s", before.indexHash, after.indexHash)
+	}
+	if after.tree != before.tree {
+		t.Errorf("worktree changed:\n before=%q\n after =%q", before.tree, after.tree)
 	}
 }
 
