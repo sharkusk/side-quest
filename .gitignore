@@ -21,6 +21,9 @@ superfan-lines.txt
 .claude/settings.local.json
 .claude/commands/
 
+# superpowers subagent-driven scratch (progress ledger; local, not shared)
+.superpowers/
+
 # side-quest-generated git hook shims (machine-local absolute paths; not shared).
 # The tracked .githooks/pre-commit stays tracked; these four are install-time
 # artifacts written by `side-quest install-hooks`.
