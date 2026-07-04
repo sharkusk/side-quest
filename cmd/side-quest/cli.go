@@ -187,12 +187,13 @@ func cmdNew(args []string) error {
 func cmdList(args []string) error {
 	fs := newFlagSet("list")
 	var status, typ, prio string
-	var asJSON bool
+	var asJSON, all bool
 	var tags tagFlag
 	fs.StringVar(&status, "status", "", "filter by status: open|partial|done|deferred|discarded")
 	fs.StringVar(&typ, "type", "", "filter by type: bug|feature")
 	fs.StringVar(&prio, "priority", "", "filter by priority: high|low")
 	fs.Var(&tags, "tag", "filter by tag key=value; repeat for AND across tags")
+	fs.BoolVar(&all, "all", false, "include every status (default shows only open and partial)")
 	fs.BoolVar(&asJSON, "json", false, "emit the matching quests as JSON")
 	setUsage(fs, "usage: side-quest list [flags]\nlist quests; filters combine with AND")
 	_, err := parseInterspersed(fs, args)
@@ -215,12 +216,18 @@ func cmdList(args []string) error {
 	if err != nil {
 		return err
 	}
-	all, err := s.List()
+	quests, err := s.List()
 	if err != nil {
 		return err
 	}
-	filtered := make([]*quest.Quest, 0, len(all))
-	for _, q := range all {
+	// Default to the "what's outstanding?" view — open and partial only —
+	// unless the caller asked for a specific --status or opted into --all.
+	openOnly := status == "" && !all
+	filtered := make([]*quest.Quest, 0, len(quests))
+	for _, q := range quests {
+		if openOnly && q.Status != quest.StatusOpen && q.Status != quest.StatusPartial {
+			continue
+		}
 		if status != "" && string(q.Status) != status {
 			continue
 		}

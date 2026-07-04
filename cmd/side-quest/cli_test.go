@@ -374,6 +374,51 @@ func TestListFilterAndJSON(t *testing.T) {
 	}
 }
 
+// TestListDefaultsToOpenAndPartial (SQ-0043): a bare `list` is the "what's
+// outstanding?" view, so it shows only open and partial quests; --all restores
+// every status, while an explicit --status still selects exactly that status.
+func TestListDefaultsToOpenAndPartial(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	runBin(t, bin, dir, "new", "Open one")     // SQ-0001
+	runBin(t, bin, dir, "new", "Partial one")  // SQ-0002
+	runBin(t, bin, dir, "new", "Done one")     // SQ-0003
+	runBin(t, bin, dir, "new", "Deferred one") // SQ-0004
+	runBin(t, bin, dir, "status", "SQ-0002", "partial")
+	runBin(t, bin, dir, "status", "SQ-0003", "done")
+	runBin(t, bin, dir, "status", "SQ-0004", "deferred")
+
+	ids := func(args ...string) map[string]bool {
+		out, code := runBin(t, bin, dir, append(args, "--json")...)
+		if code != 0 {
+			t.Fatalf("list %v exit=%d out=%s", args, code, out)
+		}
+		var got []quest.Quest
+		if err := json.Unmarshal([]byte(out), &got); err != nil {
+			t.Fatalf("json: %v\n%s", err, out)
+		}
+		m := make(map[string]bool, len(got))
+		for _, q := range got {
+			m[q.ID] = true
+		}
+		return m
+	}
+
+	// Bare list: only open + partial.
+	if got := ids("list"); !got["SQ-0001"] || !got["SQ-0002"] || got["SQ-0003"] || got["SQ-0004"] {
+		t.Fatalf("default list should show only open+partial, got %v", got)
+	}
+	// --all: every status.
+	if got := ids("list", "--all"); len(got) != 4 {
+		t.Fatalf("--all should show all four, got %v", got)
+	}
+	// Explicit --status wins over the default narrowing.
+	if got := ids("list", "--status", "done"); !got["SQ-0003"] || len(got) != 1 {
+		t.Fatalf("--status done should show only the done quest, got %v", got)
+	}
+}
+
 func TestListEmptyPrintsNoQuests(t *testing.T) {
 	bin := buildBinary(t)
 	dir, _ := newRepo(t)

@@ -56,7 +56,9 @@ without a lock.
 ```
 side-quest init
 side-quest new "Fix the flaky parser test" --type bug --priority high
-side-quest list --status open --type bug
+side-quest list                    # outstanding work: open + partial quests
+side-quest list --all              # every status, including done/deferred/discarded
+side-quest list --status done --type bug
 side-quest show SQ-0001
 side-quest status SQ-0001 done
 side-quest note SQ-0001 "flaky since the timer refactor"
@@ -66,7 +68,10 @@ side-quest config set require_quest true
 side-quest config get
 ```
 
-Add `--json` to `new`, `list`, `show`, or `config get` for machine-readable output.
+A bare `list` shows only the outstanding quests (open and partial) — the common
+"what's left?" view; pass `--all` to include every status, or an explicit
+`--status` to select one. Add `--json` to `new`, `list`, `show`, or `config get`
+for machine-readable output.
 Flags may appear before or after the title/id positional argument. Anywhere an
 `<id>` is expected you can use shorthand — `side-quest show 1` (or `0001`) is the
 same as `side-quest show SQ-0001`. Every command also prints its own help with
