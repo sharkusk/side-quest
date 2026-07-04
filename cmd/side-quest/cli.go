@@ -16,6 +16,7 @@ import (
 
 	"github.com/sharkusk/side-quest/internal/capture"
 	"github.com/sharkusk/side-quest/internal/config"
+	"github.com/sharkusk/side-quest/internal/filter"
 	"github.com/sharkusk/side-quest/internal/quest"
 	"github.com/sharkusk/side-quest/internal/store"
 )
@@ -186,7 +187,7 @@ func cmdNew(args []string) error {
 
 func cmdList(args []string) error {
 	fs := newFlagSet("list")
-	var status, typ, prio string
+	var status, typ, prio, filterExpr string
 	var asJSON, all bool
 	var tags tagFlag
 	fs.StringVar(&status, "status", "", "filter by status: open|partial|done|deferred|discarded")
@@ -194,8 +195,9 @@ func cmdList(args []string) error {
 	fs.StringVar(&prio, "priority", "", "filter by priority: high|low")
 	fs.Var(&tags, "tag", "filter by tag key=value; repeat for AND across tags")
 	fs.BoolVar(&all, "all", false, "include every status (default shows only open and partial)")
+	fs.StringVar(&filterExpr, "filter", "", `boolean expression, e.g. "bug and not (done or deferred)"`)
 	fs.BoolVar(&asJSON, "json", false, "emit the matching quests as JSON")
-	setUsage(fs, "usage: side-quest list [flags]\nlist quests; filters combine with AND")
+	setUsage(fs, "usage: side-quest list [flags]\nlist quests; simple filters combine with AND, or use --filter for a boolean expression")
 	_, err := parseInterspersed(fs, args)
 	if helpRequested(err) {
 		return nil
@@ -212,6 +214,17 @@ func cmdList(args []string) error {
 	if prio != "" && !quest.Priority(prio).Valid() {
 		return fmt.Errorf("invalid priority %q", prio)
 	}
+	// --filter is the whole filter: it can't be mixed with the simple flags,
+	// which would make the combined semantics ambiguous.
+	var pred filter.Predicate
+	if filterExpr != "" {
+		if status != "" || typ != "" || prio != "" || len(tags.m) > 0 || all {
+			return &usageErr{"--filter cannot be combined with --status/--type/--priority/--tag/--all"}
+		}
+		if pred, err = filter.Parse(filterExpr); err != nil {
+			return err
+		}
+	}
 	s, err := openStore()
 	if err != nil {
 		return err
@@ -220,12 +233,20 @@ func cmdList(args []string) error {
 	if err != nil {
 		return err
 	}
-	// Default to the "what's outstanding?" view — open and partial only —
-	// unless the caller asked for a specific --status or opted into --all.
-	openOnly := status == "" && !all
+	// Default to the "what's outstanding?" view — open and partial only — unless
+	// the caller asked for a specific --status, opted into --all, or supplied an
+	// explicit --filter expression (which takes full control of the selection).
+	openOnly := status == "" && !all && filterExpr == ""
 	filtered := make([]*quest.Quest, 0, len(quests))
 	for _, q := range quests {
 		if openOnly && q.Status != quest.StatusOpen && q.Status != quest.StatusPartial {
+			continue
+		}
+		if pred != nil {
+			if !pred(q) {
+				continue
+			}
+			filtered = append(filtered, q)
 			continue
 		}
 		if status != "" && string(q.Status) != status {

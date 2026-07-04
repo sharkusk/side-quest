@@ -419,6 +419,53 @@ func TestListDefaultsToOpenAndPartial(t *testing.T) {
 	}
 }
 
+// TestListFilterExpression (SQ-0038): --filter takes a boolean expression over
+// bare enum values and key=value tags; an explicit expression suppresses the
+// open+partial default, a bad expression exits 1, and --filter cannot be
+// combined with the simple filter flags.
+func TestListFilterExpression(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+
+	runBin(t, bin, dir, "new", "--type", "bug", "Bug one")      // SQ-0001
+	runBin(t, bin, dir, "new", "--type", "feature", "Feat one") // SQ-0002
+	runBin(t, bin, dir, "status", "SQ-0001", "done")            // the bug is now done
+
+	ids := func(args ...string) map[string]bool {
+		out, code := runBin(t, bin, dir, append(args, "--json")...)
+		if code != 0 {
+			t.Fatalf("list %v exit=%d out=%s", args, code, out)
+		}
+		var got []quest.Quest
+		if err := json.Unmarshal([]byte(out), &got); err != nil {
+			t.Fatalf("json: %v\n%s", err, out)
+		}
+		m := make(map[string]bool, len(got))
+		for _, q := range got {
+			m[q.ID] = true
+		}
+		return m
+	}
+
+	// "not done" -> only the open feature (SQ-0001 is done).
+	if got := ids("list", "--filter", "not done"); !got["SQ-0002"] || got["SQ-0001"] {
+		t.Fatalf(`--filter "not done" got %v`, got)
+	}
+	// An explicit expression suppresses the open+partial default, so the done
+	// bug reappears: "bug or feature" matches both quests.
+	if got := ids("list", "--filter", "bug or feature"); !got["SQ-0001"] || !got["SQ-0002"] {
+		t.Fatalf(`--filter "bug or feature" got %v`, got)
+	}
+	// A malformed expression is a value error (exit 1).
+	if _, code := runBin(t, bin, dir, "list", "--filter", "banana"); code != 1 {
+		t.Fatalf("bad --filter should exit 1, got %d", code)
+	}
+	// Combining --filter with the simple flags is a usage error (exit 2).
+	if _, code := runBin(t, bin, dir, "list", "--filter", "bug", "--status", "open"); code != 2 {
+		t.Fatalf("--filter with --status should exit 2, got %d", code)
+	}
+}
+
 func TestListEmptyPrintsNoQuests(t *testing.T) {
 	bin := buildBinary(t)
 	dir, _ := newRepo(t)

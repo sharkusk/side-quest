@@ -266,7 +266,12 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   via `internal/capture.Body`) ahead of `--context` as the MCP `quest_new`.
 - `list` — list quests; filters `--status`/`--type`/`--priority` (validated),
   `--tag k=v` (repeatable; a quest matches only if it has every given tag),
-  combined with AND, and `--json`.
+  combined with AND, and `--json`. With no `--status`/`--all`/`--filter` it
+  defaults to the outstanding view (open + partial only); `--all` restores every
+  status. `--filter "expr"` takes a boolean expression (compiled by
+  `internal/filter`) over bare enum values and `key=value` tags with
+  `and`/`or`/`not`/parens; it is the whole selection and cannot be combined with
+  the simple flags above.
 - `show <id>` — show one quest; `--json`. (`<id>` accepts shorthand: `11` or
   `0011` for `SQ-0011`, everywhere an id is taken.) Long field values and body
   lines are word-wrapped to the terminal width with a hanging indent; `--no-wrap`
