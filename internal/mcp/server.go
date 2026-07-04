@@ -2,7 +2,9 @@
 // tools for any MCP-capable agent. Each tool decodes typed params, calls one
 // store method, and returns the result as JSON. Validation lives in the store;
 // bad input becomes an MCP tool error (a returned error), not a protocol error.
-// Tool responses are neutral JSON — no voice/tone.
+// The first content block is always neutral JSON so parsers can rely on it; a
+// mutation MAY append a SECOND text block carrying a tone-flavored line for a
+// human reader, gated on the on-ref tone (silent for plain). Reads never voice.
 package mcp
 
 import (

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/gitcmd"
 	"github.com/sharkusk/side-quest/internal/quest"
 	"github.com/sharkusk/side-quest/internal/store"
@@ -252,6 +253,53 @@ func TestQuestListTagFilter(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Tags["area"] != "cli" {
 		t.Fatalf("tag filter wrong, want one area=cli quest: %+v", got)
+	}
+}
+
+// TestMutationVoiceBlock (SQ-0028): a mutation response keeps a neutral JSON
+// content[0] for parsers, but under a flavored tone appends a SECOND text block
+// carrying a voice line that names the quest. Under plain there is no second block,
+// so machine consumers that select plain see exactly the JSON. Reads never voice.
+func TestMutationVoiceBlock(t *testing.T) {
+	// dcc (the default tone): quest_new gets a second, flavored block.
+	cs, ctx := dialTest(t, newTestStore(t))
+	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_new", Arguments: map[string]any{"title": "ship it"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("quest_new error: %s", contentText(t, res))
+	}
+	var created quest.Quest
+	if err := json.Unmarshal([]byte(contentText(t, res)), &created); err != nil {
+		t.Fatalf("content[0] must stay neutral JSON: %v", err)
+	}
+	if len(res.Content) != 2 {
+		t.Fatalf("dcc mutation should append a voice block; got %d content block(s)", len(res.Content))
+	}
+	flavor, ok := res.Content[1].(*sdk.TextContent)
+	if !ok || !strings.Contains(flavor.Text, created.ID) {
+		t.Errorf("voice block should name %q, got %+v", created.ID, res.Content[1])
+	}
+
+	// A read (quest_show) never appends a voice block.
+	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_show", Arguments: map[string]any{"id": created.ID}})
+	if len(res.Content) != 1 {
+		t.Errorf("reads must stay single-block; got %d", len(res.Content))
+	}
+
+	// plain tone: no second block on a mutation either.
+	s := newTestStore(t)
+	if err := s.SetTone(config.TonePlain); err != nil {
+		t.Fatal(err)
+	}
+	csP, ctxP := dialTest(t, s)
+	resP, err := csP.CallTool(ctxP, &sdk.CallToolParams{Name: "quest_new", Arguments: map[string]any{"title": "quiet"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resP.Content) != 1 {
+		t.Fatalf("plain mutation must stay single-block; got %d", len(resP.Content))
 	}
 }
 

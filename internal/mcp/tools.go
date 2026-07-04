@@ -9,7 +9,9 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sharkusk/side-quest/internal/capture"
+	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/quest"
+	"github.com/sharkusk/side-quest/internal/voice"
 )
 
 // register wires every tool onto the server. Task 4 appends the mutation tools.
@@ -110,6 +112,37 @@ func (h *handlers) result(id string) (*sdk.CallToolResult, any, error) {
 	return jsonResult(q)
 }
 
+// voiced appends an optional second content block carrying a tone-flavored line
+// for a human reader, leaving content[0] (the neutral JSON) untouched for parsers
+// (SQ-0028). It is silent for the plain tone and on any config read error, so a
+// consumer that selects plain — and a misconfigured store — see exactly the JSON.
+// line receives a *voice.Voice so the caller picks the matching confirmation.
+func (h *handlers) voiced(res *sdk.CallToolResult, line func(*voice.Voice) string) *sdk.CallToolResult {
+	if res == nil {
+		return res
+	}
+	cfg, err := h.store.Config()
+	if err != nil {
+		return res
+	}
+	eff, _ := voice.EffectiveTone(cfg.Tone, true) // superfan -> dcc; a server prints no hint
+	if eff == config.TonePlain {
+		return res
+	}
+	res.Content = append(res.Content, &sdk.TextContent{Text: line(voice.New(eff))})
+	return res
+}
+
+// resultVoiced re-reads a quest by id (post-mutation state) and returns it with an
+// optional voice block (see voiced).
+func (h *handlers) resultVoiced(id string, line func(*voice.Voice) string) (*sdk.CallToolResult, any, error) {
+	res, meta, err := h.result(id)
+	if err != nil {
+		return res, meta, err
+	}
+	return h.voiced(res, line), meta, nil
+}
+
 // --- handlers ---
 
 func (h *handlers) questNew(ctx context.Context, req *sdk.CallToolRequest, in newIn) (*sdk.CallToolResult, any, error) {
@@ -125,7 +158,11 @@ func (h *handlers) questNew(ctx context.Context, req *sdk.CallToolRequest, in ne
 			return nil, nil, err
 		}
 	}
-	return jsonResult(q)
+	res, meta, err := jsonResult(q)
+	if err != nil {
+		return res, meta, err
+	}
+	return h.voiced(res, func(v *voice.Voice) string { return v.QuestCreated(q.ID) }), meta, nil
 }
 
 func (h *handlers) questList(ctx context.Context, req *sdk.CallToolRequest, in listIn) (*sdk.CallToolResult, any, error) {
@@ -214,7 +251,7 @@ func (h *handlers) questSetStatus(ctx context.Context, req *sdk.CallToolRequest,
 	if err := h.store.SetStatus(in.ID, quest.Status(in.Status)); err != nil {
 		return nil, nil, err
 	}
-	return h.result(in.ID)
+	return h.resultVoiced(in.ID, func(v *voice.Voice) string { return v.StatusSet(in.ID, quest.Status(in.Status)) })
 }
 
 func (h *handlers) questReclassify(ctx context.Context, req *sdk.CallToolRequest, in reclassifyIn) (*sdk.CallToolResult, any, error) {
@@ -241,7 +278,7 @@ func (h *handlers) questNote(ctx context.Context, req *sdk.CallToolRequest, in n
 	if err := h.store.AppendNote(in.ID, in.Text); err != nil {
 		return nil, nil, err
 	}
-	return h.result(in.ID)
+	return h.resultVoiced(in.ID, func(v *voice.Voice) string { return v.NoteAdded(in.ID) })
 }
 
 func (h *handlers) questSetCurrent(ctx context.Context, req *sdk.CallToolRequest, in setCurrentIn) (*sdk.CallToolResult, any, error) {

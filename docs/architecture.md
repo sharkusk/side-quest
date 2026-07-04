@@ -368,6 +368,15 @@ context (branch/HEAD/cwd/current-quest, via `internal/capture.Mechanical`) ahead
 of the agent's narrative note, and only moves the current-quest pointer when
 `set_current:true`. stdout carries only JSON-RPC; diagnostics go to stderr.
 
+The response's **first** content block is always neutral JSON, so parsers can
+rely on it. As of SQ-0028 a **mutation** (`quest_new`, `quest_set_status`,
+`quest_note`) may append a **second** text block carrying the same tone-flavored
+line the CLI would print (via `internal/voice`), gated on the on-ref `tone`:
+silent for `plain`, `dcc`/`dcc-superfan` add flavor (superfan collapses to dcc —
+a server prints no fallback hint). Reads never voice. So an agent that wants pure
+data selects `plain` (or just reads `content[0]`), while a human-facing client
+surfaces the flavor.
+
 On startup `serve` compares its own build version against the `side-quest` found
 on `PATH` (which the git hooks and the human CLI invoke) and, if they differ,
 prints a one-line warning to stderr (SQ-0039). An auto-updated plugin can run a
