@@ -144,8 +144,16 @@ const mcpJSON = `{
 // guidance to paste into AGENTS.md. It is safe to re-run — an existing ref,
 // existing hooks, and an existing .mcp.json are each left as they are.
 func cmdOnboard(args []string) error {
-	if len(args) != 0 {
-		return &usageErr{"onboard takes no arguments"}
+	fs := newFlagSet("onboard")
+	var withAgents bool
+	fs.BoolVar(&withAgents, "agents-md", false, "also merge the side-quest guidance block into the project's AGENTS.md")
+	setUsage(fs, "usage: side-quest onboard [--agents-md]\nper-repo setup: create the quest ref, install hooks, write .mcp.json (add --agents-md to also merge AGENTS.md guidance)")
+	rest, err := parseInterspersed(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 0 {
+		return &usageErr{"onboard takes no positional arguments"}
 	}
 	s, err := openStore()
 	if err != nil {
@@ -190,15 +198,18 @@ func cmdOnboard(args []string) error {
 		return err
 	}
 
-	// 4. AGENTS.md guidance — manage our marked block in place (create / append /
-	// refresh), so a directive change across releases can be pulled in by re-running
-	// onboard rather than left silently stale in a hand-merged copy (SQ-0047).
-	agentsPath := filepath.Join(top, "AGENTS.md")
-	outcome, prev, err := installAgentsGuidance(agentsPath, version)
-	if err != nil {
-		return err
+	// 4. AGENTS.md guidance is opt-in reinforcement now — only with --agents-md
+	// (SQ-0051). Guidance rides the MCP server by default; when requested, the
+	// marked block still refreshes in place so a directive change can be pulled in
+	// on re-run rather than left silently stale in a hand-merged copy (SQ-0047).
+	if withAgents {
+		agentsPath := filepath.Join(top, "AGENTS.md")
+		outcome, prev, err := installAgentsGuidance(agentsPath, version)
+		if err != nil {
+			return err
+		}
+		fmt.Println(agentsGuidanceNote(outcome, prev, version))
 	}
-	fmt.Println(agentsGuidanceNote(outcome, prev, version))
-	fmt.Println("Then restart your agent session so the MCP server and AGENTS.md load.")
+	fmt.Println("Then restart your agent session so the MCP server loads its guidance.")
 	return nil
 }

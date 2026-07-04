@@ -101,7 +101,7 @@ func TestOnboardRefreshesAgentsInPlace(t *testing.T) {
 	dir, _ := newRepo(t)
 	agentsPath := filepath.Join(dir, "AGENTS.md")
 
-	if _, code := runBin(t, buildBinaryVersion(t, "1.0.0"), dir, "onboard"); code != 0 {
+	if _, code := runBin(t, buildBinaryVersion(t, "1.0.0"), dir, "onboard", "--agents-md"); code != 0 {
 		t.Fatalf("first onboard exit=%d", code)
 	}
 	first := readFileStr(t, agentsPath)
@@ -109,7 +109,7 @@ func TestOnboardRefreshesAgentsInPlace(t *testing.T) {
 		t.Fatalf("onboard did not write stamped guidance to AGENTS.md:\n%s", first)
 	}
 
-	if _, code := runBin(t, buildBinaryVersion(t, "2.0.0"), dir, "onboard"); code != 0 {
+	if _, code := runBin(t, buildBinaryVersion(t, "2.0.0"), dir, "onboard", "--agents-md"); code != 0 {
 		t.Fatalf("second onboard exit=%d", code)
 	}
 	second := readFileStr(t, agentsPath)
@@ -121,8 +121,9 @@ func TestOnboardRefreshesAgentsInPlace(t *testing.T) {
 	}
 }
 
-// onboard is the turnkey per-repo setup: init + install-hooks + write .mcp.json
-// + refresh the AGENTS.md guidance. A fresh repo ends up fully wired.
+// onboard is the turnkey per-repo setup: init + install-hooks + write .mcp.json.
+// By default it does NOT touch AGENTS.md (guidance rides the MCP server now; the
+// merge is opt-in via --agents-md — SQ-0051). A fresh repo ends up wired.
 func TestOnboardSetsUpRepo(t *testing.T) {
 	bin := buildBinary(t)
 	dir, _ := newRepo(t)
@@ -144,15 +145,37 @@ func TestOnboardSetsUpRepo(t *testing.T) {
 	if !strings.Contains(string(mcp), `"side-quest"`) || !strings.Contains(string(mcp), `"serve"`) {
 		t.Errorf(".mcp.json missing side-quest serve: %s", mcp)
 	}
-	agents, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
-	if err != nil {
-		t.Fatalf("onboard did not write AGENTS.md: %v", err)
-	}
-	if !strings.Contains(string(agents), "Quest: SQ-") || !strings.Contains(string(agents), agentsMarker) {
-		t.Error("onboard did not write the marked agent guidance into AGENTS.md")
-	}
 	if !strings.Contains(strings.ToLower(out), "restart") {
 		t.Error("onboard did not print a restart reminder")
+	}
+}
+
+// Bare onboard no longer touches the project's AGENTS.md — guidance now rides the
+// MCP server; the merge is opt-in (SQ-0051).
+func TestOnboardSkipsAgentsByDefault(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+	if _, code := runBin(t, bin, dir, "onboard"); code != 0 {
+		t.Fatalf("onboard exit nonzero")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Errorf("bare onboard must not create AGENTS.md (stat err=%v)", err)
+	}
+}
+
+// --agents-md opts back into the AGENTS.md merge.
+func TestOnboardAgentsMdFlagMerges(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+	if _, code := runBin(t, bin, dir, "onboard", "--agents-md"); code != 0 {
+		t.Fatalf("onboard --agents-md exit nonzero")
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("onboard --agents-md did not write AGENTS.md: %v", err)
+	}
+	if !strings.Contains(string(b), agentsMarker) {
+		t.Error("onboard --agents-md did not write the marked guidance block")
 	}
 }
 
