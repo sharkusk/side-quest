@@ -76,7 +76,15 @@ func showField(w io.Writer, label, value string, width int) {
 // body. Absent optional fields (completed, commits, context, tags, body) are
 // omitted. When width > 0, long values and body lines are word-wrapped to that
 // terminal width; width <= 0 prints everything unwrapped.
-func renderShow(w io.Writer, q *quest.Quest, width int) {
+// commitLine is one linked commit resolved for display: short is the abbreviated
+// sha (or the stored sha when the commit is gone), and text is the subject line
+// (default) or the complete message (--full). A missing commit has
+// text == "(message unavailable)".
+type commitLine struct {
+	short, text string
+}
+
+func renderShow(w io.Writer, q *quest.Quest, width int, commits []commitLine) {
 	showField(w, "id", q.ID, width)
 	showField(w, "title", q.Title, width)
 	showField(w, "status", string(q.Status), width)
@@ -86,8 +94,23 @@ func renderShow(w io.Writer, q *quest.Quest, width int) {
 	if q.Completed != nil {
 		showField(w, "completed", q.Completed.Format(time.RFC3339), width)
 	}
-	if len(q.Commits) > 0 {
-		showField(w, "commits", strings.Join(q.Commits, ", "), width)
+	if len(commits) > 0 {
+		fmt.Fprintln(w, "commits:")
+		for _, c := range commits {
+			subject, rest, _ := strings.Cut(c.text, "\n")
+			for _, wl := range wrapText("  "+c.short+"  "+subject, width) {
+				fmt.Fprintln(w, wl)
+			}
+			if body := strings.Trim(rest, "\n"); body != "" {
+				fmt.Fprintln(w)
+				for _, bl := range strings.Split(body, "\n") {
+					for _, wl := range wrapText("      "+bl, width) {
+						fmt.Fprintln(w, wl)
+					}
+				}
+				fmt.Fprintln(w)
+			}
+		}
 	}
 	if len(q.Tags) > 0 {
 		keys := make([]string, 0, len(q.Tags))

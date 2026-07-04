@@ -272,10 +272,11 @@ func cmdList(args []string) error {
 
 func cmdShow(args []string) error {
 	fs := newFlagSet("show")
-	var asJSON, noWrap bool
+	var asJSON, noWrap, full bool
 	fs.BoolVar(&asJSON, "json", false, "emit the quest as JSON")
 	fs.BoolVar(&noWrap, "no-wrap", false, "print raw field values without word-wrapping")
-	setUsage(fs, "usage: side-quest show [flags] <id>\nshow one quest; <id> accepts shorthand (11 or 0011 for SQ-0011)")
+	fs.BoolVar(&full, "full", false, "with the linked commits, print each commit's complete message (default: subject only)")
+	setUsage(fs, "usage: side-quest show [flags] <id>\nshow one quest; --full prints linked commits' complete messages; <id> accepts shorthand (11 or 0011 for SQ-0011)")
 	rest, err := parseInterspersed(fs, args)
 	if helpRequested(err) {
 		return nil
@@ -303,7 +304,16 @@ func cmdShow(args []string) error {
 	if !noWrap {
 		width = terminalWidth(os.Stdout)
 	}
-	renderShow(os.Stdout, q, width)
+	var commits []commitLine
+	for _, sha := range q.Commits {
+		short, text, ok := s.CommitMessage(sha, full)
+		if !ok {
+			commits = append(commits, commitLine{short: sha, text: "(message unavailable)"})
+			continue
+		}
+		commits = append(commits, commitLine{short: short, text: text})
+	}
+	renderShow(os.Stdout, q, width, commits)
 	return nil
 }
 

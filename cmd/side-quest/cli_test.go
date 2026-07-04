@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -797,5 +798,47 @@ func TestConfigSetRejectsBadKeyValueStrategy(t *testing.T) {
 	}
 	if _, code := runBin(t, bin, dir, "config", "set", "require_quest"); code != 2 {
 		t.Fatal("missing value should exit 2")
+	}
+}
+
+func TestShowRendersCommitMessages(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+	t.Setenv("SIDE_QUEST_TONE", "plain")
+
+	out, _ := runBin(t, bin, dir, "new", "Commit render")
+	id := idFromCreated(t, out)
+	if _, code := runBin(t, bin, dir, "current", id); code != 0 {
+		t.Fatalf("set current exit=%d", code)
+	}
+
+	// A real commit carrying the quest trailer, then link it.
+	g := gitcmd.New(dir)
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.Run("add", "f.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.Run("commit", "-m", "feat: a thing\n\nbody detail here\n\nQuest: "+id); err != nil {
+		t.Fatal(err)
+	}
+	if _, code := runBin(t, bin, dir, "link", "HEAD"); code != 0 {
+		t.Fatalf("link exit=%d", code)
+	}
+
+	// Default: subject line, no full body.
+	out, code := runBin(t, bin, dir, "show", id)
+	if code != 0 || !strings.Contains(out, "feat: a thing") {
+		t.Fatalf("show default: exit=%d out=%s", code, out)
+	}
+	if strings.Contains(out, "body detail here") {
+		t.Errorf("default show must not print the commit body:\n%s", out)
+	}
+
+	// --full: includes the body.
+	out, code = runBin(t, bin, dir, "show", "--full", id)
+	if code != 0 || !strings.Contains(out, "body detail here") {
+		t.Fatalf("show --full must print the body: exit=%d out=%s", code, out)
 	}
 }

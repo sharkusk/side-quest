@@ -9,6 +9,36 @@ import (
 	"github.com/sharkusk/side-quest/internal/quest"
 )
 
+func TestRenderShowCommitBlock(t *testing.T) {
+	// Only the commits block is under test, so a minimal quest suffices (renderShow
+	// prints empty strings for the unset status/type/priority fields — fine here).
+	q := &quest.Quest{ID: "SQ-0001", Title: "t", Created: time.Now()}
+	commits := []commitLine{
+		{short: "b510826", text: "refactor: move the thing"},
+		{short: "d5eb4b2", text: "docs: reword it\n\nbody line here\n\nToken: xyz"},
+		{short: "cafef00dcafef00d", text: "(message unavailable)"},
+	}
+	var buf bytes.Buffer
+	renderShow(&buf, q, 0, commits)
+	out := buf.String()
+
+	for _, want := range []string{
+		"commits:",
+		"b510826  refactor: move the thing",
+		"d5eb4b2  docs: reword it",
+		"body line here", // --full body is printed
+		"cafef00dcafef00d  (message unavailable)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("render missing %q:\n%s", want, out)
+		}
+	}
+	// The subject must NOT be duplicated inside the body block.
+	if strings.Count(out, "docs: reword it") != 1 {
+		t.Errorf("subject duplicated in body:\n%s", out)
+	}
+}
+
 // renderShow should print the tag: block ABOVE context:, so that context and
 // the appended notes (in Body) read as one contiguous block at the bottom —
 // tags must not split context from its notes.
@@ -25,7 +55,7 @@ func TestRenderShowTagsAboveContext(t *testing.T) {
 		Body:     "--- note 2026-07-03T00:00:00Z ---\n\nan appended note",
 	}
 	var b bytes.Buffer
-	renderShow(&b, q, 0) // width 0 = no wrapping, current plain layout
+	renderShow(&b, q, 0, nil) // width 0 = no wrapping, current plain layout
 	out := b.String()
 
 	tagIdx := strings.Index(out, "tag:")
@@ -56,7 +86,7 @@ func TestRenderShowWrapsLongFields(t *testing.T) {
 		Context:  longCtx,
 	}
 	var b bytes.Buffer
-	renderShow(&b, q, width)
+	renderShow(&b, q, width, nil)
 	out := b.String()
 
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
