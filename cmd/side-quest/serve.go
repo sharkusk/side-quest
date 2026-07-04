@@ -24,6 +24,6 @@ func cmdServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	srv := questmcp.NewServer(s)
+	srv := questmcp.NewServer(s, version)
 	return srv.Run(context.Background(), &sdk.StdioTransport{})
 }

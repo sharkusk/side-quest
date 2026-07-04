@@ -466,7 +466,10 @@ same repository.
 - **Versioning:** the root `VERSION` file is the single source of truth; `plugin.json`'s
   `version` matches it (test-enforced); the release tag is `v` + `VERSION`. The binary
   reports its version via `side-quest version`, stamped at release build time by
-  GoReleaser (`-ldflags "-X main.version=<tag>"`); plain builds report `dev`.
+  GoReleaser (`-ldflags "-X main.version=<tag>"`); plain builds report `dev`. The
+  same `main.version` is threaded into `mcp.NewServer`, so the version the MCP
+  server advertises to clients tracks `side-quest version` rather than a separate
+  hardcoded constant that could drift (SQ-0044).
 - **Releases** are produced by GoReleaser (`.goreleaser.yaml`) via a tag-triggered
   GitHub Actions workflow: six targets (darwin/linux/windows × amd64/arm64), archived
   with README + LICENSE, plus `checksums.txt`.

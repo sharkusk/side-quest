@@ -39,7 +39,7 @@ func newTestStore(t *testing.T) *store.Store {
 func dialTest(t *testing.T, s *store.Store) (*sdk.ClientSession, context.Context) {
 	t.Helper()
 	ctx := context.Background()
-	srv := NewServer(s)
+	srv := NewServer(s, "test")
 	serverT, clientT := sdk.NewInMemoryTransports()
 	ss, err := srv.Connect(ctx, serverT, nil) // server connects first
 	if err != nil {
@@ -65,6 +65,32 @@ func contentText(t *testing.T, res *sdk.CallToolResult) string {
 		t.Fatalf("content[0] is %T, want *sdk.TextContent", res.Content[0])
 	}
 	return tc.Text
+}
+
+// TestServerAdvertisesGivenVersion (SQ-0044): the version NewServer is handed —
+// the build's main.version — is exactly what the server advertises to clients, so
+// the MCP-advertised version can never drift from what `side-quest version` reports.
+func TestServerAdvertisesGivenVersion(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	srv := NewServer(s, "9.9.9-test")
+	serverT, clientT := sdk.NewInMemoryTransports()
+	ss, err := srv.Connect(ctx, serverT, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ss.Close() })
+	client := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "0"}, nil)
+	cs, err := client.Connect(ctx, clientT, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cs.Close() })
+
+	info := cs.InitializeResult().ServerInfo
+	if info == nil || info.Version != "9.9.9-test" {
+		t.Fatalf("advertised ServerInfo = %+v, want version 9.9.9-test", info)
+	}
 }
 
 func TestListToolsExposesTen(t *testing.T) {
