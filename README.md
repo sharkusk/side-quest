@@ -115,8 +115,12 @@ binary depends on your agent; setting up each repo is the same either way.
   and merge side-quest's guidance into your `AGENTS.md`.
 
 **2. Set up each repo you want to track** — run `side-quest onboard` once: it
-creates the quest ref, installs the git hooks, and writes a project `.mcp.json`
-if absent. (Or do it by hand with `side-quest init` + `side-quest install-hooks`.)
+creates the quest ref, installs the git hooks, writes a project `.mcp.json` if
+absent, and merges side-quest's guidance into the project's `AGENTS.md`. It's
+safe to re-run after an upgrade — the guidance is a marker-wrapped, version-
+stamped block that `onboard` refreshes in place (your own `AGENTS.md` content is
+left untouched). (Or do it by hand with `side-quest init` +
+`side-quest install-hooks`.)
 
 ### Working with agents
 
@@ -125,9 +129,10 @@ what makes it useful is the *guidance* the agent loads alongside them — the re
 to capture a stray idea without derailing, and the commit-trailer contract that
 links work to quests. That guidance ships as two mirrored files:
 
-- [`AGENTS.md`](AGENTS.md) — agent-agnostic. Merge it into your project's own
-  `AGENTS.md` (the [manual setup](docs/manual-setup.md) does this, or run
-  `side-quest agents-md` to print the block).
+- [`AGENTS.md`](AGENTS.md) — agent-agnostic. `side-quest onboard` merges it into
+  your project's own `AGENTS.md` as a marker-wrapped, version-stamped block it can
+  refresh in place on later upgrades; run `side-quest agents-md` to print that
+  block for a manual paste (the [manual setup](docs/manual-setup.md) covers this).
 - [`skills/side-quest/SKILL.md`](skills/side-quest/SKILL.md) — the same guidance in
   Claude-plugin form, loaded automatically by the [Claude Code plugin](docs/plugin.md)
   and surfaced as the `/sq` capture command.

@@ -217,6 +217,18 @@ already had content, so a repo driving a different bookkeeping system surfaces
 the conflict instead of getting side-quest silently appended; the
 [manual-setup guide](manual-setup.md#existing-git-hooks) walks through migrating.
 
+The **AGENTS.md guidance** uses the same drift-defeating pattern (SQ-0047). The
+emitted block is wrapped in HTML-comment markers (`<!-- >>> side-quest >>> -->` …
+`<!-- <<< side-quest <<< -->`, invisible in rendered Markdown) and carries a
+`<!-- side-quest-version: <v> -->` stamp. `onboard` no longer just prints the
+guidance for a hand-merge — it manages that block **in place** in the project's
+`AGENTS.md`: creating the file, appending after the user's own content, or
+replacing only our block on a version change (never duplicating it, never
+touching their text). So when the directives change release-to-release, re-running
+`onboard` pulls the update in and reports the transition, rather than leaving every
+merged copy silently stale. `agents-md` prints the same marked, stamped block for
+those who prefer to paste by hand.
+
 The **current-quest pointer** is worktree-local state (`<git-dir>/side-quest-current`),
 not ref state: each worktree has its own, and it never travels with a push.
 Setting it requires the target quest to exist — a missing id is rejected, so the
@@ -289,10 +301,13 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
 - `config get` / `config set <key> <value>` — read config; set `require_quest`,
   `auto_trailer`, or `id_strategy`.
 - `onboard` — one-shot per-repo setup: `init` + `install-hooks`, write a project
-  `.mcp.json` if absent, then print the AGENTS.md guidance. Safe to re-run (an
-  existing ref, hooks, and `.mcp.json` are each left as they are).
+  `.mcp.json` if absent, then refresh the marker-guarded guidance block in the
+  project's `AGENTS.md` in place (create/append/refresh). Safe to re-run (an
+  existing ref, hooks, and `.mcp.json` are each left as they are; the AGENTS.md
+  block is refreshed to the current version, the user's own content untouched).
 - `agents-md` — print the canonical agent-guidance block (the embedded
-  `AGENTS.md`) for pasting into a project's own `AGENTS.md`.
+  `AGENTS.md`, wrapped in refresh markers and version-stamped) for pasting into a
+  project's own `AGENTS.md`.
 
 Handlers live in `cli.go`; rendering in `render.go`. Each command is a thin
 adapter over one `store` method — validation stays at the store write boundary

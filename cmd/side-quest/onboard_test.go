@@ -24,8 +24,105 @@ func TestAgentsMdPrintsGuidance(t *testing.T) {
 	}
 }
 
+// TestAgentsBlockMarkedAndStamped (SQ-0047): the emitted guidance is wrapped in
+// side-quest markers and carries a version stamp, so a merged copy is findable
+// and refreshable later — the guidance body still shows through.
+func TestAgentsBlockMarkedAndStamped(t *testing.T) {
+	block := agentsBlock("9.9.9")
+	for _, want := range []string{agentsMarker, agentsEndMarker, "side-quest-version: 9.9.9", "Quest: SQ-"} {
+		if !strings.Contains(block, want) {
+			t.Errorf("agentsBlock missing %q\n%s", want, block)
+		}
+	}
+	if got := parseAgentsVersion(block); got != "9.9.9" {
+		t.Errorf("parseAgentsVersion = %q, want 9.9.9", got)
+	}
+}
+
+// TestInstallAgentsGuidanceLifecycle (SQ-0047): installing the guidance block
+// creates AGENTS.md when absent, appends to an existing file without disturbing
+// its content, no-ops when already current, and refreshes its own block in place
+// on a version change — always leaving exactly one block.
+func TestInstallAgentsGuidanceLifecycle(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "AGENTS.md")
+
+	// create
+	if o, _, err := installAgentsGuidance(path, "1.0.0"); err != nil || o != blockCreated {
+		t.Fatalf("create: outcome=%v err=%v", o, err)
+	}
+	if n := strings.Count(readFileStr(t, path), agentsMarker); n != 1 {
+		t.Fatalf("create should leave one block, got %d", n)
+	}
+
+	// unchanged (same version, same content)
+	if o, _, err := installAgentsGuidance(path, "1.0.0"); err != nil || o != blockUnchanged {
+		t.Fatalf("unchanged: outcome=%v err=%v", o, err)
+	}
+
+	// refresh in place on version bump — still exactly one block, new version stamped
+	o, prev, err := installAgentsGuidance(path, "2.0.0")
+	if err != nil || o != blockRefreshed || prev != "1.0.0" {
+		t.Fatalf("refresh: outcome=%v prev=%q err=%v", o, prev, err)
+	}
+	body := readFileStr(t, path)
+	if n := strings.Count(body, agentsMarker); n != 1 {
+		t.Fatalf("refresh should leave one block, got %d", n)
+	}
+	if !strings.Contains(body, "side-quest-version: 2.0.0") {
+		t.Errorf("refresh did not restamp version:\n%s", body)
+	}
+}
+
+// TestInstallAgentsGuidanceAppendsPreservingContent (SQ-0047): an AGENTS.md with
+// the user's own content gets our block appended, never overwriting their text.
+func TestInstallAgentsGuidanceAppendsPreservingContent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "AGENTS.md")
+	userText := "# My project rules\n\nAlways be excellent.\n"
+	if err := os.WriteFile(path, []byte(userText), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	o, _, err := installAgentsGuidance(path, "1.0.0")
+	if err != nil || o != blockAppended {
+		t.Fatalf("append: outcome=%v err=%v", o, err)
+	}
+	got := readFileStr(t, path)
+	if !strings.Contains(got, "Always be excellent.") {
+		t.Errorf("append clobbered user content:\n%s", got)
+	}
+	if !strings.Contains(got, agentsMarker) {
+		t.Errorf("append did not add the block:\n%s", got)
+	}
+}
+
+// TestOnboardRefreshesAgentsInPlace (SQ-0047): onboard writes the guidance block
+// into the project's AGENTS.md, and a later onboard from a newer binary refreshes
+// that block in place rather than leaving a stale merged copy or a duplicate.
+func TestOnboardRefreshesAgentsInPlace(t *testing.T) {
+	dir, _ := newRepo(t)
+	agentsPath := filepath.Join(dir, "AGENTS.md")
+
+	if _, code := runBin(t, buildBinaryVersion(t, "1.0.0"), dir, "onboard"); code != 0 {
+		t.Fatalf("first onboard exit=%d", code)
+	}
+	first := readFileStr(t, agentsPath)
+	if !strings.Contains(first, "Quest: SQ-") || !strings.Contains(first, "side-quest-version: 1.0.0") {
+		t.Fatalf("onboard did not write stamped guidance to AGENTS.md:\n%s", first)
+	}
+
+	if _, code := runBin(t, buildBinaryVersion(t, "2.0.0"), dir, "onboard"); code != 0 {
+		t.Fatalf("second onboard exit=%d", code)
+	}
+	second := readFileStr(t, agentsPath)
+	if n := strings.Count(second, agentsMarker); n != 1 {
+		t.Fatalf("refresh left %d blocks, want 1:\n%s", n, second)
+	}
+	if !strings.Contains(second, "side-quest-version: 2.0.0") || strings.Contains(second, "side-quest-version: 1.0.0") {
+		t.Errorf("onboard did not refresh the AGENTS.md block to 2.0.0:\n%s", second)
+	}
+}
+
 // onboard is the turnkey per-repo setup: init + install-hooks + write .mcp.json
-// + print the guidance. A fresh repo ends up fully wired.
+// + refresh the AGENTS.md guidance. A fresh repo ends up fully wired.
 func TestOnboardSetsUpRepo(t *testing.T) {
 	bin := buildBinary(t)
 	dir, _ := newRepo(t)
@@ -47,8 +144,12 @@ func TestOnboardSetsUpRepo(t *testing.T) {
 	if !strings.Contains(string(mcp), `"side-quest"`) || !strings.Contains(string(mcp), `"serve"`) {
 		t.Errorf(".mcp.json missing side-quest serve: %s", mcp)
 	}
-	if !strings.Contains(out, "Quest: SQ-") {
-		t.Error("onboard did not print the agent guidance")
+	agents, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("onboard did not write AGENTS.md: %v", err)
+	}
+	if !strings.Contains(string(agents), "Quest: SQ-") || !strings.Contains(string(agents), agentsMarker) {
+		t.Error("onboard did not write the marked agent guidance into AGENTS.md")
 	}
 	if !strings.Contains(strings.ToLower(out), "restart") {
 		t.Error("onboard did not print a restart reminder")

@@ -16,8 +16,9 @@ Inside the repo you want to track, the one-shot way:
 side-quest onboard         # init + install-hooks + write .mcp.json (if absent)
 ```
 
-`onboard` does everything below in one command and prints the AGENTS.md guidance
-to paste; it is safe to re-run. To do it by hand instead:
+`onboard` does everything below in one command, including merging the AGENTS.md
+guidance into the project in place; it is safe to re-run (it refreshes the
+marker-wrapped guidance block to the current version). To do it by hand instead:
 
 ```
 side-quest init            # create the quest ref
@@ -57,9 +58,11 @@ subprocess your agent launches. Register it with a project `.mcp.json`:
 
 Then add side-quest's guidance to your agent instructions. Run `side-quest
 agents-md` to print the canonical block (or copy this repo's
-[`AGENTS.md`](../AGENTS.md)). If the project already has an `AGENTS.md`, append
-the block as a new section — **merge, don't overwrite**. Optionally add a `/sq`
-capture command at `.claude/commands/sq.md`.
+[`AGENTS.md`](../AGENTS.md)). The block is wrapped in `<!-- >>> side-quest >>> -->`
+markers and version-stamped; if the project already has an `AGENTS.md`, append the
+block as a new section — **merge, don't overwrite** — and a later `side-quest
+onboard` will refresh that block in place. Optionally add a `/sq` capture command
+at `.claude/commands/sq.md`.
 
 **Restart the agent session** so the MCP server, commands, and `AGENTS.md` load —
 you'll be prompted once to approve a new project MCP server.
