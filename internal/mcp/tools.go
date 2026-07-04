@@ -25,7 +25,7 @@ func (h *handlers) register(s *sdk.Server) {
 	types := []string{string(quest.TypeBug), string(quest.TypeFeature)}
 	prios := []string{string(quest.PriorityHigh), string(quest.PriorityLow)}
 
-	sdk.AddTool(s, &sdk.Tool{Name: "quest_new", Description: "Capture a new quest. Mechanical git context (branch/head/cwd/current) is recorded automatically; pass a one-sentence narrative in context.",
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_new", Description: "Capture a new quest — an issue, task, or follow-up. Note a tangent that surfaced mid-task without derailing: restate the idea in a line. Mechanical git context (branch/head/cwd/current) is recorded automatically; pass a one-sentence narrative in context. Set type/priority only when the request makes them obvious (a crash or regression is a bug; explicit \"urgent\"/\"critical\"/\"blocking\" is high), else omit them.",
 		InputSchema: enumSchema[newIn](map[string][]string{"type": types, "priority": prios})}, h.questNew)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_list", Description: "List quests, optionally filtered by status/type/priority/tags (AND).",
 		InputSchema: enumSchema[listIn](map[string][]string{"status": statuses, "type": types, "priority": prios})}, h.questList)
@@ -37,7 +37,7 @@ func (h *handlers) register(s *sdk.Server) {
 		InputSchema: enumSchema[reclassifyIn](map[string][]string{"type": types, "priority": prios})}, h.questReclassify)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_update", Description: "Update a quest's title and/or tags (a tag with an empty value is deleted)."}, h.questUpdate)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_note", Description: "Append a timestamped note to a quest's body (non-destructive)."}, h.questNote)
-	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_current", Description: "Set this worktree's current quest by id, or clear it with clear:true."}, h.questSetCurrent)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_current", Description: "Set this worktree's current quest by id (the quest you're actively working on), or clear it with clear:true. While a quest is current, the git hooks link the commits you make to it automatically."}, h.questSetCurrent)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_link_commit", Description: "Apply a commit's Quest:/Completes: trailers to the referenced quests."}, h.questLinkCommit)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_relink_commit", Description: "Repoint a recorded commit after a rebase rewrote its hash: replace old_sha (matched by prefix, never resolved — it may be dangling) with new_sha."}, h.questRelinkCommit)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_unlink_commit", Description: "Remove a recorded commit from a quest (sha matched by prefix)."}, h.questUnlinkCommit)

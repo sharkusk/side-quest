@@ -9,6 +9,7 @@ package mcp
 
 import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/sharkusk/side-quest/internal/guidance"
 	"github.com/sharkusk/side-quest/internal/store"
 )
 
@@ -17,7 +18,10 @@ import (
 // implementation info — so the MCP-advertised version tracks `side-quest version`
 // and never drifts from a hardcoded constant (SQ-0044).
 func NewServer(s *store.Store, version string) *sdk.Server {
-	srv := sdk.NewServer(&sdk.Implementation{Name: "side-quest", Version: version}, nil)
+	srv := sdk.NewServer(
+		&sdk.Implementation{Name: "side-quest", Version: version},
+		&sdk.ServerOptions{Instructions: guidance.Core},
+	)
 	(&handlers{store: s}).register(srv)
 	return srv
 }

@@ -11,6 +11,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/gitcmd"
+	"github.com/sharkusk/side-quest/internal/guidance"
 	"github.com/sharkusk/side-quest/internal/quest"
 	"github.com/sharkusk/side-quest/internal/store"
 )
@@ -478,5 +479,34 @@ func TestSetCurrentAndLink(t *testing.T) {
 	// link_commit tolerates an unknown/most-any sha argument shape (Link is tolerant of unknown ids)
 	if _, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_link_commit", Arguments: map[string]any{"sha": "HEAD"}}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// The server advertises the canonical core brief as its initialize-time
+// instructions, so any MCP client can surface it — no repo file required (SQ-0051).
+func TestServerAdvertisesCoreInstructions(t *testing.T) {
+	cs, _ := dialTest(t, newTestStore(t))
+	if got := cs.InitializeResult().Instructions; got != guidance.Core {
+		t.Errorf("server instructions = %q, want guidance.Core", got)
+	}
+}
+
+// The two capture tools carry the reflex + auto-classify cues in their own
+// descriptions, so the essentials survive even a client that ignores instructions.
+func TestCaptureToolsCarryReflexCues(t *testing.T) {
+	cs, ctx := dialTest(t, newTestStore(t))
+	res, err := cs.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	desc := map[string]string{}
+	for _, tl := range res.Tools {
+		desc[tl.Name] = tl.Description
+	}
+	if !strings.Contains(desc["quest_new"], "without derailing") || !strings.Contains(desc["quest_new"], "obvious") {
+		t.Errorf("quest_new description missing capture/auto-classify cue: %q", desc["quest_new"])
+	}
+	if !strings.Contains(desc["quest_set_current"], "link the commits") {
+		t.Errorf("quest_set_current description missing auto-link cue: %q", desc["quest_set_current"])
 	}
 }
