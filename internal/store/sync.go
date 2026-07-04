@@ -122,6 +122,19 @@ func (s *Store) mergeBase(a, b string) string {
 	return strings.TrimSpace(out)
 }
 
+// adoptRef points the live quest Ref at target for the fresh-adopt case, where
+// the caller has just observed the live ref as absent. It is a guarded create:
+// the empty old-value requires Ref not to already exist, so a quest created
+// concurrently in the window between that observation and this write is never
+// clobbered (the write fails instead). Defense-in-depth for a read-then-write
+// race on the quest ref — never a branch.
+func (s *Store) adoptRef(target string) error {
+	// The empty old-value makes this a create-only update: git refuses if Ref
+	// already exists, so a concurrent create is preserved instead of clobbered.
+	_, err := s.git.Run("update-ref", Ref, target, "")
+	return err
+}
+
 // reconcile brings the live Ref into agreement with TrackingRef using the domain
 // merge, with no network I/O. It fast-forwards when possible, otherwise writes a
 // two-parent merge commit. With dryRun it computes counts but writes nothing.
@@ -142,7 +155,7 @@ func (s *Store) reconcile(dryRun bool) (SyncResult, error) {
 	case local == "":
 		// fresh: adopt remote wholesale
 		if !dryRun {
-			if _, err := s.git.Run("update-ref", Ref, remote); err != nil {
+			if err := s.adoptRef(remote); err != nil {
 				return SyncResult{}, err
 			}
 		}
@@ -379,8 +392,7 @@ func (s *Store) BootstrapFromTracking() error {
 	}
 	switch {
 	case local == "":
-		_, err := s.git.Run("update-ref", Ref, remote)
-		return err
+		return s.adoptRef(remote)
 	case local != remote && s.isAncestor(local, remote):
 		_, err := s.git.Run("update-ref", Ref, remote, local)
 		return err

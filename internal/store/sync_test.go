@@ -419,6 +419,43 @@ func TestSyncNeverTouchesUserWork(t *testing.T) {
 	}
 }
 
+// TestAdoptRefRefusesToClobberConcurrentCreate reproduces the read-then-write
+// race on the fresh-adopt path: a caller observes the live ref as absent, but a
+// concurrent process creates a quest before the adopt writes. The guarded create
+// must refuse rather than overwrite that quest.
+func TestAdoptRefRefusesToClobberConcurrentCreate(t *testing.T) {
+	s := newStore(t)
+
+	// Concurrent create: a real quest now sits on the live ref.
+	created := mustCreate(t, s)
+	existing, err := s.tip()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if existing == "" {
+		t.Fatal("precondition: live ref should exist after Create")
+	}
+
+	// A different commit the adopt would try to install (e.g. the tracking tip).
+	tx := newTxn()
+	tx.put("quests/SQ-9999.md", []byte("other"))
+	other, err := s.buildCommit("", "other", tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The guard must reject the adopt, leaving the concurrently-created quest intact.
+	if err := s.adoptRef(other); err == nil {
+		t.Fatal("adoptRef overwrote an existing live ref; CAS guard missing")
+	}
+	if tip, _ := s.tip(); tip != existing {
+		t.Errorf("live ref changed from %s to %s despite guard", existing, tip)
+	}
+	if _, err := s.Get(created.ID); err != nil {
+		t.Errorf("concurrently-created quest %s lost: %v", created.ID, err)
+	}
+}
+
 func TestBootstrapAdoptsTrackingWhenLiveAbsent(t *testing.T) {
 	origin := newOrigin(t)
 	a := clone(t, origin)
