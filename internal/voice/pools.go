@@ -20,6 +20,7 @@ const (
 	keyInitialized
 	keyHooksInstalled
 	keyNoteAdded
+	keyQuestSelected
 )
 
 // pools maps tone -> key -> candidate lines. plain has exactly one neutral line
@@ -38,6 +39,7 @@ var pools = map[config.Tone]map[msgKey][]string{
 		keyInitialized:     {"side-quest: initialized"},
 		keyHooksInstalled:  {"side-quest: hooks installed in %s"},
 		keyNoteAdded:       {"noted %s"},
+		keyQuestSelected:   {"current quest: %s"},
 	},
 	config.ToneDCC: {
 		keyQuestCreated: {
@@ -46,7 +48,7 @@ var pools = map[config.Tone]map[msgKey][]string{
 			"Quest %s enters the dungeon. Somewhere, a sponsor takes note.",
 		},
 		keyStatusOpen: {
-			"%s is live again. Back into the fray, crawler.",
+			"%s is live again. Back into the fray, coder.",
 			"%s reopened. The System raises an eyebrow.",
 		},
 		keyStatusPartial: {
@@ -59,7 +61,7 @@ var pools = map[config.Tone]map[msgKey][]string{
 			"%s done. The System deducts one excuse from your ledger.",
 		},
 		keyStatusDeferred: {
-			"%s deferred. 'Later' is a beautiful lie, crawler.",
+			"%s deferred. 'Later' is a beautiful lie, coder.",
 			"%s shelved under 'someday, probably never.' The System has seen this before.",
 			"You postpone %s. The dungeon is patient. The dungeon remembers.",
 		},
@@ -69,24 +71,28 @@ var pools = map[config.Tone]map[msgKey][]string{
 			"You abandon %s. The audience boos. A sponsor quietly unsubscribes.",
 		},
 		keyMissingTrailer: {
-			"No Quest: trailer on this commit. The System notices everything. (Add 'Quest: none' to silence.)",
-			"This commit names no quest. The audience whispers. (Add 'Quest: none' to silence.)",
+			"No Quest: trailer on this commit. The System notices everything. Claude Dammit Opus! (Add 'Quest: none' to silence.)",
+			"This commit names no quest. The audience whispers. Claude Dammit Opus! (Add 'Quest: none' to silence.)",
 		},
 		keyEmptyList: {
 			"No quests. The dungeon is quiet. Too quiet.",
 			"Zero side quests. Either you're finished or you're doomed.",
 		},
 		keyInitialized: {
-			"side-quest online. Welcome to the floor, crawler.",
+			"side-quest online. Welcome to the floor, coder.",
 			"The System boots up. Let the crawl begin.",
 		},
 		keyHooksInstalled: {
 			"Hooks installed in %s. The System now watches your commits.",
-			"Git hooks wired into %s. Nowhere to hide, crawler.",
+			"Git hooks wired into %s. Nowhere to hide, coder.",
 		},
 		keyNoteAdded: {
 			"Noted on %s. The System files it away.",
 			"A line added to %s's record. The audience takes notes too.",
+		},
+		keyQuestSelected: {
+			"%s is your quest now. Now get out there and code, Code, CODE!",
+			"Locked in on %s. Now get out there and code, Code, CODE!",
 		},
 	},
 }

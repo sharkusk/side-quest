@@ -73,6 +73,7 @@ func TestEveryPoolLineInterpolatesCleanly(t *testing.T) {
 		keyInitialized:     func(v *Voice) string { return v.Initialized() },
 		keyHooksInstalled:  func(v *Voice) string { return v.HooksInstalled("/d") },
 		keyNoteAdded:       func(v *Voice) string { return v.NoteAdded("SQ-1") },
+		keyQuestSelected:   func(v *Voice) string { return v.QuestSelected("SQ-1") },
 	}
 	for tone, keys := range pools {
 		for key, lines := range keys {
@@ -104,8 +105,59 @@ func TestNoteAdded(t *testing.T) {
 	}
 }
 
+// TestNoCrawlerInDCCVoice (SQ-0046): the dcc voice addresses the user as "coder",
+// never "crawler" — a blanket guard so no line reintroduces the old word.
+func TestNoCrawlerInDCCVoice(t *testing.T) {
+	for key, lines := range pools[config.ToneDCC] {
+		for _, l := range lines {
+			if strings.Contains(strings.ToLower(l), "crawler") {
+				t.Errorf("dcc key %d line %q still says 'crawler' (should be 'coder')", key, l)
+			}
+		}
+	}
+}
+
+// TestErrorScenariosCarryCatchphrase (SQ-0046): every dcc error/warning line ends
+// on our catchphrase. Today the voice layer's sole error scenario is the missing
+// -trailer warning; new error keys join errorKeys so the guard stays exhaustive.
+func TestErrorScenariosCarryCatchphrase(t *testing.T) {
+	const catchphrase = "Claude Dammit Opus!"
+	errorKeys := []msgKey{keyMissingTrailer}
+	for _, k := range errorKeys {
+		for i, l := range pools[config.ToneDCC][k] {
+			if !strings.Contains(l, catchphrase) {
+				t.Errorf("dcc error key %d line %d %q missing catchphrase %q", k, i, l, catchphrase)
+			}
+		}
+	}
+}
+
+// TestQuestSelected (SQ-0046): selecting a quest renders through the voice layer —
+// plain carries the bare id, dcc carries the id and, on at least one line, the
+// "get out there and code" rallying cry.
+func TestQuestSelected(t *testing.T) {
+	if got := New(config.TonePlain).QuestSelected("SQ-1"); !strings.Contains(got, "SQ-1") {
+		t.Errorf("plain QuestSelected missing id: %q", got)
+	}
+	const rally = "Now get out there and code, Code, CODE!"
+	found := false
+	for i := range pools[config.ToneDCC][keyQuestSelected] {
+		v := &Voice{tone: config.ToneDCC, src: fixedSource(i)}
+		got := v.QuestSelected("SQ-7")
+		if !strings.Contains(got, "SQ-7") {
+			t.Errorf("dcc QuestSelected line %d missing id: %q", i, got)
+		}
+		if strings.Contains(got, rally) {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no dcc quest-selected line carries the rally %q", rally)
+	}
+}
+
 func TestDCCKeysNonEmpty(t *testing.T) {
-	for k := keyQuestCreated; k <= keyNoteAdded; k++ {
+	for k := keyQuestCreated; k <= keyQuestSelected; k++ {
 		if len(pools[config.ToneDCC][k]) == 0 {
 			t.Errorf("dcc pool missing key %d", k)
 		}

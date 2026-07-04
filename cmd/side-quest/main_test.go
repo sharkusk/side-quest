@@ -86,6 +86,22 @@ func TestCurrentSubcommand(t *testing.T) {
 	}
 }
 
+// TestCurrentSelectionIsVoiced (SQ-0046): setting the current quest confirms the
+// selection through the voice layer, echoing the id (the get path is unchanged).
+func TestCurrentSelectionIsVoiced(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	t.Setenv("SIDE_QUEST_TONE", "plain")
+	q, err := s.Create("pick me", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, code := runBin(t, bin, dir, "current", q.ID)
+	if code != 0 || !strings.Contains(out, q.ID) {
+		t.Fatalf("current <id> should confirm the selection with the id; exit=%d out=%q", code, out)
+	}
+}
+
 // TestShowAcceptsShorthandID proves the id shorthand reaches through the CLI
 // frontend: `show 1` finds the same quest as `show SQ-0001` and renders the
 // canonical id.

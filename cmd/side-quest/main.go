@@ -163,7 +163,15 @@ func cmdCurrent(args []string) error {
 	case args[0] == "--clear":
 		return s.ClearCurrent()
 	default:
-		return s.SetCurrent(args[0])
+		if err := s.SetCurrent(args[0]); err != nil {
+			return err
+		}
+		cur, err := s.Current()
+		if err != nil {
+			return err
+		}
+		fmt.Println(voiceFor(s).QuestSelected(cur))
+		return nil
 	}
 }
 
