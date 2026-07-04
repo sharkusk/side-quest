@@ -48,6 +48,67 @@ func TestSyncCommandPublishesAndDryRun(t *testing.T) {
 	}
 }
 
+// TestSyncNudgesSequentialWithRemote (SQ-0035): a repo initialized before a
+// remote existed keeps sequential ids, which clash across clones. When such a
+// repo gains a remote and syncs, `side-quest sync` nudges the user toward random
+// ids. A repo that had a remote at init time already defaults to random and must
+// stay quiet.
+func TestSyncNudgesSequentialWithRemote(t *testing.T) {
+	bin := buildBinary(t)
+
+	newBareOrigin := func(t *testing.T) string {
+		o := t.TempDir()
+		if _, err := gitcmd.New(o).Run("init", "--bare", "-q"); err != nil {
+			t.Fatal(err)
+		}
+		return o
+	}
+
+	// Positive: init with no remote -> sequential; add the remote afterward.
+	t.Run("sequential+remote nudges", func(t *testing.T) {
+		origin := newBareOrigin(t)
+		dir, s := newRepo(t)
+		if err := s.Init(); err != nil { // no remote yet -> sequential ids
+			t.Fatal(err)
+		}
+		if _, err := s.Create("first", "", "", "", nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := gitcmd.New(dir).Run("remote", "add", "origin", origin); err != nil {
+			t.Fatal(err)
+		}
+		out, code := runBin(t, bin, dir, "sync")
+		if code != 0 {
+			t.Fatalf("sync exit=%d out=%s", code, out)
+		}
+		if !strings.Contains(out, "id_strategy random") {
+			t.Errorf("expected a nudge toward random ids, got:\n%s", out)
+		}
+	})
+
+	// Negative: a remote present at init -> random ids already; no nudge.
+	t.Run("random stays quiet", func(t *testing.T) {
+		origin := newBareOrigin(t)
+		dir, s := newRepo(t)
+		if _, err := gitcmd.New(dir).Run("remote", "add", "origin", origin); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Init(); err != nil { // remote present -> random ids
+			t.Fatal(err)
+		}
+		if _, err := s.Create("first", "", "", "", nil); err != nil {
+			t.Fatal(err)
+		}
+		out, code := runBin(t, bin, dir, "sync")
+		if code != 0 {
+			t.Fatalf("sync exit=%d out=%s", code, out)
+		}
+		if strings.Contains(out, "id_strategy random") {
+			t.Errorf("random-id repo must not be nudged, got:\n%s", out)
+		}
+	})
+}
+
 func remoteHasQuestRef(t *testing.T, originDir string) bool {
 	t.Helper()
 	out, err := gitcmd.New(originDir).Run("for-each-ref", "--format=%(refname)", store.Ref)

@@ -120,6 +120,22 @@ func noticeRandomIDs(s *store.Store) {
 	}
 }
 
+// noticeSequentialWithRemote nudges toward random ids when a remote is configured
+// but ids are still sequential (SQ-0035). Init picks random automatically when a
+// remote already exists (SQ-0030), so this state only arises when the remote is
+// added AFTER init — leaving sequential ids that clash across clones. Cosmetic:
+// silent for random ids, for a remote-less repo, and on any read error.
+func noticeSequentialWithRemote(s *store.Store) {
+	cfg, err := s.Config()
+	if err != nil || cfg.IDStrategy != config.Sequential {
+		return
+	}
+	if names, err := s.Remotes(); err != nil || len(names) == 0 {
+		return
+	}
+	fmt.Println("side-quest: a remote is configured but ids are still sequential (SQ-0001, ...), which can clash across clones — switch with `side-quest config set id_strategy random`.")
+}
+
 func cmdNew(args []string) error {
 	fs := newFlagSet("new")
 	var typ, prio, context string

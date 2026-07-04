@@ -39,10 +39,11 @@ func cmdSync(args []string) error {
 	}
 	if res.UpToDate && res.Merged == 0 && res.Renamed == 0 {
 		fmt.Printf("side-quest: %s %s: already up to date.\n", prefix, rem)
-		return nil
+	} else {
+		fmt.Printf("side-quest: %s %s: merged %d, renamed %d, pushed %t.\n",
+			prefix, rem, res.Merged, res.Renamed, res.Pushed)
 	}
-	fmt.Printf("side-quest: %s %s: merged %d, renamed %d, pushed %t.\n",
-		prefix, rem, res.Merged, res.Renamed, res.Pushed)
+	noticeSequentialWithRemote(s) // remote-added-after-init leaves clash-prone sequential ids (SQ-0035)
 	return nil
 }
 

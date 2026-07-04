@@ -137,6 +137,12 @@ clone computes the identical outcome without needing to talk to each other first
 This means the *content* of both clones' "SQ-0007" survives; only the losing one's id
 changes, and it says so.
 
+Collisions are only possible under the sequential strategy, so `side-quest init` defaults
+to **random** ids when a remote already exists. A repo that gained its remote *after* init
+keeps sequential ids silently, though — so `side-quest sync` nudges you toward random ids
+(`config set id_strategy random`) whenever it runs against a remote while ids are still
+sequential (SQ-0035).
+
 ### Config merge
 
 `_config.yaml` merges too, since it lives on the same ref: `seq_next` (the sequential-id
