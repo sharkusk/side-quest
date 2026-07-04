@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/quest"
+	"github.com/sharkusk/side-quest/internal/voice"
 )
 
 func TestRenderShowCommitBlock(t *testing.T) {
@@ -175,6 +177,54 @@ func TestRenderShowWrapsLongFields(t *testing.T) {
 	for _, word := range strings.Fields(longCtx) {
 		if !strings.Contains(flat, word) {
 			t.Errorf("wrapped output dropped word %q", word)
+		}
+	}
+}
+
+// A long title in `list` wraps to the terminal width, and every continuation
+// line hangs under the TITLE column (where tabwriter aligns the header) rather
+// than running off the edge or falling to the left margin.
+func TestRenderListWrapsLongTitles(t *testing.T) {
+	const width = 60
+	quests := []*quest.Quest{{
+		ID:       "SQ-0001",
+		Status:   quest.StatusOpen,
+		Type:     quest.TypeFeature,
+		Priority: quest.PriorityLow,
+		Title:    "a deliberately long quest title that needs to wrap across more than one line in a narrow terminal",
+	}}
+	var buf bytes.Buffer
+	renderList(&buf, quests, voice.New(config.TonePlain), width)
+
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	titleCol := -1
+	for _, ln := range lines {
+		if i := strings.Index(ln, "TITLE"); i >= 0 {
+			titleCol = i
+		}
+	}
+	if titleCol < 0 {
+		t.Fatalf("no header row with TITLE:\n%s", buf.String())
+	}
+	indent := strings.Repeat(" ", titleCol)
+	sawContinuation := false
+	for _, ln := range lines {
+		if len(ln) > width {
+			t.Errorf("line exceeds width %d: %q", width, ln)
+		}
+		// A continuation row is padded with spaces up to the title column.
+		if ln != "" && strings.HasPrefix(ln, indent) {
+			sawContinuation = true
+		}
+	}
+	if !sawContinuation {
+		t.Fatalf("expected a title continuation hung at the title column (%d) at width %d:\n%s",
+			titleCol, width, buf.String())
+	}
+	flat := strings.Join(strings.Fields(buf.String()), " ")
+	for _, wd := range strings.Fields(quests[0].Title) {
+		if !strings.Contains(flat, wd) {
+			t.Errorf("wrapped list dropped title word %q", wd)
 		}
 	}
 }

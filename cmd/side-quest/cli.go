@@ -188,7 +188,7 @@ func cmdNew(args []string) error {
 func cmdList(args []string) error {
 	fs := newFlagSet("list")
 	var status, typ, prio, filterExpr string
-	var asJSON, all bool
+	var asJSON, all, noWrap bool
 	var tags tagFlag
 	fs.StringVar(&status, "status", "", "filter by status: open|partial|done|deferred|discarded")
 	fs.StringVar(&typ, "type", "", "filter by type: bug|feature")
@@ -197,6 +197,7 @@ func cmdList(args []string) error {
 	fs.BoolVar(&all, "all", false, "include every status (default shows only open and partial)")
 	fs.StringVar(&filterExpr, "filter", "", `boolean expression, e.g. "bug and not (done or deferred)"`)
 	fs.BoolVar(&asJSON, "json", false, "emit the matching quests as JSON")
+	fs.BoolVar(&noWrap, "no-wrap", false, "print raw titles without word-wrapping")
 	setUsage(fs, "usage: side-quest list [flags]\nlist quests; simple filters combine with AND, or use --filter for a boolean expression")
 	_, err := parseInterspersed(fs, args)
 	if helpRequested(err) {
@@ -266,7 +267,13 @@ func cmdList(args []string) error {
 	if asJSON {
 		return emitJSON(os.Stdout, filtered)
 	}
-	renderList(os.Stdout, filtered, voiceFor(s))
+	// Wrap to the terminal width, but only for an interactive terminal: piped
+	// output and --no-wrap both fall back to width 0 (unwrapped, script-stable).
+	width := 0
+	if !noWrap {
+		width = terminalWidth(os.Stdout)
+	}
+	renderList(os.Stdout, filtered, voiceFor(s), width)
 	return nil
 }
 

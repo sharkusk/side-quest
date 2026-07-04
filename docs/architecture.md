@@ -339,7 +339,10 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   status. `--filter "expr"` takes a boolean expression (compiled by
   `internal/filter`) over bare enum values and `key=value` tags with
   `and`/`or`/`not`/parens; it is the whole selection and cannot be combined with
-  the simple flags above.
+  the simple flags above. Long titles word-wrap to the terminal width with each
+  continuation line hung under the TITLE column; `--no-wrap`, and piped or
+  redirected output (a non-terminal), print one line per quest so scripts see
+  stable rows.
 - `show <id>` — show one quest; `--json`. (`<id>` accepts shorthand: `11` or
   `0011` for `SQ-0011`, everywhere an id is taken.) Long field values and body
   lines are word-wrapped to the terminal width with a hanging indent; `--no-wrap`

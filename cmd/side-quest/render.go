@@ -40,17 +40,50 @@ func emitJSON(w io.Writer, v any) error {
 }
 
 // renderList prints an aligned table of quests, or a friendly line when empty.
-func renderList(w io.Writer, quests []*quest.Quest, v *voice.Voice) {
+// When width > 0, long titles word-wrap to that terminal width with each
+// continuation line hung under the TITLE column; width <= 0 (piped output or
+// --no-wrap) prints one line per quest, keeping scripted output stable.
+func renderList(w io.Writer, quests []*quest.Quest, v *voice.Voice, width int) {
 	if len(quests) == 0 {
 		fmt.Fprintln(w, v.EmptyList())
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
 	fmt.Fprintln(tw, "ID\tSTATUS\tTYPE\tPRIORITY\tTITLE")
+	// Continuation lines are emitted as rows with empty leading cells, which
+	// tabwriter pads to the TITLE column for us — so a wrapped title hangs under
+	// the column instead of running off the terminal.
+	titleCol := listTitleColumn(quests)
 	for _, q := range quests {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", q.ID, q.Status, q.Type, q.Priority, q.Title)
+		lines := []string{q.Title}
+		if width > 0 {
+			lines = wrapText(q.Title, width-titleCol)
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", q.ID, q.Status, q.Type, q.Priority, lines[0])
+		for _, cont := range lines[1:] {
+			fmt.Fprintf(tw, "\t\t\t\t%s\n", cont)
+		}
 	}
 	tw.Flush()
+}
+
+// listTitleColumn reports the terminal column where renderList's TITLE cell
+// begins, matching tabwriter's layout (minwidth 0, padding 2): the sum over the
+// four leading columns of their widest cell plus the 2-space padding.
+func listTitleColumn(quests []*quest.Quest) int {
+	widths := []int{len("ID"), len("STATUS"), len("TYPE"), len("PRIORITY")}
+	for _, q := range quests {
+		for i, cell := range []string{q.ID, string(q.Status), string(q.Type), string(q.Priority)} {
+			if n := len(cell); n > widths[i] {
+				widths[i] = n
+			}
+		}
+	}
+	col := 0
+	for _, wd := range widths {
+		col += wd + 2 // tabwriter padding
+	}
+	return col
 }
 
 // showLabelPad left-justifies a field label (with its trailing colon) so every
