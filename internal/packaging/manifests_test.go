@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/sharkusk/side-quest/internal/guidance"
 )
 
 // repoFile reads a file relative to the repo root. `go test` runs with CWD set
@@ -144,6 +146,20 @@ func TestReadmeReframedAndToneRemoved(t *testing.T) {
 	}
 	if !strings.Contains(inst, "1.25") {
 		t.Error("docs/install.md must state the Go >=1.25 floor")
+	}
+}
+
+// The reinforcement surfaces must contain the canonical core verbatim (single
+// source of truth), and /sq must reflect the auto-classify rule — SQ-0051.
+func TestGuidanceSurfacesContainCore(t *testing.T) {
+	for _, f := range []string{"AGENTS.md", "skills/side-quest/SKILL.md"} {
+		if !strings.Contains(string(repoFile(t, f)), guidance.Core) {
+			t.Errorf("%s must contain guidance.Core verbatim (single source of truth)", f)
+		}
+	}
+	sq := string(repoFile(t, "commands/sq.md"))
+	if strings.Contains(sq, "unless the user stated them") {
+		t.Error("commands/sq.md still carries the old don't-set-type/priority rule; align to auto-classify-when-obvious")
 	}
 }
 

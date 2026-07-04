@@ -12,7 +12,7 @@ NOT start working on the idea.
    - `title`: a concise, self-contained restatement of the idea (not a verbatim echo).
    - `context`: one sentence on *why it came up now* — what we were doing when it
      surfaced — so it is recoverable later.
-   - Do not set it current. Do not set `type`/`priority` unless the user stated them.
+   - Do not set it current. Set `type`/`priority` only when the request makes them obvious (a crash or regression is a bug; explicit "urgent"/"critical"/"blocking" is high); otherwise leave them unset.
 2. Confirm in one line: the returned quest id and its title. Nothing more.
 3. Resume the previous task exactly where we left off.
 
