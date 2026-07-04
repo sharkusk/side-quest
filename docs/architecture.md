@@ -345,7 +345,9 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   lines are word-wrapped to the terminal width with a hanging indent; `--no-wrap`
   prints raw values, and piped/redirected output (a non-terminal) is never
   wrapped, so scripts see stable single-line fields. Each linked commit prints as
-  `<short-sha>  <subject>`; `--full` expands each to its complete message (a
+  `<short-sha>  <subject>`, inset under the `commits:` field like the other
+  values (the first commit shares the label line); `--full` expands each to its
+  complete message (a
   commit whose sha no longer resolves shows `(message unavailable)`). `--full`
   affects the human render only — `--json` stays the raw quest.
 - `status <id> <status>` — set the lifecycle status.

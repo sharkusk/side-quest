@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -36,6 +37,72 @@ func TestRenderShowCommitBlock(t *testing.T) {
 	// The subject must NOT be duplicated inside the body block.
 	if strings.Count(out, "docs: reword it") != 1 {
 		t.Errorf("subject duplicated in body:\n%s", out)
+	}
+}
+
+// The first commit shares the commits: line (like any label: value field); each
+// later commit is inset to the same column as the other field values, so the
+// block reads as one aligned column.
+func TestRenderShowCommitsAlignWithContext(t *testing.T) {
+	q := &quest.Quest{ID: "SQ-0001", Title: "t", Created: time.Now()}
+	commits := []commitLine{
+		{short: "b510826", text: "refactor: move the thing"},
+		{short: "d5eb4b2", text: "docs: reword it"},
+	}
+	var buf bytes.Buffer
+	renderShow(&buf, q, 0, commits)
+
+	label := fmt.Sprintf("%-*s ", showLabelPad, "commits:")
+	indent := strings.Repeat(" ", len(label)) // column where context: values begin
+	wantFirst := label + "b510826  refactor: move the thing"
+	wantRest := indent + "d5eb4b2  docs: reword it"
+
+	hasFirst, hasRest := false, false
+	for _, ln := range strings.Split(buf.String(), "\n") {
+		if ln == wantFirst {
+			hasFirst = true
+		}
+		if ln == wantRest {
+			hasRest = true
+		}
+	}
+	if !hasFirst {
+		t.Errorf("first commit not on the commits: line; want %q in:\n%s", wantFirst, buf.String())
+	}
+	if !hasRest {
+		t.Errorf("later commit not inset to the value column; want %q in:\n%s", wantRest, buf.String())
+	}
+}
+
+// A long commit subject wraps at the terminal width, and every continuation
+// line hangs at the value column — the same behavior as a wrapped context:.
+func TestRenderShowCommitSubjectWraps(t *testing.T) {
+	const width = 50
+	long := "refactor: a deliberately long commit subject line that must wrap across two lines"
+	q := &quest.Quest{ID: "SQ-0001", Title: "t", Created: time.Now()}
+	commits := []commitLine{{short: "b510826", text: long}}
+	var buf bytes.Buffer
+	renderShow(&buf, q, width, commits)
+
+	indent := strings.Repeat(" ", showLabelPad+1)
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	sawContinuation := false
+	for _, ln := range lines {
+		if len(ln) > width {
+			t.Errorf("line exceeds width %d: %q", width, ln)
+		}
+		if strings.HasPrefix(ln, indent) && strings.TrimSpace(ln) != "" {
+			sawContinuation = true
+		}
+	}
+	if !sawContinuation {
+		t.Fatalf("expected a continuation line hung at the value column at width %d:\n%s", width, buf.String())
+	}
+	flat := strings.Join(strings.Fields(buf.String()), " ")
+	for _, wd := range strings.Fields(long) {
+		if !strings.Contains(flat, wd) {
+			t.Errorf("wrapped output dropped word %q", wd)
+		}
 	}
 }
 

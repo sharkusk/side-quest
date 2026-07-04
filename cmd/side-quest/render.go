@@ -95,18 +95,32 @@ func renderShow(w io.Writer, q *quest.Quest, width int, commits []commitLine) {
 		showField(w, "completed", q.Completed.Format(time.RFC3339), width)
 	}
 	if len(commits) > 0 {
-		fmt.Fprintln(w, "commits:")
+		// Render like any label: value field — the first commit shares the
+		// "commits:" line and every later line hangs at the value column, with
+		// long subjects/body lines word-wrapped to that column just like context.
+		label := fmt.Sprintf("%-*s ", showLabelPad, "commits:")
+		indent := strings.Repeat(" ", len(label))
+		first := true
+		emit := func(pad, text string) {
+			for _, ln := range wrapText(text, width-len(pad)) {
+				lead := pad
+				if first {
+					lead, first = label, false
+				}
+				fmt.Fprintf(w, "%s%s\n", lead, ln)
+			}
+		}
 		for _, c := range commits {
 			subject, rest, _ := strings.Cut(c.text, "\n")
-			for _, wl := range wrapText("  "+c.short+"  "+subject, width) {
-				fmt.Fprintln(w, wl)
-			}
+			emit(indent, c.short+"  "+subject)
 			if body := strings.Trim(rest, "\n"); body != "" {
 				fmt.Fprintln(w)
 				for _, bl := range strings.Split(body, "\n") {
-					for _, wl := range wrapText("      "+bl, width) {
-						fmt.Fprintln(w, wl)
+					if bl == "" {
+						fmt.Fprintln(w)
+						continue
 					}
+					emit(indent+"  ", bl)
 				}
 				fmt.Fprintln(w)
 			}
