@@ -195,7 +195,17 @@ slashes so it runs under Git-for-Windows' MSYS sh (a `C:\…` path would break;
 `C:/…` works — SQ-0021). Each shim is a marker-guarded block (`# >>> side-quest
 >>>` … `# <<< side-quest <<<`): installing into an existing hook **appends** our
 block and leaves the rest intact, and re-installing replaces only our block
-(idempotent, never duplicated).
+(idempotent, never duplicated). The block carries a version stamp
+(`# side-quest-version: <v>`, the installing binary's `main.version`) between the
+markers — the markers themselves stay version-free so a block written by any
+version is still matched and replaced (SQ-0045). Because the shims are thin
+delegators, upgrading the binary in place upgrades behavior with no hook change;
+but when the binary **moves** (a new path) or the shim format itself changes
+between versions, the shims go stale until you re-run `install-hooks`. Re-running
+is safe and now reports what it did per hook: a byte-identical block is a true
+no-op, while a refreshed block prints the version transition (`v0.1.0 → v0.2.0`,
+or "predated version stamping"), so an upgrader can see the stale shims were
+brought current.
 Appending assumes the existing hook runs under a POSIX shell: a hook whose
 shebang names a non-sh interpreter (python, node, …) is **skipped with a warning**
 rather than corrupted (SQ-0020) — migrate it to call `side-quest <hook>` itself.

@@ -14,7 +14,32 @@ import (
 const (
 	hookMarker    = "# >>> side-quest >>>"
 	hookEndMarker = "# <<< side-quest <<<"
+	// hookVersionPrefix tags the installed block with the side-quest version that
+	// wrote it, so a re-install can tell a stale block (older shim format or binary
+	// path) from a current one (SQ-0045). The start/end markers stay version-FREE so
+	// a block written by ANY version is still found and replaced.
+	hookVersionPrefix = "# side-quest-version: "
 )
+
+// hookBlock renders the marker-guarded hook block for body, stamped with the
+// installer version so upgrades are detectable (SQ-0045).
+func hookBlock(body, version string) string {
+	return hookMarker + "\n" +
+		hookVersionPrefix + version + "\n" +
+		body + "\n" +
+		hookEndMarker + "\n"
+}
+
+// parseHookVersion returns the version stamped inside a side-quest hook block, or
+// "" when the block predates version stamping (SQ-0045).
+func parseHookVersion(block string) string {
+	for _, line := range strings.Split(block, "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), hookVersionPrefix); ok {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
 
 // cmdInstallHooks writes (or composes into) the three git hooks and migrates
 // origin's refspecs to the sync model. Shims call THIS binary by absolute path, so the
@@ -61,7 +86,7 @@ func cmdInstallHooks(args []string) error {
 		{"pre-push", q + ` pre-push "$@" || true`},
 	}
 	for _, sh := range shims {
-		outcome, err := installOneHook(filepath.Join(hooksDir, sh.name), sh.body)
+		outcome, prev, err := installOneHook(filepath.Join(hooksDir, sh.name), sh.body, version)
 		if err != nil {
 			return err
 		}
@@ -71,6 +96,8 @@ func cmdInstallHooks(args []string) error {
 			fmt.Fprintf(os.Stderr, "  Migrate that hook to call `side-quest %s` itself, or remove it and re-run install-hooks.\n", sh.name)
 		case hookComposed:
 			fmt.Fprintf(os.Stderr, "side-quest: composed into the existing %s hook (it already had content) — verify the two coexist.\n", sh.name)
+		case hookUpdated:
+			fmt.Fprintln(os.Stderr, hookRefreshNote(sh.name, prev, version))
 		}
 	}
 
@@ -124,10 +151,11 @@ func shimQuotedPath(self string) string {
 type hookOutcome int
 
 const (
-	hookCreated  hookOutcome = iota // wrote a fresh hook
-	hookUpdated                     // replaced our own marker block in place
-	hookComposed                    // appended our block to a user's existing hook
-	hookSkipped                     // left a non-sh hook untouched (would corrupt it)
+	hookCreated   hookOutcome = iota // wrote a fresh hook
+	hookUpdated                      // replaced our own marker block (content changed)
+	hookUnchanged                    // our block was already byte-identical — left as is
+	hookComposed                     // appended our block to a user's existing hook
+	hookSkipped                      // left a non-sh hook untouched (would corrupt it)
 )
 
 // hookShebangCompatible reports whether content's interpreter can run our POSIX-sh
@@ -163,16 +191,18 @@ func hookShebangCompatible(content string) bool {
 // installOneHook creates a new hook or composes our marker-guarded block into an
 // existing one (idempotent: re-install replaces our block, never duplicates it,
 // and never clobbers a user's own hook body). It refuses to append to a hook with
-// a non-sh interpreter — that would corrupt it — and reports what it did.
-func installOneHook(path, body string) (hookOutcome, error) {
-	block := hookMarker + "\n" + body + "\n" + hookEndMarker + "\n"
+// a non-sh interpreter — that would corrupt it. It reports what it did and, when
+// it replaced an existing side-quest block, the version that block was stamped
+// with (SQ-0045) — "" for a block that predates version stamping.
+func installOneHook(path, body, version string) (hookOutcome, string, error) {
+	block := hookBlock(body, version)
 
 	existing, err := os.ReadFile(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return 0, err
+			return 0, "", err
 		}
-		return hookCreated, writeExec(path, "#!/bin/sh\n"+block)
+		return hookCreated, "", writeExec(path, "#!/bin/sh\n"+block)
 	}
 
 	text := string(existing)
@@ -182,18 +212,38 @@ func installOneHook(path, body string) (hookOutcome, error) {
 			if end < len(text) && text[end] == '\n' {
 				end++
 			}
-			return hookUpdated, writeExec(path, text[:i]+block+text[end:])
+			existingBlock := text[i:end]
+			prev := parseHookVersion(existingBlock)
+			if existingBlock == block {
+				return hookUnchanged, prev, nil // already current — touch nothing
+			}
+			return hookUpdated, prev, writeExec(path, text[:i]+block+text[end:])
 		}
 	}
 	// A foreign hook with no side-quest block yet: only safe to append if it runs
 	// under a POSIX shell. Otherwise leave it entirely alone.
 	if !hookShebangCompatible(text) {
-		return hookSkipped, nil
+		return hookSkipped, "", nil
 	}
 	if !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
-	return hookComposed, writeExec(path, text+block)
+	return hookComposed, "", writeExec(path, text+block)
+}
+
+// hookRefreshNote describes an in-place refresh of a side-quest hook block, so an
+// upgrader sees that re-running install-hooks brought a stale shim current. It
+// distinguishes an upgrade (version changed) from a same-version rewrite (the
+// binary path or shim format changed) (SQ-0045).
+func hookRefreshNote(name, prev, version string) string {
+	switch {
+	case prev == "":
+		return fmt.Sprintf("side-quest: refreshed the %s hook to v%s (it predated version stamping).", name, version)
+	case prev != version:
+		return fmt.Sprintf("side-quest: refreshed the %s hook (v%s → v%s).", name, prev, version)
+	default:
+		return fmt.Sprintf("side-quest: refreshed the %s hook (v%s; binary path or shim format changed).", name, version)
+	}
 }
 
 // writeExec writes content and ensures the file is executable (WriteFile only
