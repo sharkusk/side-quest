@@ -39,6 +39,8 @@ func (h *handlers) register(s *sdk.Server) {
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_note", Description: "Append a timestamped note to a quest's body (non-destructive)."}, h.questNote)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_current", Description: "Set this worktree's current quest by id, or clear it with clear:true."}, h.questSetCurrent)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_link_commit", Description: "Apply a commit's Quest:/Completes: trailers to the referenced quests."}, h.questLinkCommit)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_relink_commit", Description: "Repoint a recorded commit after a rebase rewrote its hash: replace old_sha (matched by prefix, never resolved — it may be dangling) with new_sha."}, h.questRelinkCommit)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_unlink_commit", Description: "Remove a recorded commit from a quest (sha matched by prefix)."}, h.questUnlinkCommit)
 }
 
 // enumSchema infers the JSON schema for input type T (the same inference the SDK
@@ -247,6 +249,17 @@ type shaIn struct {
 	SHA string `json:"sha" jsonschema:"the commit sha whose trailers to apply"`
 }
 
+type relinkIn struct {
+	ID     string `json:"id" jsonschema:"the quest id"`
+	OldSHA string `json:"old_sha" jsonschema:"the recorded (old) commit sha to replace; matched by prefix"`
+	NewSHA string `json:"new_sha" jsonschema:"the new commit sha to record in its place"`
+}
+
+type unlinkIn struct {
+	ID  string `json:"id" jsonschema:"the quest id"`
+	SHA string `json:"sha" jsonschema:"the recorded commit sha to remove; matched by prefix"`
+}
+
 func (h *handlers) questSetStatus(ctx context.Context, req *sdk.CallToolRequest, in statusIn) (*sdk.CallToolResult, any, error) {
 	if err := h.store.SetStatus(in.ID, quest.Status(in.Status)); err != nil {
 		return nil, nil, err
@@ -310,4 +323,25 @@ func (h *handlers) questLinkCommit(ctx context.Context, req *sdk.CallToolRequest
 		OK  bool   `json:"ok"`
 		SHA string `json:"sha"`
 	}{true, in.SHA})
+}
+
+// questRelinkCommit is the inverse-repair for a rebase: the old sha is matched by
+// prefix against the recorded hashes (never git-resolved — it is typically
+// dangling), while the new sha is resolved to its canonical hash (SQ-0049).
+func (h *handlers) questRelinkCommit(ctx context.Context, req *sdk.CallToolRequest, in relinkIn) (*sdk.CallToolResult, any, error) {
+	newSHA, err := h.store.ResolveCommit(in.NewSHA)
+	if err != nil {
+		return nil, nil, fmt.Errorf("new commit %q not found: %w", in.NewSHA, err)
+	}
+	if err := h.store.ReplaceCommit(in.ID, in.OldSHA, newSHA); err != nil {
+		return nil, nil, err
+	}
+	return h.result(in.ID)
+}
+
+func (h *handlers) questUnlinkCommit(ctx context.Context, req *sdk.CallToolRequest, in unlinkIn) (*sdk.CallToolResult, any, error) {
+	if err := h.store.RemoveCommit(in.ID, in.SHA); err != nil {
+		return nil, nil, err
+	}
+	return h.result(in.ID)
 }

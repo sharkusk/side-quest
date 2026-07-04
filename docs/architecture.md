@@ -303,8 +303,9 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   `post-commit`/`pre-push` hooks but cannot remove the old, dangling entry — this
   is the corrective for that (SQ-0048).
 - `unlink <id> <sha>` — remove a recorded commit from a quest (prefix-matched,
-  `store.RemoveCommit`). Both are CLI-only corrective commands; an agent runs
-  them via the shell rather than an MCP tool, since relinking is a rare manual fix.
+  `store.RemoveCommit`). Both are mirrored on the MCP surface as
+  `quest_relink_commit`/`quest_unlink_commit` (SQ-0049), so an MCP-only agent can
+  repair a link it orphaned — the inverse of `quest_link_commit`.
 - `edit <id>` — open the quest's Markdown (frontmatter + body) in `$EDITOR`
   (`VISUAL`→`EDITOR`→`vi`) and write the saved buffer back via `store.Replace`.
   The id is the filename, never part of the buffer, so it cannot be edited. A
@@ -383,11 +384,12 @@ run — but it is fully documented and configurable here.
 `side-quest serve` runs a stdio MCP server (JSON-RPC over stdin/stdout) built on
 `github.com/modelcontextprotocol/go-sdk`. `cmd/side-quest/serve.go` is a thin
 frontend: it opens the store for the cwd and hands it to `internal/mcp.NewServer`,
-which registers ten tools:
+which registers twelve tools:
 
 - `quest_new`, `quest_list`, `quest_show`, `quest_get_current` (capture/read)
 - `quest_set_status`, `quest_reclassify`, `quest_update`, `quest_note`,
-  `quest_set_current`, `quest_link_commit` (mutation)
+  `quest_set_current`, `quest_link_commit`, `quest_relink_commit`,
+  `quest_unlink_commit` (mutation)
 
 Each handler decodes typed params (the SDK infers each tool's JSON-Schema from a
 Go struct), calls one store method, and returns neutral JSON of the

@@ -94,18 +94,90 @@ func TestServerAdvertisesGivenVersion(t *testing.T) {
 	}
 }
 
-func TestListToolsExposesTen(t *testing.T) {
+func TestListToolsExposesTwelve(t *testing.T) {
 	cs, ctx := dialTest(t, newTestStore(t))
 	lt, err := cs.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(lt.Tools) != 10 {
+	if len(lt.Tools) != 12 {
 		names := make([]string, len(lt.Tools))
 		for i, tl := range lt.Tools {
 			names[i] = tl.Name
 		}
-		t.Fatalf("want 10 tools, got %d: %v", len(lt.Tools), names)
+		t.Fatalf("want 12 tools, got %d: %v", len(lt.Tools), names)
+	}
+}
+
+// TestUnlinkAndRelinkCommitTools (SQ-0049): the MCP surface mirrors the CLI
+// relink/unlink so an MCP-only agent can repair a commit link a rebase orphaned —
+// the inverse of quest_link_commit. relink matches the old sha by prefix (never
+// git-resolving the dangling old commit) and resolves the new sha; unlink removes
+// by prefix. Both return the post-mutation quest.
+func TestUnlinkAndRelinkCommitTools(t *testing.T) {
+	dir := t.TempDir()
+	g := gitcmd.New(dir)
+	for _, a := range [][]string{{"init", "-q"}, {"config", "user.email", "t@example.com"}, {"config", "user.name", "Tester"}} {
+		if _, err := g.Run(a...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := store.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Init()
+	q, err := s.Create("rebased", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mk := func(m string) string {
+		if _, err := g.Run("commit", "--allow-empty", "-q", "-m", m); err != nil {
+			t.Fatal(err)
+		}
+		sha, err := g.Run("rev-parse", "HEAD")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return sha
+	}
+	c1, c2 := mk("one"), mk("two")
+	if err := s.AddCommit(q.ID, c1, false); err != nil {
+		t.Fatal(err)
+	}
+
+	cs, ctx := dialTest(t, s)
+
+	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_relink_commit",
+		Arguments: map[string]any{"id": q.ID, "old_sha": c1[:10], "new_sha": c2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("relink error: %s", contentText(t, res))
+	}
+	var relinked quest.Quest
+	if err := json.Unmarshal([]byte(contentText(t, res)), &relinked); err != nil {
+		t.Fatal(err)
+	}
+	if len(relinked.Commits) != 1 || relinked.Commits[0] != c2 {
+		t.Fatalf("relink did not swap to the new sha: %v", relinked.Commits)
+	}
+
+	res, err = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_unlink_commit",
+		Arguments: map[string]any{"id": q.ID, "sha": c2[:10]}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("unlink error: %s", contentText(t, res))
+	}
+	var unlinked quest.Quest
+	if err := json.Unmarshal([]byte(contentText(t, res)), &unlinked); err != nil {
+		t.Fatal(err)
+	}
+	if len(unlinked.Commits) != 0 {
+		t.Fatalf("unlink did not remove the sha: %v", unlinked.Commits)
 	}
 }
 
