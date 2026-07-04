@@ -182,6 +182,125 @@ func idsOf(r Result) string {
 	return strings.Join(ids, ",")
 }
 
+func TestCollisionKeeperOrdering(t *testing.T) {
+	early := time.Date(2026, 1, 2, 10, 0, 0, 0, time.UTC)
+	late := time.Date(2026, 1, 2, 11, 0, 0, 0, time.UTC)
+	tie := time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC)
+
+	cases := []struct {
+		name         string
+		lCreated     time.Time
+		rCreated     time.Time
+		wantKeep     string // title of the expected keeper
+		symmetricTie bool   // when Created ties, swapping sides must not change the keeper
+	}{
+		{"local earlier keeps", early, late, "local", false},
+		{"remote earlier keeps", late, early, "remote", false},
+		{"exact tie broken by bytes", tie, tie, "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := q("SQ-0007", "local", quest.StatusOpen)
+			l.Created = tc.lCreated
+			r := q("SQ-0007", "remote", quest.StatusOpen)
+			r.Created = tc.rCreated
+
+			keep, lose := collisionKeeper(l, r)
+			if keep == lose {
+				t.Fatal("keeper and loser are the same quest")
+			}
+			if tc.symmetricTie {
+				// Created ties: the keeper must be the same regardless of side order.
+				keep2, _ := collisionKeeper(r, l)
+				if keep.Title != keep2.Title {
+					t.Errorf("tie not side-independent: %q then %q", keep.Title, keep2.Title)
+				}
+				return
+			}
+			if keep.Title != tc.wantKeep {
+				t.Errorf("keeper = %q, want %q", keep.Title, tc.wantKeep)
+			}
+		})
+	}
+}
+
+func TestCollisionIDWidens(t *testing.T) {
+	prefix := config.Default().IDPrefix
+	loser := q("SQ-0007", "add dark mode", quest.StatusOpen)
+
+	// With nothing taken, the id is prefix + first 6 hex of sha256(canonical).
+	id6 := collisionID(prefix, loser, map[string]bool{})
+	hex6 := strings.TrimPrefix(id6, prefix+"-")
+	if len(hex6) != 6 {
+		t.Fatalf("first id = %q, want 6 hex chars", id6)
+	}
+
+	// The 6-hex id already taken -> widen by 2 to 8 hex, keeping the same prefix bytes.
+	id8 := collisionID(prefix, loser, map[string]bool{id6: true})
+	hex8 := strings.TrimPrefix(id8, prefix+"-")
+	if len(hex8) != 8 {
+		t.Fatalf("widened id = %q, want 8 hex chars", id8)
+	}
+	if !strings.HasPrefix(hex8, hex6) {
+		t.Errorf("widened id %q does not extend %q", id8, id6)
+	}
+
+	// Both 6- and 8-hex taken -> widen again to 10.
+	id10 := collisionID(prefix, loser, map[string]bool{id6: true, id8: true})
+	if hex10 := strings.TrimPrefix(id10, prefix+"-"); len(hex10) != 10 {
+		t.Fatalf("twice-widened id = %q, want 10 hex chars", id10)
+	}
+}
+
+func TestMergeTwoSimultaneousCollisions(t *testing.T) {
+	// Two ids (SQ-0007, SQ-0008) each minted independently for different quests
+	// on both clones, so both collide in a single merge.
+	early := time.Date(2026, 1, 2, 10, 0, 0, 0, time.UTC)
+	late := time.Date(2026, 1, 2, 11, 0, 0, 0, time.UTC)
+	lA := q("SQ-0007", "local seven", quest.StatusOpen)
+	lA.Created = early // earlier -> keeps SQ-0007
+	rA := q("SQ-0007", "remote seven", quest.StatusOpen)
+	rA.Created = late
+	rB := q("SQ-0008", "remote eight", quest.StatusOpen)
+	rB.Created = early // earlier -> keeps SQ-0008
+	lB := q("SQ-0008", "local eight", quest.StatusOpen)
+	lB.Created = late
+
+	local := side(lA, lB)
+	remote := side(rA, rB)
+	res, events := Merge(Side{}, local, remote)
+
+	// Each original id kept by its earliest-Created quest.
+	if res.Quests["SQ-0007"].Title != "local seven" {
+		t.Errorf("SQ-0007 = %q, want earliest 'local seven'", res.Quests["SQ-0007"].Title)
+	}
+	if res.Quests["SQ-0008"].Title != "remote eight" {
+		t.Errorf("SQ-0008 = %q, want earliest 'remote eight'", res.Quests["SQ-0008"].Title)
+	}
+	// Two keepers + two reassigned losers = four distinct quests, two Renamed events.
+	if len(res.Quests) != 4 {
+		t.Fatalf("want 4 quests after two collisions, got %d: %s", len(res.Quests), idsOf(res))
+	}
+	renamed := 0
+	for _, e := range events {
+		if e.Kind == Renamed {
+			renamed++
+			if e.ID == "SQ-0007" || e.ID == "SQ-0008" {
+				t.Errorf("reassigned id %q shadows an existing quest", e.ID)
+			}
+		}
+	}
+	if renamed != 2 {
+		t.Errorf("want 2 Renamed events, got %d (events=%v)", renamed, events)
+	}
+
+	// Deterministic: swapping which side is "local" yields the same id set.
+	res2, _ := Merge(Side{}, remote, local)
+	if idsOf(res) != idsOf(res2) {
+		t.Errorf("two-collision resolution not deterministic: %s vs %s", idsOf(res), idsOf(res2))
+	}
+}
+
 func TestMergeConfigSeqNextMaxAndLWW(t *testing.T) {
 	base := side(q("SQ-0001", "x", quest.StatusOpen))
 	base.Config = config.Default() // seq_next 1
