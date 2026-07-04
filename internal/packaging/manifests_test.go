@@ -100,6 +100,16 @@ func TestSqCommandDrivesQuestNew(t *testing.T) {
 	}
 }
 
+// TestSqCommandDisplayName (SQ-0060): the /sq command sets its menu display label
+// to "side-quest" via frontmatter `name`, while the short `/sq` invocation is
+// preserved (the trigger comes from the filename, the label from `name`).
+func TestSqCommandDisplayName(t *testing.T) {
+	c := string(repoFile(t, "commands/sq.md"))
+	if !strings.Contains(c, "name: side-quest") {
+		t.Error("commands/sq.md frontmatter must set `name: side-quest` for its menu display label")
+	}
+}
+
 func TestAgentsDocPointsToSkill(t *testing.T) {
 	a := string(repoFile(t, "AGENTS.md"))
 	if !strings.Contains(a, "skills/side-quest/SKILL.md") {

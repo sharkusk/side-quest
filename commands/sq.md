@@ -1,4 +1,5 @@
 ---
+name: side-quest
 description: Capture a side quest without derailing your current work
 argument-hint: <the idea to capture>
 ---
