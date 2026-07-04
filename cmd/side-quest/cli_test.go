@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -24,14 +23,63 @@ func idFromCreated(t *testing.T, out string) string {
 	return id
 }
 
-// writeEditor writes an executable fake-$EDITOR script and returns its path.
-func writeEditor(t *testing.T, body string) string {
+// Environment keys the fake editor (see TestMain) reads to decide what to do to
+// the file it is handed.
+const (
+	fakeEditorAction = "SIDE_QUEST_TEST_EDITOR_ACTION"
+	fakeEditorText   = "SIDE_QUEST_TEST_EDITOR_TEXT"
+)
+
+// TestMain lets this test binary re-exec itself as a fake $EDITOR (the
+// helper-process idiom): when fakeEditorAction is set in the environment we act as
+// the editor and exit, rather than running the suite. A real cross-platform
+// executable avoids the shell-script fakes that Windows refused to exec ("%1 is not
+// a valid Win32 application").
+func TestMain(m *testing.M) {
+	if action, ok := os.LookupEnv(fakeEditorAction); ok {
+		runFakeEditor(action, os.Getenv(fakeEditorText), os.Args[len(os.Args)-1])
+		return // unreached: runFakeEditor always exits
+	}
+	os.Exit(m.Run())
+}
+
+// runFakeEditor performs one action on path, then exits: "append" adds text as a
+// new line, "write" replaces the file with text, "noop" leaves it untouched.
+func runFakeEditor(action, text, path string) {
+	switch action {
+	case "append":
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+		if err != nil {
+			os.Exit(1)
+		}
+		_, werr := f.WriteString(text + "\n")
+		if cerr := f.Close(); werr != nil || cerr != nil {
+			os.Exit(1)
+		}
+	case "write":
+		if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+			os.Exit(1)
+		}
+	case "noop":
+		// leave the file untouched
+	default:
+		os.Exit(2)
+	}
+	os.Exit(0)
+}
+
+// useFakeEditor points $EDITOR at this test binary re-invoked as the fake editor
+// (see TestMain), configured to perform action ("append"/"write"/"noop") with text
+// when the editor "saves".
+func useFakeEditor(t *testing.T, action, text string) {
 	t.Helper()
-	p := filepath.Join(t.TempDir(), "fake-editor.sh")
-	if err := os.WriteFile(p, []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+	self, err := os.Executable()
+	if err != nil {
 		t.Fatal(err)
 	}
-	return p
+	t.Setenv("EDITOR", self)
+	t.Setenv(fakeEditorAction, action)
+	t.Setenv(fakeEditorText, text)
 }
 
 // TestEditRoundTrip: `edit <id>` opens the quest in $EDITOR and writes the saved
@@ -44,8 +92,8 @@ func TestEditRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A fake editor that appends a body line to the temp file (arg $1).
-	t.Setenv("EDITOR", writeEditor(t, `printf 'a note from the editor\n' >> "$1"`))
+	// A fake editor that appends a body line to the temp file.
+	useFakeEditor(t, "append", "a note from the editor")
 	out, code := runBin(t, bin, dir, "edit", q.ID)
 	if code != 0 {
 		t.Fatalf("edit exit=%d out=%s", code, out)
@@ -59,7 +107,7 @@ func TestEditRoundTrip(t *testing.T) {
 	}
 
 	// Shorthand id resolves, and a no-op edit writes nothing.
-	t.Setenv("EDITOR", writeEditor(t, `exit 0`))
+	useFakeEditor(t, "noop", "")
 	out, code = runBin(t, bin, dir, "edit", "1")
 	if code != 0 {
 		t.Fatalf("no-op edit exit=%d out=%s", code, out)
@@ -78,7 +126,7 @@ func TestEditRejectsInvalidBuffer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("EDITOR", writeEditor(t, `printf 'this is not a quest file' > "$1"`))
+	useFakeEditor(t, "write", "this is not a quest file")
 	out, code := runBin(t, bin, dir, "edit", q.ID)
 	if code == 0 {
 		t.Fatalf("edit of an unparseable buffer should fail; out=%s", out)

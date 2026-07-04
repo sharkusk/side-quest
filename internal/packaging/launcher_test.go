@@ -1,3 +1,9 @@
+//go:build !windows
+
+// These tests exercise the POSIX shell launcher (bin/side-quest): they exec it
+// directly and plant #!/bin/sh stand-in binaries, neither of which runs under
+// Windows' native test runner. The Windows launcher (bin/side-quest.cmd) has its
+// own coverage in launcher_windows_test.go.
 package packaging
 
 import (

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -33,14 +32,12 @@ func TestVersionDrift(t *testing.T) {
 
 // TestPathBinaryDrift covers the PATH lookup around versionDrift: a differing
 // side-quest on PATH warns, a matching one is quiet, and no side-quest on PATH is
-// quiet. A fake executable on an isolated PATH stands in for the installed binary.
+// quiet. A real side-quest binary reporting 1.2.3 stands in for the installed one —
+// buildBinaryVersion names it side-quest(.exe) so exec.LookPath resolves it on every
+// platform (a shell-script fake failed on Windows, which has no shebang support).
 func TestPathBinaryDrift(t *testing.T) {
-	dir := t.TempDir()
-	fake := filepath.Join(dir, "side-quest")
-	if err := os.WriteFile(fake, []byte("#!/bin/sh\necho 1.2.3\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", dir)
+	bin := buildBinaryVersion(t, "1.2.3")
+	t.Setenv("PATH", filepath.Dir(bin))
 
 	if got := pathBinaryDrift("9.9.9"); got == "" {
 		t.Errorf("expected a drift warning for 9.9.9 vs the PATH binary's 1.2.3")
