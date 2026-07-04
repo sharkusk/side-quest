@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sharkusk/side-quest/internal/capture"
 	"github.com/sharkusk/side-quest/internal/quest"
@@ -13,16 +14,55 @@ import (
 
 // register wires every tool onto the server. Task 4 appends the mutation tools.
 func (h *handlers) register(s *sdk.Server) {
-	sdk.AddTool(s, &sdk.Tool{Name: "quest_new", Description: "Capture a new quest. Mechanical git context (branch/head/cwd/current) is recorded automatically; pass a one-sentence narrative in context."}, h.questNew)
-	sdk.AddTool(s, &sdk.Tool{Name: "quest_list", Description: "List quests, optionally filtered by status/type/priority (AND)."}, h.questList)
+	// Closed string domains, derived from the quest constants so a rename breaks
+	// the build. Applied as JSON-Schema enums below (see enumSchema).
+	statuses := []string{
+		string(quest.StatusOpen), string(quest.StatusPartial), string(quest.StatusDone),
+		string(quest.StatusDeferred), string(quest.StatusDiscarded),
+	}
+	types := []string{string(quest.TypeBug), string(quest.TypeFeature)}
+	prios := []string{string(quest.PriorityHigh), string(quest.PriorityLow)}
+
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_new", Description: "Capture a new quest. Mechanical git context (branch/head/cwd/current) is recorded automatically; pass a one-sentence narrative in context.",
+		InputSchema: enumSchema[newIn](map[string][]string{"type": types, "priority": prios})}, h.questNew)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_list", Description: "List quests, optionally filtered by status/type/priority (AND).",
+		InputSchema: enumSchema[listIn](map[string][]string{"status": statuses, "type": types, "priority": prios})}, h.questList)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_show", Description: "Show one quest by id."}, h.questShow)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_get_current", Description: "Return this worktree's current quest id (empty if none)."}, h.questGetCurrent)
-	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_status", Description: "Set a quest's lifecycle status (open|partial|done|deferred|discarded)."}, h.questSetStatus)
-	sdk.AddTool(s, &sdk.Tool{Name: "quest_reclassify", Description: "Change a quest's type and/or priority."}, h.questReclassify)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_status", Description: "Set a quest's lifecycle status (open|partial|done|deferred|discarded).",
+		InputSchema: enumSchema[statusIn](map[string][]string{"status": statuses})}, h.questSetStatus)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_reclassify", Description: "Change a quest's type and/or priority.",
+		InputSchema: enumSchema[reclassifyIn](map[string][]string{"type": types, "priority": prios})}, h.questReclassify)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_update", Description: "Update a quest's title and/or tags (a tag with an empty value is deleted)."}, h.questUpdate)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_note", Description: "Append a timestamped note to a quest's body (non-destructive)."}, h.questNote)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_current", Description: "Set this worktree's current quest by id, or clear it with clear:true."}, h.questSetCurrent)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_link_commit", Description: "Apply a commit's Quest:/Completes: trailers to the referenced quests."}, h.questLinkCommit)
+}
+
+// enumSchema infers the JSON schema for input type T (the same inference the SDK
+// would do) and stamps each named property with an enum of allowed values. The
+// SDK's jsonschema struct tag only sets a property's description — google/jsonschema-go
+// treats the tag as description text and rejects "key=" forms — so closed
+// domains are constrained here, giving MCP clients hard validation before a
+// request reaches the store. Absent optional properties still pass, so defaults
+// and no-filter behavior are unchanged. Panics on a misconfigured property name,
+// which is a programming error caught at startup.
+func enumSchema[T any](enums map[string][]string) *jsonschema.Schema {
+	sch, err := jsonschema.For[T](nil)
+	if err != nil {
+		panic(fmt.Sprintf("mcp: inferring schema: %v", err))
+	}
+	for prop, vals := range enums {
+		p, ok := sch.Properties[prop]
+		if !ok {
+			panic(fmt.Sprintf("mcp: enum on unknown property %q", prop))
+		}
+		p.Enum = make([]any, len(vals))
+		for i, v := range vals {
+			p.Enum[i] = v
+		}
+	}
+	return sch
 }
 
 // --- input types ---

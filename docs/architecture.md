@@ -348,8 +348,11 @@ which registers ten tools:
 Each handler decodes typed params (the SDK infers each tool's JSON-Schema from a
 Go struct), calls one store method, and returns neutral JSON of the
 `quest.Quest`/ack shape. Validation stays in the store; invalid input is returned
-as an MCP **tool error** (not a protocol error). The one frontend-side check is
-`quest_list` validating its filter values. `quest_new` auto-records mechanical
+as an MCP **tool error** (not a protocol error). Two frontend-side guards sit
+ahead of the store: `quest_list` validates its filter values, and the closed
+string domains (status/type/priority) are declared as JSON-Schema **enums** on
+the relevant tools (via `enumSchema`), so a client's bad value is rejected at the
+boundary before it reaches a handler. `quest_new` auto-records mechanical
 context (branch/HEAD/cwd/current-quest, via `internal/capture.Mechanical`) ahead
 of the agent's narrative note, and only moves the current-quest pointer when
 `set_current:true`. stdout carries only JSON-RPC; diagnostics go to stderr.

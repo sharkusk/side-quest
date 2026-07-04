@@ -3,9 +3,11 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"strings"
 	"testing"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sharkusk/side-quest/internal/gitcmd"
 	"github.com/sharkusk/side-quest/internal/quest"
@@ -77,6 +79,69 @@ func TestListToolsExposesTen(t *testing.T) {
 			names[i] = tl.Name
 		}
 		t.Fatalf("want 10 tools, got %d: %v", len(lt.Tools), names)
+	}
+}
+
+// enumOf marshals a tool's InputSchema and reads the enum values declared on
+// one property (empty if the property has no enum).
+func enumOf(t *testing.T, schema any, prop string) []string {
+	t.Helper()
+	raw, err := json.Marshal(schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sch jsonschema.Schema
+	if err := json.Unmarshal(raw, &sch); err != nil {
+		t.Fatal(err)
+	}
+	p := sch.Properties[prop]
+	if p == nil {
+		return nil
+	}
+	out := make([]string, len(p.Enum))
+	for i, v := range p.Enum {
+		out[i], _ = v.(string)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func TestToolSchemasExposeEnums(t *testing.T) {
+	cs, ctx := dialTest(t, newTestStore(t))
+	lt, err := cs.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]*sdk.Tool{}
+	for _, tl := range lt.Tools {
+		byName[tl.Name] = tl
+	}
+
+	statuses := []string{"deferred", "discarded", "done", "open", "partial"} // sorted
+	types := []string{"bug", "feature"}
+	prios := []string{"high", "low"}
+	cases := []struct {
+		tool, prop string
+		want       []string
+	}{
+		{"quest_new", "type", types},
+		{"quest_new", "priority", prios},
+		{"quest_list", "status", statuses},
+		{"quest_list", "type", types},
+		{"quest_list", "priority", prios},
+		{"quest_set_status", "status", statuses},
+		{"quest_reclassify", "type", types},
+		{"quest_reclassify", "priority", prios},
+	}
+	for _, c := range cases {
+		tl := byName[c.tool]
+		if tl == nil {
+			t.Fatalf("tool %s not registered", c.tool)
+		}
+		got := enumOf(t, tl.InputSchema, c.prop)
+		if strings.Join(got, ",") != strings.Join(c.want, ",") {
+			t.Errorf("%s.%s enum = %v, want %v", c.tool, c.prop, got, c.want)
+		}
 	}
 }
 
