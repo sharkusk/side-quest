@@ -73,6 +73,27 @@ func (s *Store) readFile(tip, path string) ([]byte, error) {
 	return s.git.RunRaw("cat-file", "-p", tip+":"+path)
 }
 
+// CommitMessage returns a linked commit's abbreviated SHA and its message, for
+// the `show` command. full=false returns the subject line as text; full=true
+// returns the complete message. ok is false when sha no longer resolves to a
+// commit (rebased or gc'd) — the caller renders a placeholder rather than
+// failing the whole command.
+func (s *Store) CommitMessage(sha string, full bool) (short, text string, ok bool) {
+	format := "%h%x00%s"
+	if full {
+		format = "%h%x00%B"
+	}
+	out, err := s.git.Run("show", "-s", "--format="+format, sha)
+	if err != nil {
+		return "", "", false
+	}
+	short, msg, found := strings.Cut(out, "\x00")
+	if !found {
+		return "", "", false
+	}
+	return short, strings.TrimRight(msg, "\n"), true
+}
+
 // listIDs returns the sorted quest ids present at tip (filenames minus ".md").
 func (s *Store) listIDs(tip string) ([]string, error) {
 	out, err := s.git.Run("ls-tree", "--name-only", tip+":"+questDir)
