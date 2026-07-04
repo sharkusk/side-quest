@@ -153,6 +153,15 @@ working offline). For wiring the refspec by hand instead of via `onboard`, see
   it via `go-version-file: go.mod`, so bumping the directive moves the release
   toolchain with it. Validate the config locally with `goreleaser check` and
   `goreleaser build --snapshot --clean`.
+- **Dogfooding side-quest on itself:** the repo's `.mcp.json` is the bare
+  end-user reference (`side-quest serve`, resolved on `PATH`), so the MCP server
+  runs whatever `side-quest` is installed — not your working tree. To point it and
+  the git hooks at HEAD, run `make dev`: it `go install`s HEAD to your `GOBIN`
+  (the binary both resolve to), re-points the hook shims at it, and links the
+  plugin's `/sq` command into `.claude/commands/`. Re-run `make dev` (or just
+  `make install`) after code changes, then **restart the MCP server** so it
+  reloads the new binary. There's no separate MCP artifact to update — `serve`
+  *is* the binary.
 - **Developing side-quest while using it elsewhere:** keep the released
   `side-quest` on your `PATH` for the project you track in production; for
   development, build a local `./side-quest` (`go build -o side-quest ./cmd/side-quest`)

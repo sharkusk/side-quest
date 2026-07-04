@@ -147,6 +147,23 @@ func TestReadmeReframedAndToneRemoved(t *testing.T) {
 	}
 }
 
+// TestDevMakefileDogfoodsHead (SQ-0025): the Makefile carries the one-command
+// dogfood loop — rebuild side-quest from HEAD into the PATH binary the MCP server
+// and git hooks resolve, repoint the hooks at it, and link the /sq command — so
+// dogfooding side-quest on itself needs no manual reinstall dance.
+func TestDevMakefileDogfoodsHead(t *testing.T) {
+	mk := string(repoFile(t, "Makefile"))
+	for _, want := range []string{
+		"go install ./cmd/side-quest", // HEAD -> $GOBIN, what bare `side-quest` resolves to
+		"install-hooks",               // repoint the git-hook shims at the fresh binary
+		"commands/sq.md",              // link the /sq command into .claude/commands
+	} {
+		if !strings.Contains(mk, want) {
+			t.Errorf("Makefile dogfood workflow missing %q", want)
+		}
+	}
+}
+
 func TestArchitectureHasToneAndPackaging(t *testing.T) {
 	a := string(repoFile(t, "docs/architecture.md"))
 	if !strings.Contains(a, "SIDE_QUEST_TONE") {
