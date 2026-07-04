@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	sidequest "github.com/sharkusk/side-quest"
 	"github.com/sharkusk/side-quest/internal/gitcmd"
+	"github.com/sharkusk/side-quest/internal/guidance"
 	"github.com/sharkusk/side-quest/internal/store"
 )
 
@@ -28,7 +28,7 @@ const (
 func agentsBlock(version string) string {
 	return agentsMarker + "\n" +
 		agentsVersionPrefix + version + agentsVersionSuffix + "\n" +
-		strings.TrimRight(sidequest.AgentsGuidance, "\n") + "\n" +
+		strings.TrimRight(guidance.Agents, "\n") + "\n" +
 		agentsEndMarker + "\n"
 }
 

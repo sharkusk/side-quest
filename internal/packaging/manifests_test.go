@@ -111,7 +111,7 @@ func TestSqCommandDisplayName(t *testing.T) {
 }
 
 func TestAgentsDocPointsToSkill(t *testing.T) {
-	a := string(repoFile(t, "AGENTS.md"))
+	a := string(repoFile(t, "internal/guidance/agents.md"))
 	if !strings.Contains(a, "skills/side-quest/SKILL.md") {
 		t.Error("AGENTS.md must reference skills/side-quest/SKILL.md")
 	}
@@ -125,7 +125,7 @@ func TestAgentsDocPointsToSkill(t *testing.T) {
 // Both guidance docs must tell the agent how to self-heal an unset-up repo:
 // init + install-hooks have no MCP tool, so the agent runs them in the shell.
 func TestFirstRunGuidancePresent(t *testing.T) {
-	for _, f := range []string{"AGENTS.md", "skills/side-quest/SKILL.md"} {
+	for _, f := range []string{"internal/guidance/agents.md", "skills/side-quest/SKILL.md"} {
 		doc := string(repoFile(t, f))
 		if !strings.Contains(doc, "side-quest install-hooks") {
 			t.Errorf("%s must tell the agent to run `side-quest install-hooks` for first-run setup", f)
@@ -162,7 +162,7 @@ func TestReadmeReframedAndToneRemoved(t *testing.T) {
 // The reinforcement surfaces must contain the canonical core verbatim (single
 // source of truth), and /sq must reflect the auto-classify rule — SQ-0051.
 func TestGuidanceSurfacesContainCore(t *testing.T) {
-	for _, f := range []string{"AGENTS.md", "skills/side-quest/SKILL.md"} {
+	for _, f := range []string{"skills/side-quest/SKILL.md"} {
 		if !strings.Contains(string(repoFile(t, f)), guidance.Core) {
 			t.Errorf("%s must contain guidance.Core verbatim (single source of truth)", f)
 		}

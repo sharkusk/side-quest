@@ -15,3 +15,11 @@ var coreRaw string
 
 // Core is the canonical core guidance brief, trimmed of surrounding whitespace.
 var Core = strings.TrimSpace(coreRaw)
+
+//go:embed agents.md
+var agentsRaw string
+
+// Agents is the agent-agnostic guidance block that `onboard --agents-md` and
+// `agents-md` emit — the UNWRAPPED template. The refresh markers are added at
+// runtime by the emitter (cmd/side-quest/onboard.go), never stored here.
+var Agents = agentsRaw
