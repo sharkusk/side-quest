@@ -58,6 +58,36 @@ an optional `context`, and optional `tags`. `type` and `priority` are constraine
 defaults (`feature`/`low`) applied at creation; like `status`, they are validated only at the
 write boundary (`Create`/`Reclassify`/`SetStatus`/`Modify`/`Replace`), never on read.
 
+## Durability: git won't garbage-collect the quest ref
+
+A fair worry, given quests live on a ref you never check out: **will `git gc` (locally or on
+GitHub) delete this data?** No. Git's garbage collector only prunes objects that are
+**unreachable from any ref**, and a ref is itself a reachability root. It makes no difference
+that `refs/side-quest/quests` lives in a custom namespace instead of `refs/heads/*` — every
+commit, tree, and blob reachable from it is retained by `gc`, on GitHub's servers exactly as
+locally. GitHub runs maintenance `gc`, but it never removes a ref or prunes what a ref still
+points at. Custom ref namespaces are well-trodden ground — `refs/notes/*` (git-notes),
+`refs/lfs/*`, Gerrit's `refs/changes/*` — and hosts preserve them the same way. (This is also
+why it is a *ref*, not an "orphan branch": an orphan branch still lives under `refs/heads/*`
+and shows in `git branch`; the quest ref is invisible to branch listings and PRs but just as
+protected from `gc`.)
+
+The only ways to actually lose quest data are therefore about the **ref**, never about `gc`
+reclaiming a live ref's objects:
+
+- **It was never pushed.** If the quest ref exists only locally (a misconfigured push refspec,
+  a dropped push), the remote has nothing to protect. This is why `install-hooks` configures the
+  fetch refspec and the `pre-push` hook publishes the ref on every push (see [Sync](#sync)).
+- **Someone deletes the ref** — an explicit `git push origin :refs/side-quest/quests`, or a
+  "delete every ref" cleanup tool. That removes the protection; nothing else does.
+
+**One adjacent case that *is* real GC — but of a linked commit, not the quest ref.** If you
+rebase or force-push your **branch** history and rewrite a commit a quest recorded, that old
+commit becomes unreachable from `refs/heads/*` and *will* eventually be pruned. The quest
+survives untouched; only the SHA it stored goes dangling. That is exactly what `relink` (and
+`quest_relink_commit`) exist to fix — repoint the quest at the rewritten commit — and why the
+old-sha match is by prefix and never git-resolved (a dangling hash can't be resolved).
+
 ## Reads
 
 Reads dump objects straight out of git — no checkout:
