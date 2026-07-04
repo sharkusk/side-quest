@@ -22,8 +22,9 @@ superfan-lines.txt
 .claude/commands/
 
 # side-quest-generated git hook shims (machine-local absolute paths; not shared).
-# The tracked .githooks/pre-commit stays tracked; these three are install-time
+# The tracked .githooks/pre-commit stays tracked; these four are install-time
 # artifacts written by `side-quest install-hooks`.
 /.githooks/prepare-commit-msg
 /.githooks/commit-msg
 /.githooks/post-commit
+/.githooks/pre-push
