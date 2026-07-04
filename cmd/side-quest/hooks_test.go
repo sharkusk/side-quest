@@ -146,19 +146,23 @@ func TestHookShebangCompatible(t *testing.T) {
 	}
 }
 
-// TestShimQuotedPathNormalizesSlashes: the hook shim embeds the binary path for
-// a POSIX-sh hook, so a Windows backslash path must be normalized to forward
-// slashes (Git for Windows runs hooks under MSYS sh, where "\" is an escape and
-// C:\... is fragile). ToSlash is a no-op on an already-slashed Unix path.
-func TestShimQuotedPathNormalizesSlashes(t *testing.T) {
-	cases := []struct{ in, want string }{
-		{`C:\Users\dev\go\bin\side-quest.exe`, `"C:/Users/dev/go/bin/side-quest.exe"`},
-		{"/usr/local/bin/side-quest", `"/usr/local/bin/side-quest"`},
+// TestGuardedShimIsPathRelative (SQ-0058): shims invoke `side-quest` via PATH
+// (no absolute path), guarded by `command -v`; only the blocking commit-msg
+// omits `|| true` so a require_quest reject can still block the commit.
+func TestGuardedShimIsPathRelative(t *testing.T) {
+	nonBlocking := guardedShim("link HEAD", false)
+	if !strings.Contains(nonBlocking, "if command -v side-quest >/dev/null 2>&1; then\n") {
+		t.Errorf("missing PATH guard:\n%s", nonBlocking)
 	}
-	for _, c := range cases {
-		if got := shimQuotedPath(c.in); got != c.want {
-			t.Errorf("shimQuotedPath(%q) = %q, want %q", c.in, got, c.want)
-		}
+	if !strings.Contains(nonBlocking, "\tside-quest link HEAD || true\n") {
+		t.Errorf("non-blocking hook must call bare side-quest with || true:\n%s", nonBlocking)
+	}
+	blocking := guardedShim(`commit-msg "$@"`, true)
+	if !strings.Contains(blocking, "\tside-quest commit-msg \"$@\"\n") {
+		t.Errorf("blocking hook must call bare side-quest:\n%s", blocking)
+	}
+	if strings.Contains(blocking, "|| true") {
+		t.Errorf("commit-msg must NOT append || true (it must be able to block):\n%s", blocking)
 	}
 }
 

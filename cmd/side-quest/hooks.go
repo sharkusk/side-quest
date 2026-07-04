@@ -41,9 +41,11 @@ func parseHookVersion(block string) string {
 	return ""
 }
 
-// cmdInstallHooks writes (or composes into) the three git hooks and migrates
-// origin's refspecs to the sync model. Shims call THIS binary by absolute path, so the
-// hooks always run the exact side-quest that installed them (no PATH reliance).
+// cmdInstallHooks writes (or composes into) the four git hooks and migrates
+// origin's refspecs to the sync model. Shims call `side-quest` via PATH (not by
+// absolute path), so the installed block is byte-identical across machines —
+// committable into a shared hooks dir — and skips gracefully when the binary is
+// absent (SQ-0058).
 func cmdInstallHooks(args []string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -53,15 +55,6 @@ func cmdInstallHooks(args []string) error {
 	if _, err := g.Run("rev-parse", "--is-inside-work-tree"); err != nil {
 		return fmt.Errorf("not a git repository: %w", err)
 	}
-	self, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	self, err = filepath.Abs(self)
-	if err != nil {
-		return err
-	}
-
 	hooksDir, err := resolveHooksDir(g, cwd)
 	if err != nil {
 		return err
@@ -76,14 +69,15 @@ func cmdInstallHooks(args []string) error {
 		return err
 	}
 
-	q := shimQuotedPath(self)
-	// commit-msg OMITS "|| true" so a require_quest reject (exit 1) blocks the
-	// commit; the other two never block the user's workflow.
+	// Shims call `side-quest` via PATH so they are byte-identical across machines
+	// (committable into a shared hooks dir) and degrade gracefully when the binary
+	// is absent. commit-msg is the one blocking hook (block=true): it keeps no
+	// `|| true`, so a require_quest reject blocks the commit; the others never block.
 	shims := []struct{ name, body string }{
-		{"prepare-commit-msg", q + ` prepare-commit-msg "$@" || true`},
-		{"commit-msg", q + ` commit-msg "$@"`},
-		{"post-commit", q + ` link HEAD || true`},
-		{"pre-push", q + ` pre-push "$@" || true`},
+		{"prepare-commit-msg", guardedShim(`prepare-commit-msg "$@"`, false)},
+		{"commit-msg", guardedShim(`commit-msg "$@"`, true)},
+		{"post-commit", guardedShim("link HEAD", false)},
+		{"pre-push", guardedShim(`pre-push "$@"`, false)},
 	}
 	for _, sh := range shims {
 		outcome, prev, err := installOneHook(filepath.Join(hooksDir, sh.name), sh.body, version)
@@ -132,20 +126,6 @@ func resolveHooksDir(g *gitcmd.Git, cwd string) (string, error) {
 	return filepath.Join(common, "hooks"), nil
 }
 
-// shimQuotedPath returns the side-quest binary path quoted for a POSIX-sh hook,
-// normalized to forward slashes. Git hooks always run under sh — even on Windows,
-// via Git-for-Windows' MSYS sh, where a backslash is an escape and a C:\... drive
-// path is fragile — so the embedded path must use "/" (MSYS sh accepts C:/...).
-//
-// The conversion is done explicitly rather than with filepath.ToSlash, which
-// keys off the BUILD host's separator ('/' on Unix) and so would silently leave
-// a Windows path untouched when this binary is cross-compiled or tested on Unix.
-// A literal backslash in a Unix install path (pathological for a binary) is the
-// only case this would mangle, a trade we accept for correct Windows shims.
-func shimQuotedPath(self string) string {
-	return `"` + strings.ReplaceAll(self, `\`, "/") + `"`
-}
-
 // hookOutcome reports what installOneHook did to a hook file, so the caller can
 // message the user (a foreign hook composed into, or one skipped as unsafe).
 type hookOutcome int
@@ -186,6 +166,25 @@ func hookShebangCompatible(content string) bool {
 		return true
 	}
 	return false
+}
+
+// guardedShim renders a PATH-relative hook body: it runs `side-quest
+// <invocation>` only when the binary is on PATH, and otherwise warns and skips
+// (never blocking). The if/else lets control flow THROUGH the block, so any
+// hook content after our marker block still runs (an early exit would skip it).
+// block=false appends `|| true` so the hook never fails on side-quest's own exit
+// status; block=true (commit-msg) omits it so a require_quest reject still blocks
+// the commit. A MISSING binary always takes the else branch and exits 0 (SQ-0058).
+func guardedShim(invocation string, block bool) string {
+	tail := " || true"
+	if block {
+		tail = ""
+	}
+	return "if command -v side-quest >/dev/null 2>&1; then\n" +
+		"\tside-quest " + invocation + tail + "\n" +
+		"else\n" +
+		"\techo \"side-quest: not on PATH — skipping (add it to PATH; see install-hooks)\" >&2\n" +
+		"fi"
 }
 
 // installOneHook creates a new hook or composes our marker-guarded block into an
