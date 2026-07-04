@@ -72,6 +72,7 @@ func TestEveryPoolLineInterpolatesCleanly(t *testing.T) {
 		keyEmptyList:       func(v *Voice) string { return v.EmptyList() },
 		keyInitialized:     func(v *Voice) string { return v.Initialized() },
 		keyHooksInstalled:  func(v *Voice) string { return v.HooksInstalled("/d") },
+		keyNoteAdded:       func(v *Voice) string { return v.NoteAdded("SQ-1") },
 	}
 	for tone, keys := range pools {
 		for key, lines := range keys {
@@ -90,8 +91,21 @@ func TestEveryPoolLineInterpolatesCleanly(t *testing.T) {
 	}
 }
 
+// TestNoteAdded (SQ-0027): the note confirmation renders through the voice layer
+// like its sibling mutations — plain stays the bland "noted <id>", dcc carries the
+// id in a flavored line.
+func TestNoteAdded(t *testing.T) {
+	if got := New(config.TonePlain).NoteAdded("SQ-1"); got != "noted SQ-1" {
+		t.Errorf("plain NoteAdded = %q, want 'noted SQ-1'", got)
+	}
+	v := &Voice{tone: config.ToneDCC, src: fixedSource(0)}
+	if got := v.NoteAdded("SQ-7"); !strings.Contains(got, "SQ-7") {
+		t.Errorf("dcc NoteAdded missing id: %q", got)
+	}
+}
+
 func TestDCCKeysNonEmpty(t *testing.T) {
-	for k := keyQuestCreated; k <= keyHooksInstalled; k++ {
+	for k := keyQuestCreated; k <= keyNoteAdded; k++ {
 		if len(pools[config.ToneDCC][k]) == 0 {
 			t.Errorf("dcc pool missing key %d", k)
 		}

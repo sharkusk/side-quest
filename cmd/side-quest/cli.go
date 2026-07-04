@@ -309,7 +309,7 @@ func cmdNote(args []string) error {
 	if err := s.AppendNote(id, strings.Join(args[1:], " ")); err != nil {
 		return err
 	}
-	fmt.Printf("noted %s\n", id)
+	fmt.Println(voiceFor(s).NoteAdded(id))
 	return nil
 }
 

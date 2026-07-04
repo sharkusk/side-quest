@@ -308,8 +308,8 @@ The CLI relies on two store/config additions: `store.SetAutoTrailer` and
 ### Voice layer (`internal/voice`)
 
 `internal/voice` renders the small set of human-facing confirmation/warning strings
-(`QuestCreated`, `StatusSet`, `MissingTrailer`, `EmptyList`, `Initialized`,
-`HooksInstalled`) in a selected **tone**. The package is pure — no I/O — and built from
+(`QuestCreated`, `StatusSet`, `NoteAdded`, `MissingTrailer`, `EmptyList`,
+`Initialized`, `HooksInstalled`) in a selected **tone**. The package is pure — no I/O — and built from
 three pieces: a `pools` table (`tone -> message key -> candidate lines`), an injectable
 `source` interface for randomness (production uses `math/rand`; tests inject a
 deterministic stub), and typed methods on `*Voice` so call sites never touch raw keys or

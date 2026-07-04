@@ -78,6 +78,9 @@ func (v *Voice) Initialized() string { return v.pick(keyInitialized) }
 // HooksInstalled confirms hook installation.
 func (v *Voice) HooksInstalled(dir string) string { return fmt.Sprintf(v.pick(keyHooksInstalled), dir) }
 
+// NoteAdded confirms a note was appended to a quest.
+func (v *Voice) NoteAdded(id string) string { return fmt.Sprintf(v.pick(keyNoteAdded), id) }
+
 // ResolveTone applies the SIDE_QUEST_TONE override: a valid env value wins,
 // otherwise the config value is used. Invalid/empty env is ignored.
 func ResolveTone(env string, cfg config.Tone) config.Tone {

@@ -288,6 +288,30 @@ func TestNewBadTagExitsTwo(t *testing.T) {
 	}
 }
 
+// TestNoteConfirmationRoutesThroughVoice (SQ-0027): the note confirmation now
+// renders through the voice layer like its sibling mutations, so under dcc it is
+// flavored rather than the bland "noted <id>" it printed before.
+func TestNoteConfirmationRoutesThroughVoice(t *testing.T) {
+	t.Setenv("SIDE_QUEST_TONE", "dcc")
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	q, err := s.Create("a task", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, code := runBin(t, bin, dir, "note", q.ID, "a note")
+	if code != 0 {
+		t.Fatalf("note exit=%d out=%s", code, out)
+	}
+	got := strings.TrimSpace(out)
+	if !strings.Contains(got, q.ID) {
+		t.Errorf("note confirmation missing id: %q", got)
+	}
+	if got == "noted "+q.ID {
+		t.Errorf("note confirmation not routed through voice (still bland): %q", got)
+	}
+}
+
 // TestInitWithRemoteChoosesRandomAndSaysSo (SQ-0030): initializing a repo that
 // already has a remote defaults to random ids and tells the user.
 func TestInitWithRemoteChoosesRandomAndSaysSo(t *testing.T) {

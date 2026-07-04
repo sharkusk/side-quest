@@ -19,6 +19,7 @@ const (
 	keyEmptyList
 	keyInitialized
 	keyHooksInstalled
+	keyNoteAdded
 )
 
 // pools maps tone -> key -> candidate lines. plain has exactly one neutral line
@@ -36,6 +37,7 @@ var pools = map[config.Tone]map[msgKey][]string{
 		keyEmptyList:       {"no quests"},
 		keyInitialized:     {"side-quest: initialized"},
 		keyHooksInstalled:  {"side-quest: hooks installed in %s"},
+		keyNoteAdded:       {"noted %s"},
 	},
 	config.ToneDCC: {
 		keyQuestCreated: {
@@ -81,6 +83,10 @@ var pools = map[config.Tone]map[msgKey][]string{
 		keyHooksInstalled: {
 			"Hooks installed in %s. The System now watches your commits.",
 			"Git hooks wired into %s. Nowhere to hide, crawler.",
+		},
+		keyNoteAdded: {
+			"Noted on %s. The System files it away.",
+			"A line added to %s's record. The audience takes notes too.",
 		},
 	},
 }
