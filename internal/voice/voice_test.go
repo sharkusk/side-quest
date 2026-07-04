@@ -55,6 +55,41 @@ func TestNoFormatErrorsAllTonesAllMethods(t *testing.T) {
 	}
 }
 
+// TestEveryPoolLineInterpolatesCleanly sweeps every line of every pool in every
+// tone — not one random sample per method — so a single line with the wrong
+// number of %s verbs can't slip through. fixedSource(i) forces pick to return
+// line i, and each key is invoked through its real method with the exact arg
+// count production uses, so a bad line surfaces as a "%!" Sprintf error.
+func TestEveryPoolLineInterpolatesCleanly(t *testing.T) {
+	invokers := map[msgKey]func(v *Voice) string{
+		keyQuestCreated:    func(v *Voice) string { return v.QuestCreated("SQ-1") },
+		keyStatusOpen:      func(v *Voice) string { return v.StatusSet("SQ-1", quest.StatusOpen) },
+		keyStatusPartial:   func(v *Voice) string { return v.StatusSet("SQ-1", quest.StatusPartial) },
+		keyStatusDone:      func(v *Voice) string { return v.StatusSet("SQ-1", quest.StatusDone) },
+		keyStatusDeferred:  func(v *Voice) string { return v.StatusSet("SQ-1", quest.StatusDeferred) },
+		keyStatusDiscarded: func(v *Voice) string { return v.StatusSet("SQ-1", quest.StatusDiscarded) },
+		keyMissingTrailer:  func(v *Voice) string { return v.MissingTrailer() },
+		keyEmptyList:       func(v *Voice) string { return v.EmptyList() },
+		keyInitialized:     func(v *Voice) string { return v.Initialized() },
+		keyHooksInstalled:  func(v *Voice) string { return v.HooksInstalled("/d") },
+	}
+	for tone, keys := range pools {
+		for key, lines := range keys {
+			invoke, ok := invokers[key]
+			if !ok {
+				t.Fatalf("no invoker for key %d (tone %q); add one so the sweep stays exhaustive", key, tone)
+			}
+			for i := range lines {
+				v := &Voice{tone: tone, src: fixedSource(i)}
+				got := invoke(v)
+				if got == "" || strings.Contains(got, "%!") {
+					t.Errorf("tone %q key %d line %d (%q) -> bad output %q", tone, key, i, lines[i], got)
+				}
+			}
+		}
+	}
+}
+
 func TestDCCKeysNonEmpty(t *testing.T) {
 	for k := keyQuestCreated; k <= keyHooksInstalled; k++ {
 		if len(pools[config.ToneDCC][k]) == 0 {
