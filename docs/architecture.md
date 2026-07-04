@@ -250,11 +250,32 @@ already had content, so a repo driving a different bookkeeping system surfaces
 the conflict instead of getting side-quest silently appended; the
 [manual-setup guide](manual-setup.md#existing-git-hooks) walks through migrating.
 
+### How agent guidance is delivered (SQ-0051)
+
+The knowledge an agent needs — the capture reflex, the auto-classify-when-obvious
+rule, "set current and the hooks link your commits," the trailer forms — is carried
+by the **MCP server itself**, so it reaches any MCP client with no file in the
+user's repo. `internal/guidance` embeds one canonical brief, `guidance.Core`; the
+server sends it verbatim as the initialize-time **`instructions`** field
+(`ServerOptions.Instructions`), which a client MAY inject into the model's context.
+The always-loaded **tool descriptions** are the reliable floor — `quest_new` and
+`quest_set_current` carry the reflex / auto-classify / auto-link cues inline, so the
+essentials survive a client that ignores `instructions`. Long-tail tools
+(`quest_note`, `quest_reclassify`, `quest_relink_commit`, …) are self-describing
+through their own descriptions; situational multi-step workflows live in the
+reinforcement surfaces.
+
+The skill and `AGENTS.md` are **opt-in reinforcement**, not the baseline: the
+Claude plugin bundles the skill; a non-Claude user opts into `AGENTS.md` with
+`onboard --agents-md`. All three surfaces derive from the same `guidance.Core` — a
+test in `internal/packaging` asserts `AGENTS.md` and `skills/side-quest/SKILL.md`
+contain it verbatim, so they cannot drift from the source.
+
 The **AGENTS.md guidance** uses the same drift-defeating pattern (SQ-0047). The
 emitted block is wrapped in HTML-comment markers (`<!-- >>> side-quest >>> -->` …
 `<!-- <<< side-quest <<< -->`, invisible in rendered Markdown) and carries a
-`<!-- side-quest-version: <v> -->` stamp. `onboard` no longer just prints the
-guidance for a hand-merge — it manages that block **in place** in the project's
+`<!-- side-quest-version: <v> -->` stamp. `onboard --agents-md` (the merge is
+opt-in — SQ-0051) manages that block **in place** in the project's
 `AGENTS.md`: creating the file, appending after the user's own content, or
 replacing only our block on a version change (never duplicating it, never
 touching their text). So when the directives change release-to-release, re-running

@@ -16,9 +16,10 @@ Inside the repo you want to track, the one-shot way:
 side-quest onboard         # init + install-hooks + write .mcp.json (if absent)
 ```
 
-`onboard` does everything below in one command, including merging the AGENTS.md
-guidance into the project in place; it is safe to re-run (it refreshes the
-marker-wrapped guidance block to the current version). To do it by hand instead:
+`onboard` does everything below in one command; it is safe to re-run. Guidance
+rides the MCP server, so `onboard` does not touch your `AGENTS.md` by default — add
+`--agents-md` to also merge the guidance block in place (see
+[Wire up your agent](#wire-up-your-agent)). To do it by hand instead:
 
 ```
 side-quest init            # create the quest ref
@@ -56,15 +57,19 @@ subprocess your agent launches. Register it with a project `.mcp.json`:
 { "mcpServers": { "side-quest": { "command": "side-quest", "args": ["serve"] } } }
 ```
 
-Then add side-quest's guidance to your agent instructions. Run `side-quest
-agents-md` to print the canonical block (or copy this repo's
-[`AGENTS.md`](../AGENTS.md)). The block is wrapped in `<!-- >>> side-quest >>> -->`
-markers and version-stamped; if the project already has an `AGENTS.md`, append the
-block as a new section — **merge, don't overwrite** — and a later `side-quest
-onboard` will refresh that block in place. Optionally add a `/sq` capture command
-at `.claude/commands/sq.md`.
+That's enough on its own: **the server carries side-quest's core guidance**, sent
+on connect as the MCP `instructions` field and reinforced by the tool descriptions,
+so any MCP client is primed without a file in your repo.
 
-**Restart the agent session** so the MCP server, commands, and `AGENTS.md` load —
+Want the guidance reinforced in your own agent instructions too? Run `side-quest
+agents-md` to print the canonical block (or `side-quest onboard --agents-md` to
+merge it in place). The block is wrapped in `<!-- >>> side-quest >>> -->` markers
+and version-stamped; if the project already has an `AGENTS.md`, it's appended as a
+new section — **merge, don't overwrite** — and a later `onboard --agents-md`
+refreshes it in place. On Claude Code, the plugin's skill and `/sq` command are the
+equivalent reinforcement.
+
+**Restart the agent session** so the MCP server (and any guidance files) load —
 you'll be prompted once to approve a new project MCP server.
 
 **`PATH` note:** a bare `side-quest serve` in `.mcp.json` needs `side-quest` on the
@@ -79,6 +84,28 @@ The server exposes: `quest_new`, `quest_list`, `quest_show`, `quest_set_status`,
 `quest_get_current`, `quest_link_commit`. Responses are neutral JSON. For
 agent-facing guidance see [`AGENTS.md`](../AGENTS.md) and
 [`skills/side-quest/SKILL.md`](../skills/side-quest/SKILL.md).
+
+## Customizing guidance for your project
+
+side-quest ships tag *mechanics* — `quest_new`/`quest_update` take key/value
+`tags`, and `list --tag k=v` / `list --filter "…"` query them — but deliberately no
+tag *taxonomy*: there is no universal one, so the core guidance stays taxonomy-free.
+To have your agent tag quests consistently, declare the convention where you already
+keep project instructions — your own `AGENTS.md`/`CLAUDE.md`, or a custom skill. For
+example:
+
+> Tag every side quest with `area=<subsystem>` (e.g. `area=parser`); tag bugs with
+> `platform=<os>` when the issue is OS-specific.
+
+The agent then passes those tags to `quest_new` on capture, and you slice the
+backlog with them:
+
+```
+side-quest list --filter "area=parser and bug and not done"
+```
+
+This is the reinforcement layer doing its job: the MCP server carries the universal
+core, and *your* instructions carry the project-specific conventions on top.
 
 ## Sharing quests across machines
 

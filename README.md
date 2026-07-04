@@ -85,15 +85,17 @@ commit on that ref — no second commit on your branch, no manual step. The
   the guidance skill, and **auto-provisions the binary** (downloaded and
   checksum-verified). No separate install.
 - **[Manual setup](docs/manual-setup.md)** — for any MCP-capable agent:
-  [install the binary](docs/install.md) yourself, then register the MCP server
-  and merge side-quest's guidance into your `AGENTS.md`.
+  [install the binary](docs/install.md) yourself and register the MCP server. The
+  server carries side-quest's core guidance itself, so there's nothing to merge
+  into your `AGENTS.md` unless you want the extra reinforcement.
 
 **2. Set up each repo you want to track** — run `side-quest onboard` once: it
-creates the quest ref, installs the git hooks, writes a project `.mcp.json` if
-absent, and merges side-quest's guidance into the project's `AGENTS.md`. Safe to
-re-run after an upgrade — the guidance is a marker-wrapped, version-stamped block
-`onboard` refreshes in place (your own `AGENTS.md` content is left untouched).
-(Or do it by hand with `side-quest init` + `side-quest install-hooks`.)
+creates the quest ref, installs the git hooks, and writes a project `.mcp.json` if
+absent. Guidance rides the MCP server, so `onboard` no longer touches your
+`AGENTS.md` — add `--agents-md` if you want the guidance merged in as extra
+reinforcement (a marker-wrapped, version-stamped block it refreshes in place,
+leaving your own content untouched). Safe to re-run. (Or do it by hand with
+`side-quest init` + `side-quest install-hooks`.)
 
 **3. Capture your first quest** — ask your agent to note a follow-up, type
 `/sq fix the flaky parser test` (Claude Code plugin), or run
@@ -200,16 +202,19 @@ commit on your branch, nothing typed twice.
 
 What makes side-quest useful to an agent is the *guidance* it loads alongside the
 tools — the reflex to capture a stray idea without derailing, and the
-commit-trailer contract that links work to quests. That guidance ships as two
-mirrored files:
+commit-trailer contract that links work to quests. **The MCP server carries that
+core guidance itself**, delivered on connect and portable to any MCP client, so an
+agent is primed the moment the server is registered — nothing added to your repo.
 
-- [`AGENTS.md`](AGENTS.md) — agent-agnostic. `side-quest onboard` merges it into
-  your project's own `AGENTS.md` as a marker-wrapped, version-stamped block it
-  can refresh in place on later upgrades; `side-quest agents-md` prints the block
-  for a manual paste.
-- [`skills/side-quest/SKILL.md`](skills/side-quest/SKILL.md) — the same guidance
-  in Claude-plugin form, loaded automatically by the
-  [Claude Code plugin](docs/plugin.md) and surfaced as the `/sq` capture command.
+Two optional surfaces *reinforce* it when you want more than the baseline:
+
+- [`skills/side-quest/SKILL.md`](skills/side-quest/SKILL.md) — the Claude-plugin
+  form, loaded automatically by the [Claude Code plugin](docs/plugin.md) and
+  surfaced as the `/sq` capture command.
+- [`AGENTS.md`](AGENTS.md) — agent-agnostic, for non-Claude tools.
+  `side-quest onboard --agents-md` merges it into your project's own `AGENTS.md`
+  as a marker-wrapped, version-stamped block it refreshes in place; `side-quest
+  agents-md` prints it for a manual paste.
 
 ### Working with others
 

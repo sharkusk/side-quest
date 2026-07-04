@@ -9,8 +9,9 @@ setup yourself (see below).
 /plugin install side-quest
 ```
 
-This registers the `side-quest` MCP server and the `/sq` capture command, and
-loads the guidance skill — nothing to add to your `AGENTS.md`. On first use it
+This registers the `side-quest` MCP server — which carries side-quest's core
+guidance itself — plus the `/sq` capture command and the guidance skill that
+reinforces it. Nothing to add to your `AGENTS.md`. On first use it
 **auto-provisions** the matching `side-quest` binary (downloaded from the release
 and checksum-verified) into a per-plugin cache. If a download isn't possible
 (offline, or before the project is public), install the binary yourself
