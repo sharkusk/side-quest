@@ -203,6 +203,14 @@ works, or run `side-quest sync` to reconcile without pushing (e.g. after working
 offline). To wire the refspec by hand instead of via `onboard`, see
 [Sharing quests across machines](docs/manual-setup.md#sharing-quests-across-machines).
 
+> ⚠️ **Quests are as visible as the repo.** They live in the repository, on
+> `refs/side-quest/*`, and sync to the remote on push — so anyone who can clone or
+> fetch it (teammates, CI, anyone with read access) can see **every** quest and its
+> full history, including ones you've closed or discarded. Don't put secrets,
+> credentials, or anything you wouldn't want a repo collaborator to read into a
+> quest's title, note, or body. For tracking only you should see, use a repo only
+> you can access.
+
 ## Development
 
 - **Requirements:** Go ≥ 1.25; the system `git` binary (used as a subprocess);
