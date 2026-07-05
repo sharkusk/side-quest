@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sharkusk/side-quest/internal/cli"
 	"github.com/sharkusk/side-quest/internal/gitcmd"
 	"github.com/sharkusk/side-quest/internal/guidance"
 	"github.com/sharkusk/side-quest/internal/store"
@@ -216,6 +217,15 @@ func cmdOnboard(args []string) error {
 		}
 		fmt.Println(agentsGuidanceNote(outcome, prev, version))
 	}
+
+	// 5. Under the plugin, side-quest is only on PATH inside Claude sessions — so
+	// nudge the user to enable the terminal CLI, a stable launcher that lets them
+	// run side-quest from their own shell. Silent once it's enabled, and silent for
+	// a standalone install (which already has side-quest on PATH) (SQ-0073).
+	if pluginActive() && !cli.Status().Installed {
+		fmt.Println("side-quest: tip — enable the terminal CLI to run side-quest from your own shell: run the cli_install tool, or `side-quest install-cli`.")
+	}
+
 	fmt.Println("Then restart your agent session so the MCP server loads its guidance.")
 	return nil
 }

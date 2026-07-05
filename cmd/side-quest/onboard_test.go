@@ -126,6 +126,7 @@ func TestOnboardRefreshesAgentsInPlace(t *testing.T) {
 // merge is opt-in via --agents-md — SQ-0051). A fresh repo ends up wired.
 func TestOnboardSetsUpRepo(t *testing.T) {
 	t.Setenv("CLAUDE_PLUGIN_DATA", "") // pin non-plugin: onboard must write .mcp.json
+	t.Setenv("SIDE_QUEST_PLUGIN", "")  // and no launcher marker (SQ-0072)
 	bin := buildBinary(t)
 	dir, _ := newRepo(t)
 	out, code := runBin(t, bin, dir, "onboard")
@@ -148,6 +149,9 @@ func TestOnboardSetsUpRepo(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(out), "restart") {
 		t.Error("onboard did not print a restart reminder")
+	}
+	if strings.Contains(out, "install-cli") {
+		t.Errorf("standalone onboard must not push the terminal-CLI tip; got:\n%s", out)
 	}
 }
 
@@ -221,9 +225,40 @@ func TestOnboardSkipsMcpJsonUnderPlugin(t *testing.T) {
 	}
 }
 
+// Under the plugin, onboard nudges the user to enable the terminal CLI — but only
+// when a marked launcher isn't already on PATH (SQ-0073).
+func TestOnboardTipsEnableCliUnderPlugin(t *testing.T) {
+	bin := buildBinary(t) // build with the real env before scrubbing PATH/HOME
+	dir, _ := newRepo(t)  // git identity is local config, independent of HOME
+
+	t.Setenv("CLAUDE_PLUGIN_DATA", t.TempDir()) // plugin active
+	// Make the terminal-CLI probe deterministically empty: a fresh HOME (so the
+	// candidate bin dirs don't exist) and a PATH scrubbed of the real home's bin
+	// dirs, keeping the system dirs onboard still needs for git.
+	realHome, _ := os.UserHomeDir()
+	var kept []string
+	for _, p := range filepath.SplitList(os.Getenv("PATH")) {
+		if p != "" && !strings.HasPrefix(p, realHome) {
+			kept = append(kept, p)
+		}
+	}
+	t.Setenv("PATH", strings.Join(kept, string(os.PathListSeparator)))
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_BIN_HOME", "")
+
+	out, code := runBin(t, bin, dir, "onboard")
+	if code != 0 {
+		t.Fatalf("onboard exit=%d out=%q", code, out)
+	}
+	if !strings.Contains(out, "install-cli") {
+		t.Errorf("onboard under the plugin should suggest enabling the terminal CLI; got:\n%s", out)
+	}
+}
+
 // onboard writes .mcp.json only when absent — an existing one is never clobbered.
 func TestOnboardPreservesExistingMcpJson(t *testing.T) {
 	t.Setenv("CLAUDE_PLUGIN_DATA", "") // pin non-plugin: onboard must write .mcp.json
+	t.Setenv("SIDE_QUEST_PLUGIN", "")  // and no launcher marker (SQ-0072)
 	bin := buildBinary(t)
 	dir, _ := newRepo(t)
 	custom := `{"mcpServers":{"other":{"command":"x"}}}`
