@@ -113,6 +113,8 @@ func run(cmd string, args []string) error {
 		return cmdPrepareCommitMsg(args)
 	case "install-hooks":
 		return cmdInstallHooks(args)
+	case "install-cli":
+		return cmdInstallCli(args)
 	case "sync":
 		return cmdSync(args)
 	case "pre-push":

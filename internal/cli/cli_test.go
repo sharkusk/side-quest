@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -55,5 +57,75 @@ func TestChooseInstallDirEmptyXDG(t *testing.T) {
 				t.Errorf("ChooseInstallDir = %q, want %q", got, c.want)
 			}
 		})
+	}
+}
+
+// Install writes a marked launcher into an on-PATH conventional dir and reports it.
+func TestInstallWritesMarkedLauncher(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_BIN_HOME", "")
+	t.Setenv("PATH", dir)
+
+	r, err := Install()
+	if err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	if !r.OnPath {
+		t.Errorf("chosen dir %s is on PATH; OnPath should be true", r.Dir)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, LauncherName()))
+	if err != nil {
+		t.Fatalf("launcher not written: %v", err)
+	}
+	if !bytes.Contains(b, []byte(Marker)) {
+		t.Error("written launcher is missing the marker")
+	}
+}
+
+// Install refuses to overwrite a side-quest it did not install (no marker).
+func TestInstallRefusesUnmarked(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mine := "#!/bin/sh\necho my own build\n"
+	if err := os.WriteFile(filepath.Join(dir, LauncherName()), []byte(mine), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_BIN_HOME", "")
+	t.Setenv("PATH", dir)
+
+	if _, err := Install(); err == nil {
+		t.Fatal("Install should refuse to clobber an unmarked side-quest")
+	}
+	got, _ := os.ReadFile(filepath.Join(dir, LauncherName()))
+	if string(got) != mine {
+		t.Errorf("Install clobbered the user's own side-quest:\n%s", got)
+	}
+}
+
+// With no candidate on PATH, Install falls back to ~/.local/bin and reports off-PATH.
+func TestInstallFallbackReportsOffPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_BIN_HOME", "")
+	t.Setenv("PATH", "/usr/bin:/bin") // none of our candidates is on PATH
+
+	r, err := Install()
+	if err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	if r.OnPath {
+		t.Error("no candidate was on PATH; OnPath should be false")
+	}
+	if _, err := os.Stat(filepath.Join(home, ".local", "bin", LauncherName())); err != nil {
+		t.Errorf("fallback did not write ~/.local/bin/%s: %v", LauncherName(), err)
 	}
 }

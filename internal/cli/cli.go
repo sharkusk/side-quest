@@ -7,8 +7,19 @@
 package cli
 
 import (
+	"bytes"
+	_ "embed"
+	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
 )
+
+//go:embed launcher.sh
+var launcherSh []byte
+
+//go:embed launcher.cmd
+var launcherCmd []byte
 
 // Marker identifies a launcher this package wrote. Uninstall removes only files
 // carrying it, and Install refuses to overwrite a side-quest that lacks it (a
@@ -42,4 +53,55 @@ func ChooseInstallDir(candidates, pathDirs []string) string {
 		}
 	}
 	return ""
+}
+
+// LauncherName is the launcher filename for this OS: the native batch file on
+// Windows, the extensionless POSIX script elsewhere.
+func LauncherName() string {
+	if runtime.GOOS == "windows" {
+		return "side-quest.cmd"
+	}
+	return "side-quest"
+}
+
+// LauncherBody is the embedded launcher asset for this OS.
+func LauncherBody() []byte {
+	if runtime.GOOS == "windows" {
+		return launcherCmd
+	}
+	return launcherSh
+}
+
+// InstallResult reports where Install placed the launcher.
+type InstallResult struct {
+	Path   string // absolute path of the written launcher
+	Dir    string // the dir it was written into
+	OnPath bool   // whether Dir is already on PATH
+}
+
+// Install writes the read-only launcher onto the user's PATH (spec D7). It reads
+// $HOME, $XDG_BIN_HOME and $PATH from the environment, never clobbers a side-quest
+// lacking Marker (D8), and reports where it landed and whether that dir is on PATH.
+func Install() (InstallResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return InstallResult{}, err
+	}
+	candidates := InstallDirCandidates(home, os.Getenv("XDG_BIN_HOME"))
+	dir := ChooseInstallDir(candidates, filepath.SplitList(os.Getenv("PATH")))
+	onPath := dir != ""
+	if dir == "" {
+		dir = filepath.Join(home, ".local", "bin") // conventional fallback (D7)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return InstallResult{}, err
+	}
+	target := filepath.Join(dir, LauncherName())
+	if b, err := os.ReadFile(target); err == nil && !bytes.Contains(b, []byte(Marker)) {
+		return InstallResult{}, fmt.Errorf("refusing to overwrite %s — not a launcher we installed (no %q marker)", target, Marker)
+	}
+	if err := os.WriteFile(target, LauncherBody(), 0o755); err != nil {
+		return InstallResult{}, err
+	}
+	return InstallResult{Path: target, Dir: dir, OnPath: onPath}, nil
 }
