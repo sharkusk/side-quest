@@ -192,6 +192,17 @@ func TestDevMakefileDogfoodsHead(t *testing.T) {
 	}
 }
 
+// The skill documents the plugin CLI lifecycle so a human reader (and an agent
+// reading the skill) sees how to enable/query the terminal CLI and set up a repo.
+func TestSkillDocumentsPluginLifecycle(t *testing.T) {
+	s := string(repoFile(t, "skills/side-quest/SKILL.md"))
+	for _, want := range []string{"cli_status", "cli_install", "onboard"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("SKILL.md should mention %q for the plugin lifecycle", want)
+		}
+	}
+}
+
 func TestArchitectureHasToneAndPackaging(t *testing.T) {
 	a := string(repoFile(t, "docs/architecture.md"))
 	if !strings.Contains(a, "SIDE_QUEST_TONE") {

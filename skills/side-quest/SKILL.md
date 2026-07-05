@@ -152,3 +152,17 @@ its tags, notes, and linked commits.
   — those are the project owner's decisions; no tool exposes them.
 - **Start captured work.** Capturing a quest is not permission to begin it.
 - **Apply any voice/tone.** Tool responses are neutral JSON by design.
+
+## Plugin lifecycle (Claude Code)
+
+When side-quest runs as the Claude Code plugin, the MCP server's instructions guide
+you through its lifecycle — this section is the human-readable version.
+
+- **Enable the terminal CLI (once).** Early in a session, call `cli_status`. If the
+  terminal CLI isn't enabled and hasn't been offered, offer to put `side-quest` on
+  the user's PATH; on yes call `cli_install` (report the path it returns), on no
+  call `cli_dismiss`. Re-run `cli_install` anytime to re-enable if the launcher was
+  removed; `cli_uninstall` removes it.
+- **Set up or refresh a repo.** To track a repo (or refresh it after a plugin
+  update), run `side-quest onboard` — it creates the quest ref, installs the git
+  hooks, and (outside the plugin) writes `.mcp.json`. Safe to re-run.
