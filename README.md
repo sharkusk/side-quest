@@ -40,6 +40,14 @@ Quests live as one Markdown file each on a dedicated git ref
 (`refs/side-quest/quests`), off your main history and never checked out — so they
 travel with a clone but never clutter your working tree.
 
+> ⚠️ **Uploading the repo uploads your quests too.** Because quests live inside the
+> repository, they travel with it on every push — so pushing to GitHub (or any
+> remote) publishes **all** your quests and their full history alongside your code,
+> including ones you've closed or discarded. A public repo makes them public; a
+> shared private repo makes them visible to everyone with access. Don't put secrets,
+> credentials, or anything you wouldn't want published into a quest's title, note,
+> or body.
+
 **→ For the storage model, compare-and-swap writes, the mutation flow, and id
 allocation, see [`docs/architecture.md`](docs/architecture.md).**
 
@@ -202,14 +210,6 @@ added — no extra command. See [`docs/sync.md`](docs/sync.md) for how the merge
 works, or run `side-quest sync` to reconcile without pushing (e.g. after working
 offline). To wire the refspec by hand instead of via `onboard`, see
 [Sharing quests across machines](docs/manual-setup.md#sharing-quests-across-machines).
-
-> ⚠️ **Uploading the repo uploads your quests too.** Quests live inside the
-> repository, on `refs/side-quest/*`, and travel with it on every push — so pushing
-> to GitHub (or any remote) publishes **all** your quests and their full history
-> alongside your code, including ones you've closed or discarded. A public repo
-> makes them public; a shared private repo makes them visible to everyone with
-> access. Don't put secrets, credentials, or anything you wouldn't want published
-> into a quest's title, note, or body.
 
 ## Development
 
