@@ -10,9 +10,9 @@ set -eu
 
 REPO="sharkusk/side-quest"
 
-# We are a side-quest launcher: mark every binary we exec so plugin detection is
-# reliable no matter where the binary is staged (the download cache below lives
-# outside the plugin tree) or whether CLAUDE_PLUGIN_DATA propagated here (SQ-0072).
+# We are a side-quest launcher: mark every binary we exec as plugin-launched, so
+# detection stays reliable when we exec a dev build that lives on PATH outside the
+# plugin tree (step 2) or when CLAUDE_PLUGIN_DATA has not propagated here (SQ-0072).
 export SIDE_QUEST_PLUGIN=1
 
 # Canonicalize our own path so the step-2 self-check compares absolute-to-absolute.
@@ -21,8 +21,13 @@ SELF="$SELF_DIR/$(basename -- "$0")"
 ROOT=$(CDPATH= cd -- "$SELF_DIR/.." && pwd -P)
 VERSION=$(cat "$ROOT/VERSION" 2>/dev/null || echo dev)
 
-# Cache dir; CLAUDE_PLUGIN_DATA survives plugin updates when Claude provides it.
-CACHE="${CLAUDE_PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/side-quest}/bin"
+# The provisioned binary lives in the plugin's persistent data dir — the stable,
+# documented location the terminal launcher also resolves (spec D2). CLAUDE_PLUGIN_DATA
+# is exported only into Claude's own processes, so in a plain shell we reconstruct the
+# same deterministic path; both launchers must agree or a binary provisioned by one is
+# invisible to the other (SQ-0079).
+DATA="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/side-quest-side-quest}"
+CACHE="$DATA/bin"
 BIN="$CACHE/side-quest-$VERSION"
 
 # sha256 of a file, portable across Linux (sha256sum) and macOS (shasum).

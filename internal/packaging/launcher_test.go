@@ -67,6 +67,57 @@ func TestLauncherExecsCachedBinary(t *testing.T) {
 	}
 }
 
+// Step 1, the normal case: CLAUDE_PLUGIN_DATA is UNSET — the common state, since
+// Claude exports it only into its own MCP/hook processes, never a plain shell. The
+// launcher must reconstruct the plugin data dir from the documented deterministic
+// path (~/.claude/plugins/data/side-quest-side-quest/bin) — the same directory the
+// terminal launcher resolves (spec D2) — so a binary provisioned by one launcher is
+// found by the other. Before SQ-0079 the download launcher fell back to a private
+// ~/.cache/side-quest/bin, invisible to the terminal launcher and the MCP server it
+// starts, which then failed with -32000.
+func TestLauncherResolvesDataDirWhenPluginDataUnset(t *testing.T) {
+	// Stage a copy of the launcher at a dev VERSION so step 3's download is skipped
+	// and only a data-dir hit (step 1) can produce a success.
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("dev\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile(launcherPath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	launcher := filepath.Join(root, "bin", "side-quest")
+	if err := os.WriteFile(launcher, src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Plant the "provisioned" binary where the reconstructed data dir points.
+	home := t.TempDir()
+	dataBin := filepath.Join(home, ".claude", "plugins", "data", "side-quest-side-quest", "bin")
+	if err := os.MkdirAll(dataBin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeExec(t, filepath.Join(dataBin, "side-quest-dev"), "#!/bin/sh\necho DATADIR \"$@\"\n")
+
+	cmd := exec.Command(launcher, "serve")
+	// CLAUDE_PLUGIN_DATA intentionally absent; isolated PATH so no real side-quest
+	// leaks in via step 2.
+	cmd.Env = []string{
+		"PATH=" + t.TempDir() + ":/usr/bin:/bin",
+		"HOME=" + home,
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	if !strings.HasPrefix(string(out), "DATADIR serve") {
+		t.Errorf("got %q, want the data-dir binary — with CLAUDE_PLUGIN_DATA unset the launcher must resolve ~/.claude/plugins/data/side-quest-side-quest/bin, not a private cache dir", out)
+	}
+}
+
 // Step 2 of the chain: a side-quest already on PATH (dev build) is exec'd.
 func TestLauncherExecsPathBinary(t *testing.T) {
 	shim := t.TempDir()

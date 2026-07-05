@@ -22,9 +22,9 @@ func pluginActive() bool {
 //   - SIDE_QUEST_PLUGIN is set — every side-quest launcher (the plugin's download
 //     launcher and the terminal-CLI launcher) stamps it before exec, so the
 //     binary is recognized wherever it is staged. This is the authoritative
-//     signal: the download launcher caches the real binary under ~/.cache, OUTSIDE
-//     the plugin tree, and CLAUDE_PLUGIN_DATA does not propagate to a shell/Bash
-//     invocation, so the two signals below both miss that case (SQ-0072).
+//     signal: a launcher may exec a dev build that lives on PATH OUTSIDE the plugin
+//     tree (e.g. ~/go/bin), and CLAUDE_PLUGIN_DATA does not propagate to a
+//     shell/Bash invocation, so the two signals below both miss that case (SQ-0072).
 //   - CLAUDE_PLUGIN_DATA is set — the plugin's persistent data dir, exported into
 //     the MCP server process by Claude Code.
 //   - the running binary lives under <home>/.claude/plugins/ — covers a binary the

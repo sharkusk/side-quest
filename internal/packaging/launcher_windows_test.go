@@ -71,6 +71,21 @@ func withEnv(base []string, kv map[string]string) []string {
 	return out
 }
 
+// dropEnv removes any assignment of key (case-insensitively) from env, so a child
+// process sees the variable as unset rather than inherited from the test process —
+// needed to exercise the CLAUDE_PLUGIN_DATA-absent path.
+func dropEnv(env []string, key string) []string {
+	out := make([]string, 0, len(env))
+	for _, line := range env {
+		i := strings.IndexByte(line, '=')
+		if i >= 0 && strings.EqualFold(line[:i], key) {
+			continue
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
 // runCmdLauncher invokes launcher through cmd.exe (a .cmd can't be exec'd directly)
 // with the given environment, returning combined output and the run error.
 func runCmdLauncher(t *testing.T, launcher string, env []string, args ...string) (string, error) {
@@ -123,6 +138,37 @@ func TestWindowsLauncherRunsCachedBinary(t *testing.T) {
 	}
 	if !strings.HasPrefix(strings.TrimSpace(out), "CACHED serve") {
 		t.Errorf("got %q, want the cached binary", out)
+	}
+}
+
+// Step 1, the normal case: CLAUDE_PLUGIN_DATA is UNSET (the common state — Claude
+// exports it only into its own MCP/hook processes, never a plain shell). The launcher
+// must reconstruct the plugin data dir (%USERPROFILE%\.claude\plugins\data\
+// side-quest-side-quest\bin) — the same directory the terminal launcher resolves
+// (spec D2) — not a private %LOCALAPPDATA%\side-quest cache. Before SQ-0079 the
+// download launcher used the cache dir, invisible to the terminal launcher and the
+// MCP server it starts, which then failed with -32000.
+func TestWindowsLauncherResolvesDataDirWhenPluginDataUnset(t *testing.T) {
+	// dev VERSION => step 3's download is skipped, so only a data-dir hit succeeds.
+	launcher := stageLauncher(t, "dev")
+
+	home := t.TempDir()
+	dataBin := filepath.Join(home, ".claude", "plugins", "data", "side-quest-side-quest", "bin")
+	if err := os.MkdirAll(dataBin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	buildMarkerExe(t, filepath.Join(dataBin, "side-quest-dev.exe"), "DATADIR")
+
+	// USERPROFILE points at our fake home; CLAUDE_PLUGIN_DATA must be absent so the
+	// launcher reconstructs the data dir rather than reading an inherited value.
+	env := dropEnv(withEnv(os.Environ(), map[string]string{"USERPROFILE": home}), "CLAUDE_PLUGIN_DATA")
+
+	out, err := runCmdLauncher(t, launcher, env, "serve")
+	if err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(out), "DATADIR serve") {
+		t.Errorf("got %q, want the data-dir binary — with CLAUDE_PLUGIN_DATA unset the launcher must resolve %%USERPROFILE%%\\.claude\\plugins\\data\\side-quest-side-quest\\bin", out)
 	}
 }
 

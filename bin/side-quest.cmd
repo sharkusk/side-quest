@@ -1,14 +1,20 @@
 @echo off
 setlocal enabledelayedexpansion
 set "REPO=sharkusk/side-quest"
-rem Mark every binary we exec as plugin-launched so detection is reliable wherever
-rem the binary is staged (the download cache is outside the plugin tree) (SQ-0072).
+rem Mark every binary we exec as plugin-launched so detection stays reliable when we
+rem exec a dev build on PATH outside the plugin tree (step 2) or CLAUDE_PLUGIN_DATA
+rem has not propagated here (SQ-0072).
 set "SIDE_QUEST_PLUGIN=1"
 set "ROOT=%~dp0.."
 set /p VERSION=<"%ROOT%\VERSION" 2>nul
 if "%VERSION%"=="" set "VERSION=dev"
-if not defined CLAUDE_PLUGIN_DATA set "CLAUDE_PLUGIN_DATA=%LOCALAPPDATA%\side-quest"
-set "CACHE=%CLAUDE_PLUGIN_DATA%\bin"
+rem The binary lives in the plugin's persistent data dir — the stable, documented
+rem location the terminal launcher also resolves (spec D2). CLAUDE_PLUGIN_DATA is set
+rem only in Claude's own processes, so reconstruct the same deterministic path in a
+rem plain shell; both launchers must agree or a provisioned binary is invisible to
+rem the other (SQ-0079).
+if defined CLAUDE_PLUGIN_DATA (set "DATA=%CLAUDE_PLUGIN_DATA%") else (set "DATA=%USERPROFILE%\.claude\plugins\data\side-quest-side-quest")
+set "CACHE=%DATA%\bin"
 set "BIN=%CACHE%\side-quest-%VERSION%.exe"
 
 rem 1. Cached binary for this version.
