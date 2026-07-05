@@ -113,6 +113,88 @@ func TestInstallRefusesUnmarked(t *testing.T) {
 	}
 }
 
+// SQ-0074: the compiled side-quest binary embeds launcher.sh/.cmd — marker and
+// all — via //go:embed, so a user's own go-installed side-quest carries the marker
+// bytes deep in its data section. Detection scans only the file's prefix, so Install
+// must treat such a binary as NOT ours and refuse to clobber it.
+func TestInstallRefusesBinaryWithBuriedMarker(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(dir, LauncherName())
+	// A stand-in for a compiled binary: the marker appears only far past the prefix.
+	fakeBinary := append(bytes.Repeat([]byte{0}, 4096), []byte(Marker)...)
+	if err := os.WriteFile(target, fakeBinary, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_BIN_HOME", "")
+	t.Setenv("PATH", dir)
+
+	if _, err := Install(); err == nil {
+		t.Fatal("Install should refuse a binary whose marker is only buried deep (a user's own build)")
+	}
+	got, _ := os.ReadFile(target)
+	if !bytes.Equal(got, fakeBinary) {
+		t.Error("Install clobbered a user's own side-quest binary")
+	}
+}
+
+// SQ-0074: Status must not report a user's own side-quest binary as an installed
+// launcher just because it embeds the marker deep in its data section.
+func TestStatusIgnoresBinaryWithBuriedMarker(t *testing.T) {
+	home := t.TempDir()
+	local := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(local, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fakeBinary := append(bytes.Repeat([]byte{0}, 4096), []byte(Marker)...)
+	if err := os.WriteFile(filepath.Join(local, "side-quest"), fakeBinary, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_BIN_HOME", "")
+	t.Setenv("PATH", local)
+
+	if st := Status(); st.Installed {
+		t.Errorf("Status reported a user's own binary as installed: %+v", st)
+	}
+}
+
+// SQ-0074: Uninstall must not delete a user's own side-quest binary that merely
+// embeds the marker deep down — it is reported as refused, not removed.
+func TestUninstallRefusesBinaryWithBuriedMarker(t *testing.T) {
+	home := t.TempDir()
+	local := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(local, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(local, "side-quest")
+	fakeBinary := append(bytes.Repeat([]byte{0}, 4096), []byte(Marker)...)
+	if err := os.WriteFile(target, fakeBinary, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_BIN_HOME", "")
+	t.Setenv("PATH", local)
+
+	r, err := Uninstall()
+	if err != nil {
+		t.Fatalf("Uninstall: %v", err)
+	}
+	if len(r.Removed) != 0 {
+		t.Errorf("Uninstall removed a user's own binary: %v", r.Removed)
+	}
+	if _, err := os.Stat(target); err != nil {
+		t.Errorf("user's own binary was deleted: %v", err)
+	}
+	if len(r.Refused) != 1 || r.Refused[0] != target {
+		t.Errorf("expected the binary reported in Refused, got %v", r.Refused)
+	}
+}
+
 // With no candidate on PATH, Install falls back to ~/.local/bin and reports off-PATH.
 func TestInstallFallbackReportsOffPath(t *testing.T) {
 	home := t.TempDir()

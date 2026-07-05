@@ -10,6 +10,7 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -26,6 +27,34 @@ var launcherCmd []byte
 // user's own build) — spec D8. It is distinct from the plugin shim's comment
 // "side-quest plugin launcher" (no hyphen there), so the two never collide.
 const Marker = "side-quest-cli-launcher"
+
+// markerScanLimit bounds how far into a file we look for Marker. A launcher this
+// package writes is a short script carrying Marker in its first comment line; the
+// compiled side-quest binary embeds launcher.sh/.cmd — marker and all — via
+// //go:embed, but that copy lives deep in the binary's data section, far past this
+// limit. Scanning only the prefix tells the two apart, so a user's own go-installed
+// side-quest is never mistaken for our launcher and clobbered (SQ-0074).
+const markerScanLimit = 512
+
+// isMarkedLauncher reports whether the file at p is a launcher this package wrote:
+// a file carrying Marker within its first markerScanLimit bytes. It reads only that
+// prefix, so a multi-megabyte binary named side-quest is neither slurped whole nor
+// matched on a marker buried in its embedded copy of the launcher. The returned
+// error is the open/read error (e.g. not-exist, permission), letting callers tell
+// "absent" from "cannot verify".
+func isMarkedLauncher(p string) (bool, error) {
+	f, err := os.Open(p)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	buf := make([]byte, markerScanLimit)
+	n, err := io.ReadFull(f, buf)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return false, err
+	}
+	return bytes.Contains(buf[:n], []byte(Marker)), nil
+}
 
 // InstallDirCandidates lists the conventional user bin dirs Install prefers,
 // most-preferred first (spec D7).
@@ -97,11 +126,10 @@ func Install() (InstallResult, error) {
 		return InstallResult{}, err
 	}
 	target := filepath.Join(dir, LauncherName())
-	if b, err := os.ReadFile(target); err == nil {
-		if !bytes.Contains(b, []byte(Marker)) {
-			return InstallResult{}, fmt.Errorf("refusing to overwrite %s — not a launcher we installed (no %q marker)", target, Marker)
-		}
-	} else if !os.IsNotExist(err) {
+	switch marked, err := isMarkedLauncher(target); {
+	case err == nil && !marked:
+		return InstallResult{}, fmt.Errorf("refusing to overwrite %s — not a launcher we installed (no %q marker near the top)", target, Marker)
+	case err != nil && !os.IsNotExist(err):
 		// A read error other than not-exist means we cannot confirm this is our
 		// launcher, so we must not clobber it (D8).
 		return InstallResult{}, fmt.Errorf("refusing to overwrite %s — cannot verify it is our launcher: %w", target, err)
@@ -145,11 +173,11 @@ func Uninstall() (UninstallResult, error) {
 	for _, dir := range launcherDirs() {
 		for _, name := range []string{"side-quest", "side-quest.cmd"} {
 			p := filepath.Join(dir, name)
-			b, err := os.ReadFile(p)
+			marked, err := isMarkedLauncher(p)
 			if err != nil {
 				continue
 			}
-			if !bytes.Contains(b, []byte(Marker)) {
+			if !marked {
 				res.Refused = append(res.Refused, p)
 				continue
 			}
@@ -174,11 +202,7 @@ func Status() StatusResult {
 	for _, dir := range launcherDirs() {
 		for _, name := range []string{"side-quest", "side-quest.cmd"} {
 			p := filepath.Join(dir, name)
-			b, err := os.ReadFile(p)
-			if err != nil {
-				continue
-			}
-			if bytes.Contains(b, []byte(Marker)) {
+			if marked, err := isMarkedLauncher(p); err == nil && marked {
 				return StatusResult{Installed: true, Path: p}
 			}
 		}
