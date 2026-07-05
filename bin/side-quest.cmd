@@ -46,8 +46,8 @@ if not "%VERSION%"=="dev" (
     "$ErrorActionPreference='Stop';" ^
     "$base='%BASE%';" ^
     "New-Item -Force -ItemType Directory '%CACHE%' | Out-Null;" ^
-    "$tmp=New-TemporaryFile; Invoke-WebRequest \"$base/%ASSET%\" -OutFile \"$tmp.zip\";" ^
-    "Invoke-WebRequest \"$base/checksums.txt\" -OutFile \"$tmp.sums\";" ^
+    "$tmp=[System.IO.Path]::GetTempFileName(); Invoke-WebRequest -UseBasicParsing \"$base/%ASSET%\" -OutFile \"$tmp.zip\";" ^
+    "Invoke-WebRequest -UseBasicParsing \"$base/checksums.txt\" -OutFile \"$tmp.sums\";" ^
     "$want=(Select-String -Path \"$tmp.sums\" -Pattern ([regex]::Escape('%ASSET%'))).Line.Split(' ')[0];" ^
     "$got=(Get-FileHash \"$tmp.zip\" -Algorithm SHA256).Hash.ToLower();" ^
     "if ($want -ne $got) { exit 3 };" ^
