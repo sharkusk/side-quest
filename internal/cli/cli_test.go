@@ -129,3 +129,32 @@ func TestInstallFallbackReportsOffPath(t *testing.T) {
 		t.Errorf("fallback did not write ~/.local/bin/%s: %v", LauncherName(), err)
 	}
 }
+
+// Install is idempotent over its OWN launcher: re-installing over a marked
+// launcher (e.g. re-enabling after the plugin shim was deleted) succeeds rather
+// than tripping the D8 unmarked-clobber guard, and leaves a marked launcher in
+// place. This is the path SQ-0066's cli_install relies on.
+func TestInstallOverwritesOwnMarkedLauncher(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_BIN_HOME", "")
+	t.Setenv("PATH", dir)
+
+	if _, err := Install(); err != nil {
+		t.Fatalf("first Install: %v", err)
+	}
+	if _, err := Install(); err != nil {
+		t.Fatalf("re-Install over own marked launcher should succeed, not refuse: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, LauncherName()))
+	if err != nil {
+		t.Fatalf("launcher gone after re-install: %v", err)
+	}
+	if !bytes.Contains(b, []byte(Marker)) {
+		t.Error("re-installed launcher is missing the marker")
+	}
+}
