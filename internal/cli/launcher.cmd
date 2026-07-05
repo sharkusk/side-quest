@@ -3,6 +3,8 @@ setlocal enabledelayedexpansion
 rem side-quest-cli-launcher - read-only resolver for the plugin-provisioned binary.
 rem Never downloads. Windows note: a running .cmd cannot reliably delete itself, so
 rem when the plugin is gone it prints its path as safe to remove (no self-delete).
+rem Mark the binary we exec as plugin-launched so onboard skips .mcp.json (SQ-0072).
+set "SIDE_QUEST_PLUGIN=1"
 if defined CLAUDE_PLUGIN_DATA (set "DATA=%CLAUDE_PLUGIN_DATA%") else (set "DATA=%USERPROFILE%\.claude\plugins\data\side-quest-side-quest")
 set "BINDIR=%DATA%\bin"
 

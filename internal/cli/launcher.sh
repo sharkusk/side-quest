@@ -9,6 +9,10 @@
 #   3. data dir absent (plugin uninstalled)    -> inert; offer/announce removal
 set -eu
 
+# Mark the binary we exec as plugin-launched, so `onboard` skips the redundant
+# project .mcp.json even when run straight from this launcher (SQ-0072).
+export SIDE_QUEST_PLUGIN=1
+
 DATA="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/side-quest-side-quest}"
 BINDIR="$DATA/bin"
 

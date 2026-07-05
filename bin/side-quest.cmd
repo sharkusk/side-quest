@@ -1,6 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
 set "REPO=sharkusk/side-quest"
+rem Mark every binary we exec as plugin-launched so detection is reliable wherever
+rem the binary is staged (the download cache is outside the plugin tree) (SQ-0072).
+set "SIDE_QUEST_PLUGIN=1"
 set "ROOT=%~dp0.."
 set /p VERSION=<"%ROOT%\VERSION" 2>nul
 if "%VERSION%"=="" set "VERSION=dev"

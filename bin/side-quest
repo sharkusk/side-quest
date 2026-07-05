@@ -10,6 +10,11 @@ set -eu
 
 REPO="sharkusk/side-quest"
 
+# We are a side-quest launcher: mark every binary we exec so plugin detection is
+# reliable no matter where the binary is staged (the download cache below lives
+# outside the plugin tree) or whether CLAUDE_PLUGIN_DATA propagated here (SQ-0072).
+export SIDE_QUEST_PLUGIN=1
+
 # Canonicalize our own path so the step-2 self-check compares absolute-to-absolute.
 SELF_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 SELF="$SELF_DIR/$(basename -- "$0")"
