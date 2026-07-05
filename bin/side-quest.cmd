@@ -48,10 +48,12 @@ if not "%VERSION%"=="dev" (
     "New-Item -Force -ItemType Directory '%CACHE%' | Out-Null;" ^
     "$tmp=[System.IO.Path]::GetTempFileName(); Invoke-WebRequest -UseBasicParsing \"$base/%ASSET%\" -OutFile \"$tmp.zip\";" ^
     "Invoke-WebRequest -UseBasicParsing \"$base/checksums.txt\" -OutFile \"$tmp.sums\";" ^
-    "$want=(Select-String -Path \"$tmp.sums\" -Pattern ([regex]::Escape('%ASSET%'))).Line.Split(' ')[0];" ^
-    "$got=(Get-FileHash \"$tmp.zip\" -Algorithm SHA256).Hash.ToLower();" ^
+    "$sums=[System.IO.File]::ReadAllText(\"$tmp.sums\");" ^
+    "if ($sums -match ('([0-9a-f]{64})\s+'+[regex]::Escape('%ASSET%'))) { $want=$matches[1] } else { exit 4 };" ^
+    "$got=([System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes(\"$tmp.zip\"))) -replace '-','').ToLower();" ^
     "if ($want -ne $got) { exit 3 };" ^
-    "Expand-Archive \"$tmp.zip\" -DestinationPath \"$tmp.dir\" -Force;" ^
+    "Add-Type -AssemblyName System.IO.Compression.FileSystem;" ^
+    "[System.IO.Compression.ZipFile]::ExtractToDirectory(\"$tmp.zip\",\"$tmp.dir\");" ^
     "Move-Item -Force \"$tmp.dir\\side-quest.exe\" '%BIN%'"
   if exist "%BIN%" (
     "%BIN%" %*
