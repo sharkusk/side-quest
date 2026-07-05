@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the side-quest brand assets: the social preview card and the mark.
 
-Both share one definition of the recursive pin, so they cannot drift. The
+Both share one definition of the pin, so they cannot drift. The
 source-code backdrop is read from the repo; paths resolve relative to this
 file, so run it from anywhere. Regenerate with:
 
@@ -30,24 +30,11 @@ PIN = ("M32 4.5c11.9 0 21.5 9.4 21.5 21 0 8.2-6.6 16.3-21.5 34.5"
        "C17.1 41.8 10.5 33.7 10.5 25.5c0-11.6 9.6-21 21.5-21Z")
 BANG = "M29.4 13.6h5.2l-1.15 17.3h-2.9Z"
 
-# --- recursive mark: a pin whose '!' stem is a smaller pin (Droste) --------
-# n = number of pins (outer + inner). n=3 -> outer + two inner marks.
-K = (5 ** 0.5 - 1) / 2   # 1/phi ~ 0.618: each inner pin is a golden-ratio step down
-CY = 25.0                # nested-pin centre (parent space)
-
-def mark(n):
-    pin_fill = ORANGE if n % 2 == 1 else INK
-    ink_fill = INK if n % 2 == 1 else ORANGE
-    parts = [f'<path fill="{pin_fill}" d="{PIN}"/>']
-    if n > 1:
-        tx, ty = 32 - 32 * K, CY - 32 * K
-        parts.append(f'<g transform="translate({tx:.3f},{ty:.3f}) scale({K})">'
-                     f'{mark(n-1)}</g>')
-    else:
-        # only the innermost pin carries a '!' (bar + dot); no trailing dots
-        parts.append(f'<path fill="{ink_fill}" d="{BANG}"/>')
-        parts.append(f'<circle fill="{ink_fill}" cx="32" cy="37.4" r="3"/>')
-    return "".join(parts)
+# --- the mark: a location pin with a single '!' in the middle --------------
+def mark():
+    return (f'<path fill="{ORANGE}" d="{PIN}"/>'
+            f'<path fill="{INK}" d="{BANG}"/>'
+            f'<circle fill="{INK}" cx="32" cy="37.4" r="3"/>')
 
 # --- source-code backdrop (two columns, top half, faded out below) ---------
 def col(rel, start, count, x, width=48):
@@ -87,10 +74,10 @@ def card_svg():
     {code}
   </g>
 
-  <!-- recursive mark, above the 'side' glyphs -->
+  <!-- mark, above the 'side' glyphs -->
   <g transform="translate(438,214) scale(3.35)">
     <g transform="translate(-32,-32)">
-      {mark(3)}
+      {mark()}
     </g>
   </g>
 
@@ -106,7 +93,7 @@ def card_svg():
 def mark_svg():
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" '
             f'viewBox="0 0 64 64" role="img" aria-label="side-quest">\n'
-            f'  {mark(3)}\n'
+            f'  {mark()}\n'
             f'</svg>\n')
 
 mode = sys.argv[1] if len(sys.argv) > 1 else "card"
