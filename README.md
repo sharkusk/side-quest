@@ -139,6 +139,10 @@ e.g. `--filter "not (done or deferred)"`. Add `--json` to `new`, `list`, `show`,
 title/id positional; `<id>` accepts shorthand (`side-quest show 1` = `SQ-0001`);
 and every command prints its own help with `side-quest <command> -h`.
 
+**→ For tag-based workflows** — tracking an upcoming release's scope with a shared
+tag and generating release notes from the tagged quests — see
+[Tips](docs/tips.md).
+
 ![Listing outstanding quests](docs/img/list.png)
 
 ### The same loop, with an agent or without
