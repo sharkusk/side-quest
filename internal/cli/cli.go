@@ -97,8 +97,14 @@ func Install() (InstallResult, error) {
 		return InstallResult{}, err
 	}
 	target := filepath.Join(dir, LauncherName())
-	if b, err := os.ReadFile(target); err == nil && !bytes.Contains(b, []byte(Marker)) {
-		return InstallResult{}, fmt.Errorf("refusing to overwrite %s — not a launcher we installed (no %q marker)", target, Marker)
+	if b, err := os.ReadFile(target); err == nil {
+		if !bytes.Contains(b, []byte(Marker)) {
+			return InstallResult{}, fmt.Errorf("refusing to overwrite %s — not a launcher we installed (no %q marker)", target, Marker)
+		}
+	} else if !os.IsNotExist(err) {
+		// A read error other than not-exist means we cannot confirm this is our
+		// launcher, so we must not clobber it (D8).
+		return InstallResult{}, fmt.Errorf("refusing to overwrite %s — cannot verify it is our launcher: %w", target, err)
 	}
 	if err := os.WriteFile(target, LauncherBody(), 0o755); err != nil {
 		return InstallResult{}, err

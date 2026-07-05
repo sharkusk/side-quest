@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -157,6 +158,51 @@ func TestInstallOverwritesOwnMarkedLauncher(t *testing.T) {
 	}
 	if !bytes.Contains(b, []byte(Marker)) {
 		t.Error("re-installed launcher is missing the marker")
+	}
+}
+
+// Install must refuse when it cannot READ an existing side-quest to verify our
+// marker — not fall through and clobber it. A write-permitted, read-denied file
+// (mode 0o200) is the exact case: the old guard only refused on a successful
+// read, so a non-ENOENT read error let WriteFile destroy the user's own binary
+// (D8: never clobber a file we didn't write).
+func TestInstallRefusesUnreadable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX file-mode semantics")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses read permission, so the read never fails")
+	}
+	home := t.TempDir()
+	dir := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(dir, LauncherName())
+	mine := "#!/bin/sh\necho my own unreadable build\n"
+	if err := os.WriteFile(target, []byte(mine), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(target, 0o200); err != nil { // writable, NOT readable
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(target, 0o644) })
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_BIN_HOME", "")
+	t.Setenv("PATH", dir)
+
+	if _, err := Install(); err == nil {
+		t.Fatal("Install should refuse a side-quest it cannot read to verify")
+	}
+	if err := os.Chmod(target, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != mine {
+		t.Errorf("Install clobbered an unreadable side-quest:\n%s", got)
 	}
 }
 
