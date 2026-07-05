@@ -1,7 +1,7 @@
 {
   "name": "side-quest",
   "displayName": "side-quest",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A streamlined, git-native issue tracker for individuals and small teams — capture side quests without derailing, and link every commit to the quest it addresses.",
   "author": { "name": "Marcus Kellerman" },
   "repository": "https://github.com/sharkusk/side-quest",
