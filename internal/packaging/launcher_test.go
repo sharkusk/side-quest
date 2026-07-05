@@ -118,6 +118,55 @@ func TestLauncherResolvesDataDirWhenPluginDataUnset(t *testing.T) {
 	}
 }
 
+// Under Claude Code's Bash tool on Windows the shell is Git Bash (MSYS), so a bare
+// `side-quest` resolves to THIS POSIX shim — but its uname/curl/tar download path is
+// built for a Unix release and 404s on the windows_amd64.zip. It must detect MSYS and
+// hand off to the sibling .cmd (which owns Windows provisioning). Faking `uname` to
+// report MinGW (+ stub cygpath/cmd.exe) proves the delegation fires with the .cmd path
+// and forwarded args, on any host OS (SQ-0082).
+func TestLauncherDelegatesToCmdUnderMSYS(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("dev\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile(launcherPath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	launcher := filepath.Join(binDir, "side-quest")
+	if err := os.WriteFile(launcher, src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A sibling .cmd so the delegation resolves a real target path.
+	if err := os.WriteFile(filepath.Join(binDir, "side-quest.cmd"), []byte("rem stub\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Stub the MSYS toolchain: uname reports MinGW; cygpath -w echoes the path; cmd.exe
+	// prints how it was invoked so we can assert the handoff.
+	stub := t.TempDir()
+	writeExec(t, filepath.Join(stub, "uname"), "#!/bin/sh\necho MINGW64_NT-10.0-19045\n")
+	writeExec(t, filepath.Join(stub, "cygpath"), "#!/bin/sh\nshift\necho \"$1\"\n") // drops -w, echoes PATH
+	writeExec(t, filepath.Join(stub, "cmd.exe"), "#!/bin/sh\necho CMD \"$@\"\n")
+
+	cmd := exec.Command(launcher, "serve")
+	cmd.Env = []string{
+		"PATH=" + stub + ":/usr/bin:/bin",
+		"HOME=" + t.TempDir(),
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	got := string(out)
+	if !strings.Contains(got, "CMD") || !strings.Contains(got, "side-quest.cmd") || !strings.Contains(got, "serve") {
+		t.Errorf("shim did not delegate to cmd.exe with the .cmd path + args; got %q", got)
+	}
+}
+
 // Step 2 of the chain: a side-quest already on PATH (dev build) is exec'd.
 func TestLauncherExecsPathBinary(t *testing.T) {
 	shim := t.TempDir()

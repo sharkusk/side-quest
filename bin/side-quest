@@ -21,6 +21,18 @@ SELF="$SELF_DIR/$(basename -- "$0")"
 ROOT=$(CDPATH= cd -- "$SELF_DIR/.." && pwd -P)
 VERSION=$(cat "$ROOT/VERSION" 2>/dev/null || echo dev)
 
+# Under Claude Code's Bash tool on Windows the shell is Git Bash (MSYS), so a bare
+# `side-quest` resolves to THIS POSIX script — but the download path below is built
+# for a Unix release (uname os string, .tar.gz, an extensionless binary) and 404s on
+# the windows_amd64.zip. Hand off to the sibling .cmd, which owns Windows provisioning
+# (PowerShell unzip, side-quest.exe). cmd.exe runs it; `//c` stops MSYS mangling the
+# /c switch, and cygpath gives cmd.exe a native path (SQ-0082).
+case "$(uname -s 2>/dev/null)" in
+MINGW* | MSYS* | CYGWIN*)
+	exec cmd.exe //c "$(cygpath -w "$SELF_DIR/side-quest.cmd")" "$@"
+	;;
+esac
+
 # The provisioned binary lives in the plugin's persistent data dir — the stable,
 # documented location the terminal launcher also resolves (spec D2). CLAUDE_PLUGIN_DATA
 # is exported only into Claude's own processes, so in a plain shell we reconstruct the
