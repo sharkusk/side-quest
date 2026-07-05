@@ -95,18 +95,18 @@ func TestServerAdvertisesGivenVersion(t *testing.T) {
 	}
 }
 
-func TestListToolsExposesTwelve(t *testing.T) {
+func TestListToolsExposesSixteen(t *testing.T) {
 	cs, ctx := dialTest(t, newTestStore(t))
 	lt, err := cs.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(lt.Tools) != 12 {
+	if len(lt.Tools) != 16 {
 		names := make([]string, len(lt.Tools))
 		for i, tl := range lt.Tools {
 			names[i] = tl.Name
 		}
-		t.Fatalf("want 12 tools, got %d: %v", len(lt.Tools), names)
+		t.Fatalf("want 16 tools, got %d: %v", len(lt.Tools), names)
 	}
 }
 
