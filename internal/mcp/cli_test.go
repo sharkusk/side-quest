@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/sharkusk/side-quest/internal/cli"
 )
 
 // sandboxPath builds a PATH with only dir (the intended install dir) and the
@@ -69,7 +71,7 @@ func TestCliToolsLifecycle(t *testing.T) {
 	if in["path"] == "" || in["path"] == nil {
 		t.Fatalf("cli_install returned no path: %v", in)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "side-quest")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, cli.LauncherName())); err != nil {
 		t.Fatalf("cli_install did not write the launcher: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(data, ".cli-offered")); err != nil {
@@ -81,7 +83,7 @@ func TestCliToolsLifecycle(t *testing.T) {
 	}
 
 	callJSON(t, cs, ctx, "cli_uninstall")
-	if _, err := os.Stat(filepath.Join(dir, "side-quest")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, cli.LauncherName())); !os.IsNotExist(err) {
 		t.Fatalf("cli_uninstall did not remove the launcher (err=%v)", err)
 	}
 }
