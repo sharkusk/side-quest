@@ -4,11 +4,26 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// sandboxPath builds a PATH with only dir (the intended install dir) and the
+// directory holding git, so newTestStore can still exec git while
+// launcherDirs()'s PATH-side scan stays inside the sandbox. Appending the real
+// ambient PATH (as an earlier draft did) would let Status/Uninstall reach — and
+// cli_uninstall DELETE — a real marked launcher on the developer's own PATH.
+func sandboxPath(t *testing.T, dir string) string {
+	t.Helper()
+	gitBin, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir + string(os.PathListSeparator) + filepath.Dir(gitBin)
+}
 
 // callJSON calls a no-arg tool and unmarshals its neutral JSON content block.
 func callJSON(t *testing.T, cs *sdk.ClientSession, ctx context.Context, name string) map[string]any {
@@ -38,9 +53,9 @@ func TestCliToolsLifecycle(t *testing.T) {
 	data := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_BIN_HOME", "")
-	// dir leads PATH (so it's the chosen install dir) but the real PATH stays
-	// appended after it, since newTestStore below still needs to exec git.
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	// dir leads PATH (so it's the chosen install dir); only git's dir follows, so
+	// the launcherDirs() scan can't reach a real launcher on the ambient PATH.
+	t.Setenv("PATH", sandboxPath(t, dir))
 	t.Setenv("CLAUDE_PLUGIN_DATA", data)
 
 	cs, ctx := dialTest(t, newTestStore(t))
@@ -75,8 +90,8 @@ func TestCliDismissMarksOffered(t *testing.T) {
 	data := t.TempDir()
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_BIN_HOME", "")
-	// Keep the real PATH appended so newTestStore below can still exec git.
-	t.Setenv("PATH", t.TempDir()+string(os.PathListSeparator)+os.Getenv("PATH"))
+	// Only git's dir follows the sandbox dir on PATH — never the ambient PATH.
+	t.Setenv("PATH", sandboxPath(t, t.TempDir()))
 	t.Setenv("CLAUDE_PLUGIN_DATA", data)
 
 	cs, ctx := dialTest(t, newTestStore(t))
