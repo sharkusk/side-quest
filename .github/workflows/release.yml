@@ -9,7 +9,26 @@ permissions:
   contents: write
 
 jobs:
+  # Gate the release on the full test matrix — build/vet/test on all three OSes —
+  # so a red build can never tag a release (SQ-0087). Mirrors ci.yml; the Windows
+  # job is the load-bearing one (real hook + provisioning paths).
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./...
+
   goreleaser:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
