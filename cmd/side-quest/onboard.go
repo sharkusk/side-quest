@@ -176,7 +176,10 @@ func cmdOnboard(args []string) error {
 		return err
 	}
 
-	// 3. project .mcp.json, at the repo root, only if absent
+	// 3. project .mcp.json, at the repo root, only if absent — but never when the
+	// plugin is active, since it already registers the side-quest MCP server; a
+	// second identically-named one would be redundant. We skip silently: .mcp.json
+	// is internal plumbing an end user need not hear about (SQ-0064, D6).
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -185,17 +188,19 @@ func cmdOnboard(args []string) error {
 	if err != nil {
 		return err
 	}
-	mcpPath := filepath.Join(top, ".mcp.json")
-	switch _, err := os.Stat(mcpPath); {
-	case err == nil:
-		fmt.Println("side-quest: .mcp.json already exists — leaving it as is.")
-	case os.IsNotExist(err):
-		if err := os.WriteFile(mcpPath, []byte(mcpJSON), 0o644); err != nil {
+	if !pluginActive() {
+		mcpPath := filepath.Join(top, ".mcp.json")
+		switch _, err := os.Stat(mcpPath); {
+		case err == nil:
+			fmt.Println("side-quest: .mcp.json already exists — leaving it as is.")
+		case os.IsNotExist(err):
+			if err := os.WriteFile(mcpPath, []byte(mcpJSON), 0o644); err != nil {
+				return err
+			}
+			fmt.Println("side-quest: wrote .mcp.json (registers the side-quest MCP server).")
+		default:
 			return err
 		}
-		fmt.Println("side-quest: wrote .mcp.json (registers the side-quest MCP server).")
-	default:
-		return err
 	}
 
 	// 4. AGENTS.md guidance is opt-in reinforcement now — only with --agents-md

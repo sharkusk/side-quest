@@ -125,6 +125,7 @@ func TestOnboardRefreshesAgentsInPlace(t *testing.T) {
 // By default it does NOT touch AGENTS.md (guidance rides the MCP server now; the
 // merge is opt-in via --agents-md — SQ-0051). A fresh repo ends up wired.
 func TestOnboardSetsUpRepo(t *testing.T) {
+	t.Setenv("CLAUDE_PLUGIN_DATA", "") // pin non-plugin: onboard must write .mcp.json
 	bin := buildBinary(t)
 	dir, _ := newRepo(t)
 	out, code := runBin(t, bin, dir, "onboard")
@@ -192,8 +193,37 @@ func TestOnboardIsIdempotent(t *testing.T) {
 	}
 }
 
+// With the plugin active (CLAUDE_PLUGIN_DATA set), onboard still wires the repo
+// (ref + hooks) but skips writing .mcp.json — the plugin already registers the
+// MCP server — and says nothing about the skip (SQ-0064, D6).
+func TestOnboardSkipsMcpJsonUnderPlugin(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+	t.Setenv("CLAUDE_PLUGIN_DATA", t.TempDir()) // simulate the plugin's data dir
+
+	out, code := runBin(t, bin, dir, "onboard")
+	if code != 0 {
+		t.Fatalf("onboard exit=%d out=%q", code, out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".mcp.json")); !os.IsNotExist(err) {
+		t.Errorf("onboard under the plugin must not write .mcp.json (stat err=%v)", err)
+	}
+	if strings.Contains(out, ".mcp.json") {
+		t.Errorf("onboard under the plugin must not mention .mcp.json; got:\n%s", out)
+	}
+	// Repo is still wired: quest ref + hooks.
+	if _, err := os.Stat(filepath.Join(dir, ".git", "hooks", "post-commit")); err != nil {
+		t.Errorf("onboard did not install hooks under the plugin: %v", err)
+	}
+	g := gitcmd.New(dir)
+	if ref, _ := g.Run("for-each-ref", "--format=%(objectname)", "refs/side-quest/quests"); strings.TrimSpace(ref) == "" {
+		t.Error("onboard did not create the quest ref under the plugin")
+	}
+}
+
 // onboard writes .mcp.json only when absent — an existing one is never clobbered.
 func TestOnboardPreservesExistingMcpJson(t *testing.T) {
+	t.Setenv("CLAUDE_PLUGIN_DATA", "") // pin non-plugin: onboard must write .mcp.json
 	bin := buildBinary(t)
 	dir, _ := newRepo(t)
 	custom := `{"mcpServers":{"other":{"command":"x"}}}`

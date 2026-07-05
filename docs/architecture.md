@@ -375,11 +375,15 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
 - `reclassify <id> [--type --priority]` — change type and/or priority.
 - `config get` / `config set <key> <value>` — read config; set `require_quest`,
   `auto_trailer`, or `id_strategy`.
-- `onboard` — one-shot per-repo setup: `init` + `install-hooks`, write a project
-  `.mcp.json` if absent, then refresh the marker-guarded guidance block in the
-  project's `AGENTS.md` in place (create/append/refresh). Safe to re-run (an
-  existing ref, hooks, and `.mcp.json` are each left as they are; the AGENTS.md
-  block is refreshed to the current version, the user's own content untouched).
+- `onboard` — one-shot per-repo setup: `init` + `install-hooks`, and — unless the
+  Claude Code plugin is active (`CLAUDE_PLUGIN_DATA` set, or the binary runs from
+  under `~/.claude/plugins/`) — write a project `.mcp.json` if absent; when the
+  plugin is active it skips `.mcp.json` silently, since the plugin already
+  registers the server. With `--agents-md` it also refreshes the marker-guarded
+  guidance block in the project's `AGENTS.md` in place (create/append/refresh).
+  Safe to re-run (an existing ref, hooks, and `.mcp.json` are each left as they
+  are; the AGENTS.md block is refreshed to the current version, the user's own
+  content untouched).
 - `agents-md` — print the canonical agent-guidance block (the embedded
   `AGENTS.md`, wrapped in refresh markers and version-stamped) for pasting into a
   project's own `AGENTS.md`.
