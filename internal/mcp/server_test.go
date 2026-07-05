@@ -485,9 +485,28 @@ func TestSetCurrentAndLink(t *testing.T) {
 // The server advertises the canonical core brief as its initialize-time
 // instructions, so any MCP client can surface it — no repo file required (SQ-0051).
 func TestServerAdvertisesCoreInstructions(t *testing.T) {
+	t.Setenv("CLAUDE_PLUGIN_DATA", "")
 	cs, _ := dialTest(t, newTestStore(t))
 	if got := cs.InitializeResult().Instructions; got != guidance.Core {
 		t.Errorf("server instructions = %q, want guidance.Core", got)
+	}
+}
+
+func TestInstructionsAppendsPluginBlockUnderPlugin(t *testing.T) {
+	t.Setenv("CLAUDE_PLUGIN_DATA", t.TempDir())
+	got := instructions()
+	if !strings.Contains(got, guidance.Core) {
+		t.Error("instructions under the plugin should still contain guidance.Core")
+	}
+	if !strings.Contains(got, guidance.Plugin) {
+		t.Error("instructions under the plugin should append guidance.Plugin")
+	}
+}
+
+func TestInstructionsCoreOnlyOutsidePlugin(t *testing.T) {
+	t.Setenv("CLAUDE_PLUGIN_DATA", "")
+	if got := instructions(); got != guidance.Core {
+		t.Errorf("instructions outside the plugin = %q, want exactly guidance.Core", got)
 	}
 }
 

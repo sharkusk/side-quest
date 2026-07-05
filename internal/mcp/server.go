@@ -8,6 +8,8 @@
 package mcp
 
 import (
+	"os"
+
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sharkusk/side-quest/internal/guidance"
 	"github.com/sharkusk/side-quest/internal/store"
@@ -20,10 +22,20 @@ import (
 func NewServer(s *store.Store, version string) *sdk.Server {
 	srv := sdk.NewServer(
 		&sdk.Implementation{Name: "side-quest", Version: version},
-		&sdk.ServerOptions{Instructions: guidance.Core},
+		&sdk.ServerOptions{Instructions: instructions()},
 	)
 	(&handlers{store: s}).register(srv)
 	return srv
+}
+
+// instructions is the server's initialize-time guidance: the cross-agent Core
+// brief, plus the plugin lifecycle block when running under the Claude Code plugin
+// (CLAUDE_PLUGIN_DATA is set) — where the cli_* tools are relevant (SQ-0066).
+func instructions() string {
+	if os.Getenv("CLAUDE_PLUGIN_DATA") != "" {
+		return guidance.Core + "\n\n" + guidance.Plugin
+	}
+	return guidance.Core
 }
 
 // handlers holds the store the tool handlers act on.

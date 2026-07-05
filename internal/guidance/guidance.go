@@ -23,3 +23,11 @@ var agentsRaw string
 // `agents-md` emit — the UNWRAPPED template. The refresh markers are added at
 // runtime by the emitter (cmd/side-quest/onboard.go), never stored here.
 var Agents = agentsRaw
+
+//go:embed plugin.md
+var pluginRaw string
+
+// Plugin is the Claude-Code-plugin-only lifecycle guidance. The MCP server appends
+// it to its initialize-time instructions when CLAUDE_PLUGIN_DATA is set (internal/mcp),
+// so the cross-agent Core brief — mirrored verbatim in AGENTS.md/SKILL.md — is unaffected.
+var Plugin = strings.TrimSpace(pluginRaw)
