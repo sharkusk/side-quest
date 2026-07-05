@@ -21,6 +21,12 @@ superfan-lines.txt
 .claude/settings.local.json
 .claude/commands/
 
+# Dogfooding-only MCP registration (bare `side-quest` -> HEAD on PATH), written by
+# `make dev`. Must NOT ship: the plugin registers via .claude-plugin/plugin.json, and
+# a non-plugin user's own .mcp.json is written by `side-quest onboard`. Shipping this
+# would give plugin installs a stray, PATH-resolved server that ENOENTs (SQ-0080).
+/.mcp.json
+
 # superpowers subagent-driven scratch (progress ledger; local, not shared)
 .superpowers/
 

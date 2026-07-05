@@ -2,10 +2,11 @@
 #
 # The MCP server is not a separate artifact: `side-quest serve` IS the binary, so
 # updating the binary updates the server. The installed Claude plugin registers its
-# server via .claude-plugin/plugin.json (`${CLAUDE_PLUGIN_ROOT}/bin/side-quest` — the
-# bundled shim). The committed .mcp.json is the portable, cross-agent registration
-# (bare `side-quest serve` on PATH), used by non-Claude MCP agents and by dogfooding —
-# so dogfooding HEAD just means putting HEAD on PATH via `go install` (SQ-0080).
+# server via .claude-plugin/plugin.json (`${CLAUDE_PLUGIN_ROOT}/bin/side-quest`); a
+# non-plugin user gets a project .mcp.json from `side-quest onboard`. This repo's own
+# .mcp.json is git-ignored dogfooding config (bare `side-quest` -> HEAD on PATH),
+# written by `make dev` below — never shipped, so a plugin install sees no stray
+# PATH-resolved server (SQ-0080).
 
 BIN := side-quest
 GOBIN := $(shell go env GOBIN)
@@ -50,4 +51,5 @@ dev: install
 	"$(GOBIN)/$(BIN)" install-hooks
 	mkdir -p .claude/commands
 	ln -sfn ../../commands/sq.md .claude/commands/sq.md
+	@test -f .mcp.json || { printf '{\n  "mcpServers": {\n    "side-quest": { "command": "side-quest", "args": ["serve"] }\n  }\n}\n' > .mcp.json; echo "side-quest: wrote dogfood .mcp.json (bare side-quest -> your HEAD on PATH)."; }
 	@echo "side-quest: dogfood ready — restart your MCP server so it reloads the HEAD binary."

@@ -6,6 +6,9 @@ package packaging
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -76,26 +79,55 @@ func TestPluginRegistersMCPServerViaPluginRoot(t *testing.T) {
 	}
 }
 
-// The committed root .mcp.json is the portable, cross-agent registration: a BARE
-// `side-quest serve` resolved on PATH, read by non-Claude MCP clients and by
-// dogfooding (HEAD on PATH via `make dev`). It must NOT use ${CLAUDE_PLUGIN_ROOT}
-// (Claude-only) — the plugin path is served by plugin.json instead (SQ-0080).
-func TestMCPJSONIsBareForCrossAgent(t *testing.T) {
+// The command plugin.json registers must resolve to a shim that actually ships in
+// the plugin and is executable — otherwise the plugin registers a server whose
+// command cannot spawn (the SQ-0080 ENOENT class). ${CLAUDE_PLUGIN_ROOT} is the
+// plugin's install dir (the repo root here): assert the referenced POSIX shim
+// exists (and, off Windows, carries an executable bit) and that the Windows sibling
+// ships too, so a plugin install on either OS resolves a real launcher.
+func TestPluginMCPCommandPointsAtExecutableShim(t *testing.T) {
 	var m struct {
 		MCPServers map[string]struct {
-			Command string   `json:"command"`
-			Args    []string `json:"args"`
+			Command string `json:"command"`
 		} `json:"mcpServers"`
 	}
-	if err := json.Unmarshal(repoFile(t, ".mcp.json"), &m); err != nil {
-		t.Fatalf(".mcp.json invalid: %v", err)
+	if err := json.Unmarshal(repoFile(t, ".claude-plugin/plugin.json"), &m); err != nil {
+		t.Fatalf("plugin.json invalid: %v", err)
 	}
-	sq, ok := m.MCPServers["side-quest"]
-	if !ok {
-		t.Fatal(".mcp.json missing side-quest server")
+	const prefix = "${CLAUDE_PLUGIN_ROOT}/"
+	cmd := m.MCPServers["side-quest"].Command
+	if !strings.HasPrefix(cmd, prefix) {
+		t.Fatalf("plugin.json command %q must be plugin-root-relative (%s...)", cmd, prefix)
 	}
-	if sq.Command != "side-quest" || len(sq.Args) != 1 || sq.Args[0] != "serve" {
-		t.Errorf(".mcp.json launches %q %v, want bare side-quest [serve] (portable for non-Claude agents; the plugin uses plugin.json)", sq.Command, sq.Args)
+	rel := strings.TrimPrefix(cmd, prefix) // e.g. bin/side-quest
+	info, err := os.Stat("../../" + rel)
+	if err != nil {
+		t.Fatalf("plugin.json command references %q, which is absent from the plugin: %v", rel, err)
+	}
+	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
+		t.Errorf("plugin shim %q is not executable (mode %v) — Claude could not spawn it", rel, info.Mode())
+	}
+	if _, err := os.Stat("../../" + rel + ".cmd"); err != nil {
+		t.Errorf("Windows shim %s.cmd is missing from the plugin: %v", rel, err)
+	}
+}
+
+// The plugin must NOT ship a root .mcp.json: it would register a second, bare-command
+// "side-quest" server that isn't on the plugin's MCP-spawn PATH (ENOENT), duplicating
+// the plugin.json registration. The repo's .mcp.json is git-ignored dogfooding config
+// — the plugin registers via plugin.json, and a non-plugin user's .mcp.json is written
+// by `side-quest onboard`. Guard that .mcp.json is never git-tracked (SQ-0080).
+func TestRepoDoesNotShipMcpJson(t *testing.T) {
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("git", "-C", root, "ls-files", ".mcp.json").Output()
+	if err != nil {
+		t.Skipf("git ls-files unavailable (%v) — cannot check tracked state", err)
+	}
+	if tracked := strings.TrimSpace(string(out)); tracked != "" {
+		t.Errorf("%s is git-tracked — it must stay git-ignored so a plugin install never sees a stray PATH-resolved server (SQ-0080)", tracked)
 	}
 }
 
