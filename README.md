@@ -50,12 +50,15 @@ Trusting your AI coding agent to remember something you brought up yesterday
 that is unreliable, and it can't cleanly link a task to the commit that
 resolved it: a commit's hash doesn't exist until *after* the commit, and if the
 task lives in the same repo, recording that hash needs another commit — with
-its own hash. The loop never closes. side-quest closes it: because quests live
-on a git ref, a `post-commit` hook can write the hash back the moment it
-exists, as a separate commit on that ref — no second commit on your branch, no
-manual step. The [architecture notes](docs/architecture.md) walk through the
-full model. As an individual developer this gives you 99% of the JIRA
-functionality you care about with 0% of the overhead.
+its own hash. The loop never closes.
+
+side-quest closes it: because quests live on a git ref, a `post-commit` hook
+can write the hash back the moment it exists, as a separate commit on that ref
+— no second commit on your branch, no manual step. The [architecture
+notes](docs/architecture.md) walk through the full model.
+
+As an individual developer this gives you 99% of the JIRA functionality you
+care about with 0% of the overhead.
 
 ## Quickstart
 
@@ -71,18 +74,19 @@ checksum-verified):
 Restart the session so they load. Using another MCP-capable agent? Follow
 [Manual setup](docs/manual-setup.md) instead.
 
-**2. Onboard each repo you want to track**: creates the quest ref and installs
-the git hooks; safe to re-run. Ask your agent to run it, or:
+**2. Enable the terminal CLI (optional)**: Allows you to manage your quests
+from the command line. Ask your agent to enable it (it runs `cli_install`), or
+[install the binary](docs/install.md) yourself.
+
+**3. Onboard each repo you want to track**: creates the quest ref and installs
+the git hooks; safe to re-run. Ask your agent to run it, or from the root dir
+of your repo use the side-quest command:
 
 ```
 side-quest onboard
 ```
 
-**3. Enable the terminal CLI (optional)**: so a `git commit` from your own shell
-links quests too. Ask your agent to enable it (it runs `cli_install`), or
-[install the binary](docs/install.md) yourself.
-
-**4. Capture your first quest:**
+**4. Capture your first quest**:
 
 ```
 /sq fix the flaky parser test
