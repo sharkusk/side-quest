@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -145,5 +146,19 @@ func TestWindowsLauncherAssetContent(t *testing.T) {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("launcher.cmd missing %q", want)
 		}
+	}
+
+	// SQ-0067: the Windows launcher must be pure ASCII (an em-dash renders as
+	// mojibake on a default console codepage) and use CRLF line endings (cmd.exe
+	// parsing is historically fragile with bare LF).
+	for i, c := range b {
+		if c > 127 {
+			t.Fatalf("launcher.cmd byte %d is non-ASCII (0x%02x); use ASCII to avoid Windows mojibake", i, c)
+		}
+	}
+	lf := bytes.Count(b, []byte("\n"))
+	crlf := bytes.Count(b, []byte("\r\n"))
+	if lf == 0 || lf != crlf {
+		t.Errorf("launcher.cmd must use CRLF line endings, got %d LF and %d CRLF", lf, crlf)
 	}
 }
