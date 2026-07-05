@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Generate the side-quest social preview card (docs/social-card.png), SQ-0061.
+"""Generate the side-quest brand assets: the social preview card and the mark.
 
-Emits the card SVG to stdout. Source-code backdrop is read from the repo, so
-run it from anywhere — paths resolve relative to this file. Regenerate with:
+Both share one definition of the recursive pin, so they cannot drift. The
+source-code backdrop is read from the repo; paths resolve relative to this
+file, so run it from anywhere. Regenerate with:
 
+    # social card (docs/social-card.png), SQ-0061
     python3 docs/social-card.gen.py > docs/social-card.svg
     rsvg-convert -w 1280 -h 640 docs/social-card.svg -o docs/social-card.png
+
+    # standalone mark (docs/mark.svg)
+    python3 docs/social-card.gen.py mark > docs/mark.svg
 
 Fonts used (system): Georgia (wordmark), Menlo (backdrop + catchphrase).
 """
@@ -55,10 +60,10 @@ def col(rel, start, count, x, width=48):
         y += 25
     return "\n".join(out)
 
-code = col("internal/store/store.go", 0, 22, 40) + "\n" + \
-       col("internal/merge/merge.go", 0, 22, 700)
-
-svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">
+def card_svg():
+    code = col("internal/store/store.go", 0, 22, 40) + "\n" + \
+           col("internal/merge/merge.go", 0, 22, 700)
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">
   <defs>
     <radialGradient id="glow" cx="35%" cy="70%" r="60%">
       <stop offset="0%" stop-color="#2b2620"/>
@@ -98,4 +103,11 @@ svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewB
         font-size="27" fill="{TAG}" letter-spacing="0.5">Zero overhead issue tracking, keeping you in flow.</text>
 </svg>'''
 
-sys.stdout.write(svg)
+def mark_svg():
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" '
+            f'viewBox="0 0 64 64" role="img" aria-label="side-quest">\n'
+            f'  {mark(3)}\n'
+            f'</svg>\n')
+
+mode = sys.argv[1] if len(sys.argv) > 1 else "card"
+sys.stdout.write(mark_svg() if mode == "mark" else card_svg())
