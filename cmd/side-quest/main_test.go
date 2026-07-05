@@ -617,6 +617,17 @@ func TestUsageDemotesInitAndInstallHooks(t *testing.T) {
 	}
 }
 
+// install-cli / uninstall-cli are discoverable in the usage text.
+func TestUsageListsCliCommands(t *testing.T) {
+	bin := buildBinary(t)
+	out, _ := runBin(t, bin, t.TempDir())
+	for _, want := range []string{"install-cli", "uninstall-cli"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("usage missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func containsLine(s, want string) bool { return countLine(s, want) > 0 }
 
 func countLine(s, want string) int {

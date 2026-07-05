@@ -36,6 +36,8 @@ Quests
 Advanced
   init                            create the quest ref (_config.yaml)
   install-hooks                   install git hooks + refs/side-quest/* refspec
+  install-cli                     put a side-quest launcher on your PATH (plugin users)
+  uninstall-cli                   remove the side-quest launcher this CLI installed
   link <sha>                      apply a commit's Quest:/Completes: trailers
   relink <id> <old-sha> <new-sha> repoint a recorded commit after a rebase
   unlink <id> <sha>               remove a recorded commit from a quest

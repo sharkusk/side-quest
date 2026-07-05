@@ -597,6 +597,18 @@ same repository.
   `mcp.NewServer`, so the version the MCP server advertises to clients tracks
   `side-quest version` rather than a separate hardcoded constant that could drift
   (SQ-0044).
+- **Terminal CLI for plugin users** — `side-quest install-cli` writes a small,
+  **read-only** launcher (marked `side-quest-cli-launcher`) into the first
+  conventional on-PATH user-bin dir (`$XDG_BIN_HOME`, `~/.local/bin`, `~/bin`,
+  `~/go/bin`; else `~/.local/bin` with a PATH notice). The launcher resolves the
+  newest `~/.claude/plugins/data/side-quest-side-quest/bin/side-quest-*` and execs
+  it — it never downloads (the plugin's MCP server provisions the binary on
+  startup). When the plugin's data dir is gone it announces itself as safe to
+  remove (offers to self-delete when interactive; the `.cmd` never self-deletes).
+  The mechanism lives in `internal/cli` (`Install`/`Uninstall`/`Status`), shared by
+  the `install-cli`/`uninstall-cli` subcommands and the MCP `cli_*` tools (SQ-0066);
+  `uninstall-cli` removes the marked launcher while the plugin is still installed,
+  and neither command touches a `side-quest` lacking the marker.
 - **Releases** are produced by GoReleaser (`.goreleaser.yaml`) via a tag-triggered
   GitHub Actions workflow: six targets (darwin/linux/windows × amd64/arm64), archived
   with README + LICENSE, plus `checksums.txt`.
