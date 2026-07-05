@@ -5,5 +5,11 @@
   "description": "A streamlined, git-native issue tracker for individuals and small teams — capture side quests without derailing, and link every commit to the quest it addresses.",
   "author": { "name": "Marcus Kellerman" },
   "repository": "https://github.com/sharkusk/side-quest",
-  "homepage": "https://github.com/sharkusk/side-quest"
+  "homepage": "https://github.com/sharkusk/side-quest",
+  "mcpServers": {
+    "side-quest": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/side-quest",
+      "args": ["serve"]
+    }
+  }
 }

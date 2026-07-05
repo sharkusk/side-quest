@@ -1,9 +1,11 @@
 # Development helpers for working on side-quest — and dogfooding it on itself.
 #
 # The MCP server is not a separate artifact: `side-quest serve` IS the binary, so
-# updating the binary updates the server. The repo's .mcp.json intentionally stays
-# the bare end-user reference (`side-quest serve`, resolved on PATH), so dogfooding
-# HEAD means putting HEAD on PATH — `go install` — rather than editing .mcp.json.
+# updating the binary updates the server. The installed Claude plugin registers its
+# server via .claude-plugin/plugin.json (`${CLAUDE_PLUGIN_ROOT}/bin/side-quest` — the
+# bundled shim). The committed .mcp.json is the portable, cross-agent registration
+# (bare `side-quest serve` on PATH), used by non-Claude MCP agents and by dogfooding —
+# so dogfooding HEAD just means putting HEAD on PATH via `go install` (SQ-0080).
 
 BIN := side-quest
 GOBIN := $(shell go env GOBIN)

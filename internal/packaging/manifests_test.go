@@ -48,7 +48,39 @@ func TestMarketplaceJSONValid(t *testing.T) {
 	}
 }
 
-func TestMCPJSONUsesBareBinary(t *testing.T) {
+// The plugin registers its MCP server via plugin.json's mcpServers, launching the
+// bundled shim by its ${CLAUDE_PLUGIN_ROOT}-relative path. A bare "side-quest"
+// (resolved on PATH) does NOT work on the plugin path: Claude spawns the MCP server
+// without the plugin's bin/ on PATH, so a fresh install ENOENTs and the shim never
+// runs to provision the binary. The committed .mcp.json is git-ignored dogfood
+// config, not the plugin's registration — so this guard reads plugin.json (SQ-0080).
+func TestPluginRegistersMCPServerViaPluginRoot(t *testing.T) {
+	var m struct {
+		MCPServers map[string]struct {
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(repoFile(t, ".claude-plugin/plugin.json"), &m); err != nil {
+		t.Fatalf("plugin.json invalid: %v", err)
+	}
+	sq, ok := m.MCPServers["side-quest"]
+	if !ok {
+		t.Fatal("plugin.json missing mcpServers.side-quest — an installed plugin would register no MCP server")
+	}
+	if sq.Command != "${CLAUDE_PLUGIN_ROOT}/bin/side-quest" {
+		t.Errorf("plugin.json mcp command = %q, want ${CLAUDE_PLUGIN_ROOT}/bin/side-quest (a bare PATH name ENOENTs on the plugin path — SQ-0080)", sq.Command)
+	}
+	if len(sq.Args) != 1 || sq.Args[0] != "serve" {
+		t.Errorf("plugin.json mcp args = %v, want [serve]", sq.Args)
+	}
+}
+
+// The committed root .mcp.json is the portable, cross-agent registration: a BARE
+// `side-quest serve` resolved on PATH, read by non-Claude MCP clients and by
+// dogfooding (HEAD on PATH via `make dev`). It must NOT use ${CLAUDE_PLUGIN_ROOT}
+// (Claude-only) — the plugin path is served by plugin.json instead (SQ-0080).
+func TestMCPJSONIsBareForCrossAgent(t *testing.T) {
 	var m struct {
 		MCPServers map[string]struct {
 			Command string   `json:"command"`
@@ -63,7 +95,7 @@ func TestMCPJSONUsesBareBinary(t *testing.T) {
 		t.Fatal(".mcp.json missing side-quest server")
 	}
 	if sq.Command != "side-quest" || len(sq.Args) != 1 || sq.Args[0] != "serve" {
-		t.Errorf(".mcp.json launches %q %v, want side-quest [serve]", sq.Command, sq.Args)
+		t.Errorf(".mcp.json launches %q %v, want bare side-quest [serve] (portable for non-Claude agents; the plugin uses plugin.json)", sq.Command, sq.Args)
 	}
 }
 
