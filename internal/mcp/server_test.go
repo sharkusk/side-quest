@@ -245,6 +245,37 @@ func TestToolSchemasExposeEnums(t *testing.T) {
 	}
 }
 
+func TestQuestListReturnsSummaries(t *testing.T) {
+	cs, ctx := dialTest(t, newTestStore(t))
+	res, _ := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_new",
+		Arguments: map[string]any{"title": "with body", "context": "SECRETCONTEXT"}})
+	var created questSummary
+	if err := json.Unmarshal([]byte(contentText(t, res)), &created); err != nil {
+		t.Fatalf("quest_new should return a summary: %v\n%s", err, contentText(t, res))
+	}
+	cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_note",
+		Arguments: map[string]any{"id": created.ID, "text": "SECRETNOTE"}})
+
+	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_list", Arguments: map[string]any{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := contentText(t, res)
+	if strings.Contains(text, "SECRETNOTE") || strings.Contains(text, "SECRETCONTEXT") {
+		t.Fatalf("quest_list leaked body/context into the summary:\n%s", text)
+	}
+	if !strings.Contains(text, "commit_count") {
+		t.Fatalf("summary missing commit_count:\n%s", text)
+	}
+	var got []questSummary
+	if err := json.Unmarshal([]byte(text), &got); err != nil {
+		t.Fatalf("list is not an array of summaries: %v", err)
+	}
+	if len(got) != 1 || got[0].Title != "with body" {
+		t.Fatalf("unexpected summaries: %+v", got)
+	}
+}
+
 func TestQuestNewThenShow(t *testing.T) {
 	cs, ctx := dialTest(t, newTestStore(t))
 
@@ -258,15 +289,12 @@ func TestQuestNewThenShow(t *testing.T) {
 	if res.IsError {
 		t.Fatalf("quest_new tool error: %s", contentText(t, res))
 	}
-	var created quest.Quest
+	var created questSummary
 	if err := json.Unmarshal([]byte(contentText(t, res)), &created); err != nil {
 		t.Fatalf("json: %v\n%s", err, contentText(t, res))
 	}
-	if created.Title != "Fix parser" || created.Type != quest.TypeBug {
+	if created.Title != "Fix parser" || created.Type != "bug" {
 		t.Fatalf("bad created quest: %+v", created)
-	}
-	if created.Context == "" {
-		t.Fatal("expected mechanical+narrative context to be recorded")
 	}
 
 	res, err = cs.CallTool(ctx, &sdk.CallToolParams{
@@ -283,6 +311,9 @@ func TestQuestNewThenShow(t *testing.T) {
 	if shown.ID != created.ID {
 		t.Fatalf("show returned %q, want %q", shown.ID, created.ID)
 	}
+	if shown.Context == "" {
+		t.Fatal("quest_show should still carry the recorded context")
+	}
 }
 
 func TestQuestListFilterAndInvalid(t *testing.T) {
@@ -294,11 +325,11 @@ func TestQuestListFilterAndInvalid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var bugs []quest.Quest
+	var bugs []questSummary
 	if err := json.Unmarshal([]byte(contentText(t, res)), &bugs); err != nil {
 		t.Fatal(err)
 	}
-	if len(bugs) != 1 || bugs[0].Type != quest.TypeBug {
+	if len(bugs) != 1 || bugs[0].Type != "bug" {
 		t.Fatalf("filter wrong: %+v", bugs)
 	}
 
@@ -320,7 +351,7 @@ func TestQuestListTagFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got []quest.Quest
+	var got []questSummary
 	if err := json.Unmarshal([]byte(contentText(t, res)), &got); err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -72,6 +73,36 @@ func enumSchema[T any](enums map[string][]string) *jsonschema.Schema {
 		}
 	}
 	return sch
+}
+
+// questSummary is the compact, list/triage projection of a quest for the MCP
+// surface (SQ-0052): the light identifying fields only, with Context and Body
+// dropped and Commits collapsed to a count, so an agent listing a backlog is
+// not force-fed every quest's full body. Lowercase JSON keys match the ack
+// style used elsewhere in this package (quest.Quest itself, carrying only yaml
+// tags, still marshals with capitalised keys via quest_show).
+type questSummary struct {
+	ID          string            `json:"id"`
+	Title       string            `json:"title"`
+	Status      string            `json:"status"`
+	Type        string            `json:"type"`
+	Priority    string            `json:"priority"`
+	Completed   *time.Time        `json:"completed,omitempty"`
+	Tags        map[string]string `json:"tags,omitempty"`
+	CommitCount int               `json:"commit_count"`
+}
+
+func summarize(q *quest.Quest) questSummary {
+	return questSummary{
+		ID:          q.ID,
+		Title:       q.Title,
+		Status:      string(q.Status),
+		Type:        string(q.Type),
+		Priority:    string(q.Priority),
+		Completed:   q.Completed,
+		Tags:        q.Tags,
+		CommitCount: len(q.Commits),
+	}
 }
 
 // --- input types ---
@@ -165,7 +196,7 @@ func (h *handlers) questNew(ctx context.Context, req *sdk.CallToolRequest, in ne
 			return nil, nil, err
 		}
 	}
-	res, meta, err := jsonResult(q)
+	res, meta, err := jsonResult(summarize(q))
 	if err != nil {
 		return res, meta, err
 	}
@@ -186,7 +217,7 @@ func (h *handlers) questList(ctx context.Context, req *sdk.CallToolRequest, in l
 	if err != nil {
 		return nil, nil, err
 	}
-	filtered := make([]*quest.Quest, 0, len(all))
+	summaries := make([]questSummary, 0, len(all))
 	for _, q := range all {
 		if in.Status != "" && string(q.Status) != in.Status {
 			continue
@@ -200,9 +231,9 @@ func (h *handlers) questList(ctx context.Context, req *sdk.CallToolRequest, in l
 		if !quest.MatchTags(q.Tags, in.Tags) {
 			continue
 		}
-		filtered = append(filtered, q)
+		summaries = append(summaries, summarize(q))
 	}
-	return jsonResult(filtered)
+	return jsonResult(summaries)
 }
 
 func (h *handlers) questShow(ctx context.Context, req *sdk.CallToolRequest, in idIn) (*sdk.CallToolResult, any, error) {
