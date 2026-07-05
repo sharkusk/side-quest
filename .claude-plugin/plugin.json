@@ -8,8 +8,8 @@
   "homepage": "https://github.com/sharkusk/side-quest",
   "mcpServers": {
     "side-quest": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/bin/side-quest",
-      "args": ["serve"]
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/launch.js", "serve"]
     }
   }
 }

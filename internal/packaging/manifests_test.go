@@ -51,13 +51,12 @@ func TestMarketplaceJSONValid(t *testing.T) {
 	}
 }
 
-// The plugin registers its MCP server via plugin.json's mcpServers, launching the
-// bundled shim by its ${CLAUDE_PLUGIN_ROOT}-relative path. A bare "side-quest"
-// (resolved on PATH) does NOT work on the plugin path: Claude spawns the MCP server
-// without the plugin's bin/ on PATH, so a fresh install ENOENTs and the shim never
-// runs to provision the binary. The committed .mcp.json is git-ignored dogfood
-// config, not the plugin's registration — so this guard reads plugin.json (SQ-0080).
-func TestPluginRegistersMCPServerViaPluginRoot(t *testing.T) {
+// The plugin registers its MCP server in plugin.json via `node` running the bundled
+// bin/launch.js — the one command Claude's shell-less spawn can launch on every OS.
+// An extensionless ${CLAUDE_PLUGIN_ROOT}/bin/side-quest ENOENTs on the Windows Node
+// spawn (no PATHEXT), and mcpServers has no per-OS field, so a node dispatcher is how
+// one declaration works cross-platform (SQ-0081).
+func TestPluginRegistersMCPServerViaNodeLauncher(t *testing.T) {
 	var m struct {
 		MCPServers map[string]struct {
 			Command string   `json:"command"`
@@ -71,44 +70,57 @@ func TestPluginRegistersMCPServerViaPluginRoot(t *testing.T) {
 	if !ok {
 		t.Fatal("plugin.json missing mcpServers.side-quest — an installed plugin would register no MCP server")
 	}
-	if sq.Command != "${CLAUDE_PLUGIN_ROOT}/bin/side-quest" {
-		t.Errorf("plugin.json mcp command = %q, want ${CLAUDE_PLUGIN_ROOT}/bin/side-quest (a bare PATH name ENOENTs on the plugin path — SQ-0080)", sq.Command)
+	if sq.Command != "node" {
+		t.Errorf("plugin.json mcp command = %q, want \"node\" (extensionless shim paths ENOENT on the Windows Node spawn — SQ-0081)", sq.Command)
 	}
-	if len(sq.Args) != 1 || sq.Args[0] != "serve" {
-		t.Errorf("plugin.json mcp args = %v, want [serve]", sq.Args)
+	want := []string{"${CLAUDE_PLUGIN_ROOT}/bin/launch.js", "serve"}
+	if len(sq.Args) != 2 || sq.Args[0] != want[0] || sq.Args[1] != want[1] {
+		t.Errorf("plugin.json mcp args = %v, want %v", sq.Args, want)
 	}
 }
 
-// The command plugin.json registers must resolve to a shim that actually ships in
-// the plugin and is executable — otherwise the plugin registers a server whose
-// command cannot spawn (the SQ-0080 ENOENT class). ${CLAUDE_PLUGIN_ROOT} is the
-// plugin's install dir (the repo root here): assert the referenced POSIX shim
-// exists (and, off Windows, carries an executable bit) and that the Windows sibling
-// ships too, so a plugin install on either OS resolves a real launcher.
-func TestPluginMCPCommandPointsAtExecutableShim(t *testing.T) {
+// The launcher plugin.json runs (args[0], a ${CLAUDE_PLUGIN_ROOT}-relative path) must
+// ship, and it must dispatch to BOTH per-OS provisioning shims so a plugin install
+// works on either OS: the POSIX shell shim (executable, shebang) and the Windows
+// .cmd (which Node can't spawn without a shell). Otherwise the MCP server has nothing
+// to launch on one platform (SQ-0081).
+func TestPluginLauncherAndShimsShip(t *testing.T) {
 	var m struct {
 		MCPServers map[string]struct {
-			Command string `json:"command"`
+			Args []string `json:"args"`
 		} `json:"mcpServers"`
 	}
 	if err := json.Unmarshal(repoFile(t, ".claude-plugin/plugin.json"), &m); err != nil {
 		t.Fatalf("plugin.json invalid: %v", err)
 	}
-	const prefix = "${CLAUDE_PLUGIN_ROOT}/"
-	cmd := m.MCPServers["side-quest"].Command
-	if !strings.HasPrefix(cmd, prefix) {
-		t.Fatalf("plugin.json command %q must be plugin-root-relative (%s...)", cmd, prefix)
+	args := m.MCPServers["side-quest"].Args
+	if len(args) == 0 {
+		t.Fatal("plugin.json mcp args empty; expected the launcher path first")
 	}
-	rel := strings.TrimPrefix(cmd, prefix) // e.g. bin/side-quest
-	info, err := os.Stat("../../" + rel)
+	const prefix = "${CLAUDE_PLUGIN_ROOT}/"
+	launcher := strings.TrimPrefix(args[0], prefix) // bin/launch.js
+	if launcher == args[0] {
+		t.Fatalf("launcher arg %q must be ${CLAUDE_PLUGIN_ROOT}-relative", args[0])
+	}
+	if _, err := os.Stat("../../" + launcher); err != nil {
+		t.Fatalf("plugin.json launches %q, which is absent from the plugin: %v", launcher, err)
+	}
+	js := string(repoFile(t, launcher))
+	if !strings.Contains(js, "'side-quest.cmd'") {
+		t.Error("bin/launch.js does not dispatch to the Windows shim (side-quest.cmd)")
+	}
+	if !strings.Contains(js, "'side-quest'") {
+		t.Error("bin/launch.js does not dispatch to the POSIX shim (side-quest)")
+	}
+	info, err := os.Stat("../../bin/side-quest")
 	if err != nil {
-		t.Fatalf("plugin.json command references %q, which is absent from the plugin: %v", rel, err)
+		t.Fatalf("POSIX shim bin/side-quest missing: %v", err)
 	}
 	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
-		t.Errorf("plugin shim %q is not executable (mode %v) — Claude could not spawn it", rel, info.Mode())
+		t.Errorf("bin/side-quest is not executable (mode %v)", info.Mode())
 	}
-	if _, err := os.Stat("../../" + rel + ".cmd"); err != nil {
-		t.Errorf("Windows shim %s.cmd is missing from the plugin: %v", rel, err)
+	if _, err := os.Stat("../../bin/side-quest.cmd"); err != nil {
+		t.Errorf("Windows shim bin/side-quest.cmd missing: %v", err)
 	}
 }
 
@@ -128,6 +140,42 @@ func TestRepoDoesNotShipMcpJson(t *testing.T) {
 	}
 	if tracked := strings.TrimSpace(string(out)); tracked != "" {
 		t.Errorf("%s is git-tracked — it must stay git-ignored so a plugin install never sees a stray PATH-resolved server (SQ-0080)", tracked)
+	}
+}
+
+// End-to-end on whatever OS runs the test: bin/launch.js must dispatch to the
+// per-OS shim (the POSIX shell shim, or the .cmd on Windows) and pass args through.
+// This is exactly what Claude relies on when it Node-spawns the plugin MCP command,
+// and it is the behavior that lets one `node` command work on every OS (SQ-0081).
+func TestPluginLauncherRunsPerOSShim(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not on PATH; skipping launcher behavior test")
+	}
+	dir := t.TempDir()
+	src, err := os.ReadFile("../../bin/launch.js")
+	if err != nil {
+		t.Fatalf("read launch.js: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "launch.js"), src, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Plant an OS-appropriate fake shim next to launch.js that echoes a marker + args.
+	if runtime.GOOS == "windows" {
+		if err := os.WriteFile(filepath.Join(dir, "side-quest.cmd"), []byte("@echo off\r\necho SHIM %*\r\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		if err := os.WriteFile(filepath.Join(dir, "side-quest"), []byte("#!/bin/sh\necho SHIM \"$@\"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out, err := exec.Command(node, filepath.Join(dir, "launch.js"), "serve").CombinedOutput()
+	if err != nil {
+		t.Fatalf("run launcher: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "SHIM serve") {
+		t.Errorf("launcher did not dispatch to the per-OS shim; got %q", out)
 	}
 }
 
