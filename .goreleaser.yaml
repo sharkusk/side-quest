@@ -30,5 +30,15 @@ checksum:
   name_template: checksums.txt
   algorithm: sha256
 
+# The release notes are the annotated tag's own message, not an auto-generated
+# commit list. Disabling the changelog and setting the header to {{ .TagBody }}
+# means the curated summary written into `git tag -a vX.Y.Z` is exactly what the
+# GitHub release shows — write the tag message thoughtfully and it carries through
+# (SQ-0078).
+changelog:
+  disable: true
+
 release:
   draft: false
+  header: |
+    {{ .TagBody }}
