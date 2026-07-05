@@ -57,9 +57,16 @@ values:
 // A plain `go build` / `go install` leaves it as "dev".
 var version = "dev"
 
+// helpText is the usage screen with a `side-quest <version>` header, so a user
+// can see which build they're running without a separate `version` call. version
+// is a runtime var (set via ldflags), so it can't live in the usage const.
+func helpText() string {
+	return "side-quest " + version + "\n\n" + usage
+}
+
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, usage)
+		fmt.Fprintln(os.Stderr, helpText())
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -67,7 +74,7 @@ func main() {
 		fmt.Println(version)
 		return
 	case "help", "--help", "-h":
-		fmt.Println(usage)
+		fmt.Println(helpText())
 		return
 	}
 	if err := run(os.Args[1], os.Args[2:]); err != nil {

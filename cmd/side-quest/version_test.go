@@ -20,6 +20,30 @@ func TestVersionReportsDevByDefault(t *testing.T) {
 	}
 }
 
+// The help screen and the bare-usage output both carry the version, so a user
+// sees which side-quest they're running without a separate `version` call.
+func TestHelpShowsVersion(t *testing.T) {
+	bin := buildBinaryVersion(t, "9.9.9")
+
+	// `help` -> stdout, exit 0.
+	out, code := runBin(t, bin, t.TempDir(), "help")
+	if code != 0 {
+		t.Fatalf("help exit=%d out=%s", code, out)
+	}
+	if !strings.Contains(out, "side-quest 9.9.9") {
+		t.Errorf("help output missing version header:\n%s", out)
+	}
+
+	// no args -> usage on stderr, exit 2.
+	uout, ucode := runBin(t, bin, t.TempDir())
+	if ucode != 2 {
+		t.Fatalf("no-arg exit=%d, want 2\n%s", ucode, uout)
+	}
+	if !strings.Contains(uout, "side-quest 9.9.9") {
+		t.Errorf("no-arg usage missing version header:\n%s", uout)
+	}
+}
+
 // A release build injects the version via ldflags; the binary must report it.
 func TestVersionReflectsLdflags(t *testing.T) {
 	bin := exePath(t.TempDir())
