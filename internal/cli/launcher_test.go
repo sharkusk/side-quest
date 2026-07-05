@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // launcherSrc is the POSIX launcher asset, exec'd directly to test its resolution.
@@ -61,6 +62,43 @@ func TestLauncherExecsProvisionedBinary(t *testing.T) {
 	}
 	if !strings.HasPrefix(out, "PROVISIONED serve") {
 		t.Errorf("got %q, want the provisioned binary", out)
+	}
+}
+
+// Case 1 (newest wins): with several provisioned binaries the launcher must exec
+// the one with the newest mtime — the property that lets it follow plugin updates.
+// The newer-mtime binary is the alphabetically FIRST name and the older one is
+// last, so a name-order selection or a reversed -nt comparison would both echo OLD
+// and fail this test.
+func TestLauncherExecsNewestBinary(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX launcher")
+	}
+	home := t.TempDir()
+	bin := filepath.Join(dataDir(home), "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	newer := filepath.Join(bin, "side-quest-1.0.0")
+	older := filepath.Join(bin, "side-quest-2.0.0")
+	writeExecFile(t, newer, "#!/bin/sh\necho NEW\n")
+	writeExecFile(t, older, "#!/bin/sh\necho OLD\n")
+	// Force distinct mtimes regardless of creation order or fs granularity.
+	past := time.Now().Add(-1 * time.Hour)
+	now := time.Now()
+	if err := os.Chtimes(older, past, past); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(newer, now, now); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runLauncher(t, home)
+	if err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	if strings.TrimSpace(out) != "NEW" {
+		t.Errorf("got %q, want NEW (the newest-mtime binary, not the alphabetically-last one)", out)
 	}
 }
 
