@@ -140,16 +140,6 @@ func jsonResult(v any) (*sdk.CallToolResult, any, error) {
 	return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: string(b)}}}, nil, nil
 }
 
-// result re-reads a quest by id and returns it — used by the mutating tools so
-// the agent sees the post-mutation state.
-func (h *handlers) result(id string) (*sdk.CallToolResult, any, error) {
-	q, err := h.store.Get(id)
-	if err != nil {
-		return nil, nil, err
-	}
-	return jsonResult(q)
-}
-
 // voiced appends an optional second content block carrying a tone-flavored line
 // for a human reader, leaving content[0] (the neutral JSON) untouched for parsers
 // (SQ-0028). It is silent for the plain tone and on any config read error, so a
@@ -169,16 +159,6 @@ func (h *handlers) voiced(res *sdk.CallToolResult, line func(*voice.Voice) strin
 	}
 	res.Content = append(res.Content, &sdk.TextContent{Text: line(voice.New(eff))})
 	return res
-}
-
-// resultVoiced re-reads a quest by id (post-mutation state) and returns it with an
-// optional voice block (see voiced).
-func (h *handlers) resultVoiced(id string, line func(*voice.Voice) string) (*sdk.CallToolResult, any, error) {
-	res, meta, err := h.result(id)
-	if err != nil {
-		return res, meta, err
-	}
-	return h.voiced(res, line), meta, nil
 }
 
 // --- handlers ---
@@ -300,7 +280,15 @@ func (h *handlers) questSetStatus(ctx context.Context, req *sdk.CallToolRequest,
 	if err := h.store.SetStatus(in.ID, quest.Status(in.Status)); err != nil {
 		return nil, nil, err
 	}
-	return h.resultVoiced(in.ID, func(v *voice.Voice) string { return v.StatusSet(in.ID, quest.Status(in.Status)) })
+	res, meta, err := jsonResult(struct {
+		OK     bool   `json:"ok"`
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}{true, in.ID, in.Status})
+	if err != nil {
+		return res, meta, err
+	}
+	return h.voiced(res, func(v *voice.Voice) string { return v.StatusSet(in.ID, quest.Status(in.Status)) }), meta, nil
 }
 
 func (h *handlers) questReclassify(ctx context.Context, req *sdk.CallToolRequest, in reclassifyIn) (*sdk.CallToolResult, any, error) {
@@ -310,7 +298,12 @@ func (h *handlers) questReclassify(ctx context.Context, req *sdk.CallToolRequest
 	if err := h.store.Reclassify(in.ID, quest.Type(in.Type), quest.Priority(in.Priority)); err != nil {
 		return nil, nil, err
 	}
-	return h.result(in.ID)
+	return jsonResult(struct {
+		OK       bool   `json:"ok"`
+		ID       string `json:"id"`
+		Type     string `json:"type,omitempty"`
+		Priority string `json:"priority,omitempty"`
+	}{true, in.ID, in.Type, in.Priority})
 }
 
 func (h *handlers) questUpdate(ctx context.Context, req *sdk.CallToolRequest, in updateIn) (*sdk.CallToolResult, any, error) {
@@ -320,14 +313,36 @@ func (h *handlers) questUpdate(ctx context.Context, req *sdk.CallToolRequest, in
 	if err := h.store.Modify(in.ID, in.Title, in.Tags); err != nil {
 		return nil, nil, err
 	}
-	return h.result(in.ID)
+	q, err := h.store.Get(in.ID) // re-read: tags merge, so the result isn't knowable from inputs
+	if err != nil {
+		return nil, nil, err
+	}
+	// tags is always present per SQ-0052: render {} (not null) when empty so an
+	// agent can tell "tags are now empty" from "tags weren't touched".
+	tags := q.Tags
+	if tags == nil {
+		tags = map[string]string{}
+	}
+	return jsonResult(struct {
+		OK    bool              `json:"ok"`
+		ID    string            `json:"id"`
+		Title string            `json:"title,omitempty"`
+		Tags  map[string]string `json:"tags"`
+	}{true, in.ID, in.Title, tags})
 }
 
 func (h *handlers) questNote(ctx context.Context, req *sdk.CallToolRequest, in noteIn) (*sdk.CallToolResult, any, error) {
 	if err := h.store.AppendNote(in.ID, in.Text); err != nil {
 		return nil, nil, err
 	}
-	return h.resultVoiced(in.ID, func(v *voice.Voice) string { return v.NoteAdded(in.ID) })
+	res, meta, err := jsonResult(struct {
+		OK bool   `json:"ok"`
+		ID string `json:"id"`
+	}{true, in.ID})
+	if err != nil {
+		return res, meta, err
+	}
+	return h.voiced(res, func(v *voice.Voice) string { return v.NoteAdded(in.ID) }), meta, nil
 }
 
 func (h *handlers) questSetCurrent(ctx context.Context, req *sdk.CallToolRequest, in setCurrentIn) (*sdk.CallToolResult, any, error) {
@@ -372,12 +387,21 @@ func (h *handlers) questRelinkCommit(ctx context.Context, req *sdk.CallToolReque
 	if err := h.store.ReplaceCommit(in.ID, in.OldSHA, newSHA); err != nil {
 		return nil, nil, err
 	}
-	return h.result(in.ID)
+	return jsonResult(struct {
+		OK     bool   `json:"ok"`
+		ID     string `json:"id"`
+		OldSHA string `json:"old_sha"`
+		NewSHA string `json:"new_sha"`
+	}{true, in.ID, in.OldSHA, newSHA})
 }
 
 func (h *handlers) questUnlinkCommit(ctx context.Context, req *sdk.CallToolRequest, in unlinkIn) (*sdk.CallToolResult, any, error) {
 	if err := h.store.RemoveCommit(in.ID, in.SHA); err != nil {
 		return nil, nil, err
 	}
-	return h.result(in.ID)
+	return jsonResult(struct {
+		OK  bool   `json:"ok"`
+		ID  string `json:"id"`
+		SHA string `json:"sha"`
+	}{true, in.ID, in.SHA})
 }

@@ -157,12 +157,17 @@ func TestUnlinkAndRelinkCommitTools(t *testing.T) {
 	if res.IsError {
 		t.Fatalf("relink error: %s", contentText(t, res))
 	}
-	var relinked quest.Quest
-	if err := json.Unmarshal([]byte(contentText(t, res)), &relinked); err != nil {
+	var rl struct {
+		OK     bool   `json:"ok"`
+		ID     string `json:"id"`
+		OldSHA string `json:"old_sha"`
+		NewSHA string `json:"new_sha"`
+	}
+	if err := json.Unmarshal([]byte(contentText(t, res)), &rl); err != nil {
 		t.Fatal(err)
 	}
-	if len(relinked.Commits) != 1 || relinked.Commits[0] != c2 {
-		t.Fatalf("relink did not swap to the new sha: %v", relinked.Commits)
+	if !rl.OK || rl.NewSHA != c2 {
+		t.Fatalf("relink ack should echo the resolved new sha %s: %+v", c2, rl)
 	}
 
 	res, err = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_unlink_commit",
@@ -173,12 +178,26 @@ func TestUnlinkAndRelinkCommitTools(t *testing.T) {
 	if res.IsError {
 		t.Fatalf("unlink error: %s", contentText(t, res))
 	}
-	var unlinked quest.Quest
-	if err := json.Unmarshal([]byte(contentText(t, res)), &unlinked); err != nil {
+	var ul struct {
+		OK  bool   `json:"ok"`
+		ID  string `json:"id"`
+		SHA string `json:"sha"`
+	}
+	if err := json.Unmarshal([]byte(contentText(t, res)), &ul); err != nil {
 		t.Fatal(err)
 	}
-	if len(unlinked.Commits) != 0 {
-		t.Fatalf("unlink did not remove the sha: %v", unlinked.Commits)
+	if !ul.OK {
+		t.Fatalf("unlink ack wrong: %+v", ul)
+	}
+	// Confirm the effect via a full read.
+	shown, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_show", Arguments: map[string]any{"id": q.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var after quest.Quest
+	json.Unmarshal([]byte(contentText(t, shown)), &after)
+	if len(after.Commits) != 0 {
+		t.Fatalf("unlink did not remove the sha: %v", after.Commits)
 	}
 }
 
@@ -421,7 +440,7 @@ func TestGetCurrentEmpty(t *testing.T) {
 func TestSetStatusAndReclassify(t *testing.T) {
 	cs, ctx := dialTest(t, newTestStore(t))
 	res, _ := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_new", Arguments: map[string]any{"title": "x"}})
-	var q quest.Quest
+	var q questSummary
 	json.Unmarshal([]byte(contentText(t, res)), &q)
 
 	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_set_status", Arguments: map[string]any{"id": q.ID, "status": "done"}})
@@ -431,17 +450,28 @@ func TestSetStatusAndReclassify(t *testing.T) {
 	if res.IsError {
 		t.Fatalf("set_status error: %s", contentText(t, res))
 	}
-	var done quest.Quest
-	json.Unmarshal([]byte(contentText(t, res)), &done)
-	if done.Status != quest.StatusDone {
-		t.Fatalf("status not set: %+v", done)
+	var st struct {
+		OK     bool   `json:"ok"`
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(contentText(t, res)), &st); err != nil {
+		t.Fatal(err)
+	}
+	if !st.OK || st.ID != q.ID || st.Status != "done" {
+		t.Fatalf("set_status ack wrong: %+v", st)
 	}
 
 	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_reclassify", Arguments: map[string]any{"id": q.ID, "priority": "high"}})
-	var re quest.Quest
-	json.Unmarshal([]byte(contentText(t, res)), &re)
-	if re.Priority != quest.PriorityHigh {
-		t.Fatalf("reclassify failed: %+v", re)
+	var rc struct {
+		OK       bool   `json:"ok"`
+		ID       string `json:"id"`
+		Type     string `json:"type"`
+		Priority string `json:"priority"`
+	}
+	json.Unmarshal([]byte(contentText(t, res)), &rc)
+	if !rc.OK || rc.Priority != "high" || rc.Type != "" {
+		t.Fatalf("reclassify ack wrong (type should be omitted): %+v", rc)
 	}
 
 	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_set_status", Arguments: map[string]any{"id": q.ID, "status": "nope"}})
@@ -457,31 +487,62 @@ func TestSetStatusAndReclassify(t *testing.T) {
 func TestUpdateAndNote(t *testing.T) {
 	cs, ctx := dialTest(t, newTestStore(t))
 	res, _ := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_new", Arguments: map[string]any{"title": "orig", "tags": map[string]any{"keep": "yes"}}})
-	var q quest.Quest
+	var q questSummary
 	json.Unmarshal([]byte(contentText(t, res)), &q)
 
 	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_update", Arguments: map[string]any{"id": q.ID, "title": "renamed", "tags": map[string]any{"area": "mcp", "keep": ""}}})
-	var up quest.Quest
-	json.Unmarshal([]byte(contentText(t, res)), &up)
-	if up.Title != "renamed" || up.Tags["area"] != "mcp" {
-		t.Fatalf("update wrong: %+v", up)
+	var up struct {
+		OK    bool              `json:"ok"`
+		ID    string            `json:"id"`
+		Title string            `json:"title"`
+		Tags  map[string]string `json:"tags"`
+	}
+	if err := json.Unmarshal([]byte(contentText(t, res)), &up); err != nil {
+		t.Fatal(err)
+	}
+	if !up.OK || up.Title != "renamed" || up.Tags["area"] != "mcp" {
+		t.Fatalf("update ack wrong: %+v", up)
 	}
 	if _, ok := up.Tags["keep"]; ok {
-		t.Fatalf("empty tag value should delete: %+v", up.Tags)
+		t.Fatalf("empty tag value should delete in the merged result: %+v", up.Tags)
+	}
+
+	// Deleting the last tag: the merged set is empty, but SQ-0052 specifies the
+	// tags key is ALWAYS present (rendered as {}), so an agent can tell "tags are
+	// now empty" from "tags weren't touched".
+	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_update", Arguments: map[string]any{"id": q.ID, "tags": map[string]any{"area": ""}}})
+	rawEmpty := contentText(t, res)
+	if !strings.Contains(rawEmpty, `"tags"`) {
+		t.Fatalf("tags key must render even when the merged set is empty: %s", rawEmpty)
+	}
+	var emptied struct {
+		Tags map[string]string `json:"tags"`
+	}
+	if err := json.Unmarshal([]byte(rawEmpty), &emptied); err != nil {
+		t.Fatal(err)
+	}
+	if emptied.Tags == nil || len(emptied.Tags) != 0 {
+		t.Fatalf("emptied tags should be a non-nil empty map: %+v", emptied.Tags)
 	}
 
 	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_note", Arguments: map[string]any{"id": q.ID, "text": "learned something"}})
-	var noted quest.Quest
-	json.Unmarshal([]byte(contentText(t, res)), &noted)
-	if !strings.Contains(noted.Body, "learned something") {
-		t.Fatalf("note not appended: body=%q", noted.Body)
+	txt := contentText(t, res)
+	if strings.Contains(txt, "learned something") {
+		t.Fatalf("note ack must not echo the body: %s", txt)
+	}
+	var nk struct {
+		OK bool   `json:"ok"`
+		ID string `json:"id"`
+	}
+	json.Unmarshal([]byte(txt), &nk)
+	if !nk.OK || nk.ID != q.ID {
+		t.Fatalf("note ack wrong: %+v", nk)
 	}
 
 	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_update", Arguments: map[string]any{"id": q.ID}})
 	if !res.IsError {
 		t.Fatal("update with nothing to change should be a tool error")
 	}
-
 	res, _ = cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_update", Arguments: map[string]any{"id": q.ID, "tags": map[string]any{}}})
 	if !res.IsError {
 		t.Fatal("update with empty tags object and no title should be a tool error")
