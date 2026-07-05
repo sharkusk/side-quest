@@ -17,7 +17,10 @@ import (
 
 const usage = `usage: side-quest <command> [args]
 
-  init                            create the quest ref (_config.yaml)
+Setup
+  onboard [--agents-md]           set up or refresh this repo (ref + hooks + .mcp.json)
+
+Quests
   new [--type --priority --context --tag k=v --current --json] <title>
   list [--status --type --priority --json]   list quests (filters combine)
   show <id> [--json]              show one quest
@@ -25,18 +28,20 @@ const usage = `usage: side-quest <command> [args]
   note <id> <text>                append a note to a quest
   edit <id>                       open a quest in $EDITOR and write it back
   reclassify <id> [--type --priority]  change a quest's type/priority
+  current [<id> | --clear]        get / set / clear this worktree's active quest
   config get [--json]             show effective config
   config set <key> <value>        set require_quest | auto_trailer | id_strategy | tone
+  sync [--dry-run] [--remote <name>]  reconcile quests with a remote (fetch+merge+push)
+
+Advanced
+  init                            create the quest ref (_config.yaml)
+  install-hooks                   install git hooks + refs/side-quest/* refspec
   link <sha>                      apply a commit's Quest:/Completes: trailers
   relink <id> <old-sha> <new-sha> repoint a recorded commit after a rebase
   unlink <id> <sha>               remove a recorded commit from a quest
-  current [<id> | --clear]        get / set / clear this worktree's active quest
   commit-msg <file>               (hook) warn or reject when a trailer is missing
   prepare-commit-msg <file> [..]  (hook) inject the current-quest trailer
-  install-hooks                   install git hooks + refs/side-quest/* refspec
-  sync [--dry-run] [--remote <name>]  reconcile quests with a remote (fetch+merge+push)
-  pre-push [<remote> <url>]        (hook) auto-sync quests on git push
-  onboard                         one-shot repo setup: init + hooks + .mcp.json
+  pre-push [<remote> <url>]       (hook) auto-sync quests on git push
   agents-md                       print the agent-guidance block for AGENTS.md
   serve                           run the stdio MCP server
   version                         print the side-quest version

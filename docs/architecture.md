@@ -384,6 +384,8 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   Safe to re-run (an existing ref, hooks, and `.mcp.json` are each left as they
   are; the AGENTS.md block is refreshed to the current version, the user's own
   content untouched).
+  `init` and `install-hooks` remain lower-level subcommands `onboard` composes
+  (grouped under "Advanced" in `side-quest help`).
 - `agents-md` — print the canonical agent-guidance block (the embedded
   `AGENTS.md`, wrapped in refresh markers and version-stamped) for pasting into a
   project's own `AGENTS.md`.

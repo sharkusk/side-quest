@@ -594,6 +594,29 @@ func TestInstallHooksWarnsWhenComposing(t *testing.T) {
 	}
 }
 
+// D9: onboard leads the usage as the front-door command, and init/install-hooks
+// are demoted under an "Advanced" grouping — still listed (they stay valid).
+func TestUsageDemotesInitAndInstallHooks(t *testing.T) {
+	bin := buildBinary(t)
+	out, _ := runBin(t, bin, t.TempDir()) // no args -> usage on stderr, exit 2
+
+	adv := strings.Index(out, "Advanced")
+	if adv < 0 {
+		t.Fatalf("usage has no Advanced section:\n%s", out)
+	}
+	if i := strings.Index(out, "onboard"); i < 0 || i > adv {
+		t.Errorf("onboard should lead the usage above Advanced (onboard=%d advanced=%d)", i, adv)
+	}
+	for _, cmd := range []string{"init", "install-hooks"} {
+		i := strings.Index(out, "\n  "+cmd)
+		if i < 0 {
+			t.Errorf("usage dropped %q entirely:\n%s", cmd, out)
+		} else if i < adv {
+			t.Errorf("%q should be under Advanced (line at %d, Advanced at %d)", cmd, i, adv)
+		}
+	}
+}
+
 func containsLine(s, want string) bool { return countLine(s, want) > 0 }
 
 func countLine(s, want string) int {
