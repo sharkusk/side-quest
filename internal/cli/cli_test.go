@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -156,5 +157,79 @@ func TestInstallOverwritesOwnMarkedLauncher(t *testing.T) {
 	}
 	if !bytes.Contains(b, []byte(Marker)) {
 		t.Error("re-installed launcher is missing the marker")
+	}
+}
+
+// Uninstall removes a marked launcher and leaves an unmarked side-quest untouched;
+// it scans candidate dirs even when they are not on $PATH (the MCP-server case).
+func TestUninstallRemovesOnlyMarked(t *testing.T) {
+	home := t.TempDir()
+	// The marked launcher lives in ~/.local/bin, which we deliberately keep OFF
+	// $PATH to prove Uninstall scans the candidate dirs too (spec D7).
+	local := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(local, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(local, "side-quest"),
+		[]byte("#!/bin/sh\n# "+Marker+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ownDir := t.TempDir()
+	own := filepath.Join(ownDir, "side-quest")
+	if err := os.WriteFile(own, []byte("#!/bin/sh\necho mine\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_BIN_HOME", "")
+	t.Setenv("PATH", ownDir) // ~/.local/bin intentionally NOT on PATH
+
+	r, err := Uninstall()
+	if err != nil {
+		t.Fatalf("Uninstall: %v", err)
+	}
+	if len(r.Removed) != 1 || !strings.HasSuffix(r.Removed[0], filepath.Join(".local", "bin", "side-quest")) {
+		t.Errorf("expected the marked launcher removed, got %v", r.Removed)
+	}
+	if _, err := os.Stat(filepath.Join(local, "side-quest")); !os.IsNotExist(err) {
+		t.Errorf("marked launcher not removed (err=%v)", err)
+	}
+	if _, err := os.Stat(own); err != nil {
+		t.Errorf("Uninstall removed the user's own side-quest: %v", err)
+	}
+}
+
+// Uninstall reports nothing removed and nothing refused when no launcher exists.
+func TestUninstallEmpty(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_BIN_HOME", "")
+	t.Setenv("PATH", t.TempDir())
+	r, err := Uninstall()
+	if err != nil {
+		t.Fatalf("Uninstall: %v", err)
+	}
+	if len(r.Removed) != 0 || len(r.Refused) != 0 {
+		t.Errorf("expected empty result, got removed=%v refused=%v", r.Removed, r.Refused)
+	}
+}
+
+// Status finds a marked launcher in a candidate dir that is off $PATH.
+func TestStatusFindsMarkedOffPath(t *testing.T) {
+	home := t.TempDir()
+	local := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(local, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(local, "side-quest"),
+		[]byte("#!/bin/sh\n# "+Marker+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_BIN_HOME", "")
+	t.Setenv("PATH", "/usr/bin:/bin") // launcher dir not on PATH
+
+	st := Status()
+	if !st.Installed || !strings.HasSuffix(st.Path, filepath.Join(".local", "bin", "side-quest")) {
+		t.Errorf("Status = %+v, want installed at ~/.local/bin/side-quest", st)
 	}
 }

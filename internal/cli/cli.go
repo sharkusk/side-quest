@@ -105,3 +105,77 @@ func Install() (InstallResult, error) {
 	}
 	return InstallResult{Path: target, Dir: dir, OnPath: onPath}, nil
 }
+
+// launcherDirs is the deduped set of dirs a launcher might live in: everything on
+// $PATH plus the conventional install candidates (D7). Scanning the union makes
+// Status/Uninstall robust even when the caller's $PATH is the GUI PATH rather than
+// the user's login shell (the MCP server sees that — spec D7).
+func launcherDirs() []string {
+	home, _ := os.UserHomeDir()
+	all := append(filepath.SplitList(os.Getenv("PATH")), InstallDirCandidates(home, os.Getenv("XDG_BIN_HOME"))...)
+	seen := make(map[string]bool, len(all))
+	out := make([]string, 0, len(all))
+	for _, d := range all {
+		if d == "" || seen[d] {
+			continue
+		}
+		seen[d] = true
+		out = append(out, d)
+	}
+	return out
+}
+
+// UninstallResult reports what Uninstall did.
+type UninstallResult struct {
+	Removed []string // launcher paths removed
+	Refused []string // paths left in place (present but unmarked)
+}
+
+// Uninstall removes the marked launcher(s) while the plugin is still installed
+// (the plugin-gone case is the launcher's own self-removal — spec D4.3/D8). It
+// never removes a side-quest lacking Marker.
+func Uninstall() (UninstallResult, error) {
+	var res UninstallResult
+	for _, dir := range launcherDirs() {
+		for _, name := range []string{"side-quest", "side-quest.cmd"} {
+			p := filepath.Join(dir, name)
+			b, err := os.ReadFile(p)
+			if err != nil {
+				continue
+			}
+			if !bytes.Contains(b, []byte(Marker)) {
+				res.Refused = append(res.Refused, p)
+				continue
+			}
+			if err := os.Remove(p); err != nil {
+				return res, err
+			}
+			res.Removed = append(res.Removed, p)
+		}
+	}
+	return res, nil
+}
+
+// StatusResult reports whether a marked launcher is present.
+type StatusResult struct {
+	Installed bool
+	Path      string // the first marked launcher found, if any
+}
+
+// Status scans for a marked launcher (spec D5's cli_status). Like Uninstall it
+// looks in the union of $PATH and the candidate dirs.
+func Status() StatusResult {
+	for _, dir := range launcherDirs() {
+		for _, name := range []string{"side-quest", "side-quest.cmd"} {
+			p := filepath.Join(dir, name)
+			b, err := os.ReadFile(p)
+			if err != nil {
+				continue
+			}
+			if bytes.Contains(b, []byte(Marker)) {
+				return StatusResult{Installed: true, Path: p}
+			}
+		}
+	}
+	return StatusResult{}
+}

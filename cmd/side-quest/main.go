@@ -115,6 +115,8 @@ func run(cmd string, args []string) error {
 		return cmdInstallHooks(args)
 	case "install-cli":
 		return cmdInstallCli(args)
+	case "uninstall-cli":
+		return cmdUninstallCli(args)
 	case "sync":
 		return cmdSync(args)
 	case "pre-push":
