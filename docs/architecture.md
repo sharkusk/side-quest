@@ -265,6 +265,16 @@ essentials survive a client that ignores `instructions`. Long-tail tools
 through their own descriptions; situational multi-step workflows live in the
 reinforcement surfaces.
 
+**Claude Code does inject `instructions` (verified, SQ-0054).** In a Claude Code
+session with the server connected, `guidance.Core` appears in the model's context
+verbatim under a client-generated `# MCP Server Instructions` heading — so the
+`instructions` channel is a real delivery path, not just a hope. Because
+`guidance.Core` is mirrored in `AGENTS.md`/`SKILL.md`/tool descriptions, the clean
+discriminator is `guidance.Plugin`: it is appended to `instructions` **only** (under
+the plugin) and mirrored nowhere, so its presence in context is proof the channel —
+not a file — delivered it. The tool descriptions remain the guaranteed floor for any
+future client that ignores the field.
+
 The skill and `AGENTS.md` are **opt-in reinforcement**, not the baseline: the
 Claude plugin bundles the skill; a non-Claude user opts into `AGENTS.md` with
 `onboard --agents-md`. All three surfaces derive from the same `guidance.Core`.
