@@ -35,6 +35,15 @@ func buildBinary(t *testing.T) string {
 	return bin
 }
 
+// putBinDirOnPath prepends bin's directory to PATH for this test, so the portable git
+// hooks (`command -v side-quest`, SQ-0058) resolve the freshly built binary when git
+// fires them. Without it, an E2E hook test only passes where side-quest happens to be
+// on the ambient PATH (a dev box) and fails in CI, which installs no side-quest (SQ-0086).
+func putBinDirOnPath(t *testing.T, bin string) {
+	t.Helper()
+	t.Setenv("PATH", filepath.Dir(bin)+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
 // newRepo makes a temp git repo with an identity and returns (dir, openedStore).
 func newRepo(t *testing.T) (string, *store.Store) {
 	t.Helper()
@@ -330,6 +339,7 @@ func gitCommit(t *testing.T, dir, filename, message string) int {
 // and post-commit linking that closes a quest.
 func TestEndToEndHooksDriveLinking(t *testing.T) {
 	bin := buildBinary(t)
+	putBinDirOnPath(t, bin) // portable hooks resolve side-quest via PATH (SQ-0058/SQ-0086)
 	dir, s := newRepo(t)
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
@@ -339,7 +349,7 @@ func TestEndToEndHooksDriveLinking(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Install hooks (bakes the built binary's absolute path into the shims).
+	// Install the portable hooks (they invoke side-quest via PATH, SQ-0058).
 	if _, code := runBin(t, bin, dir, "install-hooks"); code != 0 {
 		t.Fatalf("install-hooks exit=%d", code)
 	}
@@ -428,6 +438,7 @@ func TestInstallHooksFromSubdirectory(t *testing.T) {
 // publishes the quest ref out-of-band during the same push.
 func TestInstallHooksPushKeepsBranch(t *testing.T) {
 	bin := buildBinary(t)
+	putBinDirOnPath(t, bin) // pre-push hook resolves side-quest via PATH (SQ-0086)
 	dir, s := newRepo(t)
 	if err := s.Init(); err != nil {
 		t.Fatal(err)

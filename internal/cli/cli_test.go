@@ -70,6 +70,7 @@ func TestInstallWritesMarkedLauncher(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", dir)
 
@@ -101,6 +102,7 @@ func TestInstallRefusesUnmarked(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", dir)
 
@@ -130,6 +132,7 @@ func TestInstallRefusesBinaryWithBuriedMarker(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", dir)
 
@@ -155,6 +158,7 @@ func TestStatusIgnoresBinaryWithBuriedMarker(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", local)
 
@@ -177,6 +181,7 @@ func TestUninstallRefusesBinaryWithBuriedMarker(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", local)
 
@@ -199,6 +204,7 @@ func TestUninstallRefusesBinaryWithBuriedMarker(t *testing.T) {
 func TestInstallFallbackReportsOffPath(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", "/usr/bin:/bin") // none of our candidates is on PATH
 
@@ -225,6 +231,7 @@ func TestInstallOverwritesOwnMarkedLauncher(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", dir)
 
@@ -270,6 +277,7 @@ func TestInstallRefusesUnreadable(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(target, 0o644) })
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", dir)
 
@@ -308,6 +316,7 @@ func TestUninstallRemovesOnlyMarked(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", ownDir) // ~/.local/bin intentionally NOT on PATH
 
@@ -335,6 +344,7 @@ func TestUninstallRemovesOnlyMarked(t *testing.T) {
 func TestUninstallEmpty(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", t.TempDir())
 	r, err := Uninstall()
@@ -358,6 +368,7 @@ func TestStatusFindsMarkedOffPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", "/usr/bin:/bin") // launcher dir not on PATH
 

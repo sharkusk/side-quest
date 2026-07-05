@@ -123,6 +123,7 @@ func remoteHasQuestRef(t *testing.T, originDir string) bool {
 // quest ref without the user running `side-quest sync` themselves.
 func TestPrePushHookPublishesQuests(t *testing.T) {
 	bin := buildBinary(t)
+	putBinDirOnPath(t, bin) // pre-push hook resolves side-quest via PATH (SQ-0086)
 	origin := t.TempDir()
 	if _, err := gitcmd.New(origin).Run("init", "--bare", "-q"); err != nil {
 		t.Fatal(err)

@@ -18,6 +18,7 @@ func TestInstallCliCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", dir)
 
@@ -47,6 +48,7 @@ func TestUninstallCliCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	t.Setenv("PATH", dir)
 

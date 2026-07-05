@@ -52,6 +52,7 @@ func TestCliToolsLifecycle(t *testing.T) {
 	}
 	data := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	// dir leads PATH (so it's the chosen install dir); only git's dir follows, so
 	// the launcherDirs() scan can't reach a real launcher on the ambient PATH.
@@ -88,7 +89,9 @@ func TestCliToolsLifecycle(t *testing.T) {
 // cli_dismiss records a decline (writes the sentinel) so status reports offered.
 func TestCliDismissMarksOffered(t *testing.T) {
 	data := t.TempDir()
-	t.Setenv("HOME", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
 	t.Setenv("XDG_BIN_HOME", "")
 	// Only git's dir follows the sandbox dir on PATH — never the ambient PATH.
 	t.Setenv("PATH", sandboxPath(t, t.TempDir()))
