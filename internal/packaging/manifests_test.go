@@ -143,6 +143,26 @@ func TestRepoDoesNotShipMcpJson(t *testing.T) {
 	}
 }
 
+// Windows batch expands %VAR% inside a parenthesized block at PARSE time, so an ASSET
+// `set` INSIDE the download `if (...)` block and used there via %ASSET% reads empty —
+// the download URL loses its filename and provisioning silently fails (the empty data
+// dir / -32000 class). Guard that ASSET is defined before the block that consumes it
+// (SQ-0083).
+func TestWindowsCmdSetsAssetBeforeDownloadBlock(t *testing.T) {
+	cmd := string(repoFile(t, "bin/side-quest.cmd"))
+	setIdx := strings.Index(cmd, `set "ASSET=`)
+	blockIdx := strings.Index(cmd, `if not "%VERSION%"=="dev"`)
+	if setIdx < 0 {
+		t.Fatal("bin/side-quest.cmd no longer sets ASSET")
+	}
+	if blockIdx < 0 {
+		t.Fatal("bin/side-quest.cmd no longer has the VERSION!=dev download block")
+	}
+	if setIdx > blockIdx {
+		t.Error("bin/side-quest.cmd sets ASSET inside/after the download block — %ASSET% expands empty at parse time and the download URL loses its filename (SQ-0083)")
+	}
+}
+
 // End-to-end on whatever OS runs the test: bin/launch.js must dispatch to the
 // per-OS shim (the POSIX shell shim, or the .cmd on Windows) and pass args through.
 // This is exactly what Claude relies on when it Node-spawns the plugin MCP command,

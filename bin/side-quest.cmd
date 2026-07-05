@@ -33,9 +33,12 @@ for /f "delims=" %%p in ('where side-quest.exe 2^>nul') do (
   )
 )
 
-rem 3. Download + checksum-verify via PowerShell (skipped when VERSION=dev).
+rem 3. Download + checksum-verify via PowerShell (skipped when VERSION=dev). ASSET is
+rem set OUTSIDE the block on purpose: cmd expands %VAR% inside a parenthesized block at
+rem PARSE time, so an ASSET set within the block would read empty and drop the filename
+rem from the download URL — nothing would provision (SQ-0083).
+set "ASSET=side-quest_%VERSION%_windows_amd64.zip"
 if not "%VERSION%"=="dev" (
-  set "ASSET=side-quest_%VERSION%_windows_amd64.zip"
   powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$ErrorActionPreference='Stop';" ^
     "$base='https://github.com/%REPO%/releases/download/v%VERSION%';" ^
