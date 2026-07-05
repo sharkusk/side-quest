@@ -125,8 +125,8 @@ core, and *your* instructions carry the project-specific conventions on top.
 ## Sharing quests across machines
 
 Custom refs like `refs/side-quest/quests` are not fetched or pushed by default.
-`side-quest install-hooks` configures a fetch refspec on `origin` (and migrates
-any pre-sync install off its old refspecs), so once it has run:
+`side-quest install-hooks` configures a fetch refspec on `origin`, so once it has
+run:
 
 ```
 # Fetch the remote quest ref into a local tracking ref (never clobbers your

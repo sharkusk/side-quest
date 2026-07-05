@@ -225,9 +225,10 @@ slashes so it runs under Git-for-Windows' MSYS sh (a `C:\…` path would break;
 `C:/…` works — SQ-0021). That path fix was unit-tested on Unix only until the
 `ci` workflow added a `windows-latest` job that runs the end-to-end hook test
 under real Git-for-Windows MSYS sh, verifying the extensionless shims actually
-execute and invoke the `.exe` (SQ-0034). Each shim is a marker-guarded block (`# >>> side-quest
->>>` … `# <<< side-quest <<<`): installing into an existing hook **appends** our
-block and leaves the rest intact, and re-installing replaces only our block
+execute and invoke the `.exe` (SQ-0034). Each shim is a marker-guarded block
+(`# >>> side-quest >>>` … `# <<< side-quest <<<`): installing into an existing
+hook **appends** our block and leaves the rest intact, and re-installing replaces
+only our block
 (idempotent, never duplicated). The block carries a version stamp
 (`# side-quest-version: <v>`, the installing binary's `main.version`) between the
 markers — the markers themselves stay version-free so a block written by any
@@ -322,15 +323,15 @@ its own document: **[`docs/sync.md`](sync.md)**. Summary of the moving parts, fo
   list and build its tree from an empty base rather than reading a single parent's tree. `Sync`
   then runs a fetch-merge-push loop, retrying on a lost push race the same way `mutate`'s CAS
   loop retries a lost ref-update race.
-- **The refspec changed.** The fetch refspec now maps the remote quest ref into a *separate*
-  tracking ref, `refs/side-quest-remote/quests` (`store.FetchRefspec`), instead of the old
-  `refs/side-quest/*:refs/side-quest/*`, which pointed fetch directly at the live ref and left
-  it either stale (on divergence) or silently clobbered (on a fast-forward). The push refspec
-  no longer includes the quest ref at all — only `HEAD` (which `install-hooks` itself
-  configures as `remote.origin.push`), so a bare `git push` still sends your
-  branch — because the quest ref is now published by the `pre-push` hook, which can guarantee
-  it's fast-forwardable at push time in a way a static refspec cannot. `install-hooks`/`onboard`
-  migrate old installs to the new refspecs idempotently (`addRefspec` in `cmd/side-quest/hooks.go`).
+- **Two refspecs, split by direction.** The fetch refspec maps the remote quest ref into a
+  *separate* tracking ref, `refs/side-quest-remote/quests` (`store.FetchRefspec`), rather than
+  the naive `refs/side-quest/*:refs/side-quest/*`, which would point fetch directly at the live
+  ref and leave it either stale (on divergence) or silently clobbered (on a fast-forward). The
+  push refspec covers only `HEAD` (which `install-hooks` configures as `remote.origin.push`), so
+  a bare `git push` still sends your branch — the quest ref is published by the `pre-push` hook
+  instead, which can guarantee it's fast-forwardable at push time in a way a static refspec
+  cannot. `install-hooks`/`onboard` configure these refspecs idempotently (`addRefspec` in
+  `cmd/side-quest/hooks.go`).
 
 ## Command-line interface (`cmd/side-quest`)
 

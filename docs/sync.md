@@ -57,8 +57,8 @@ A `git fetch` (or the fetch sync runs internally) always updates
 since nothing else ever writes to it, so it never fails and never needs reconciling. Your
 **live** ref, `refs/side-quest/quests` — the one `side-quest list`/`show`/`new` read and
 write — is only ever touched by side-quest's own code, deliberately, after computing a real
-merge. `install-hooks` (and `onboard`, which calls it) migrate old installs to this refspec
-automatically and idempotently, and stop adding the old push refspec — see
+merge. `install-hooks` (and `onboard`, which calls it) configure this fetch refspec
+automatically and idempotently, and deliberately add no push refspec — see
 [Automatic on push](#automatic-on-push-the-pre-push-hook) for why.
 
 ## The three-way merge
