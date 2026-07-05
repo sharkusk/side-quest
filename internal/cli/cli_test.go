@@ -196,6 +196,11 @@ func TestUninstallRemovesOnlyMarked(t *testing.T) {
 	if _, err := os.Stat(own); err != nil {
 		t.Errorf("Uninstall removed the user's own side-quest: %v", err)
 	}
+	// D8's other half: the unmarked file must be reported in Refused, not silently
+	// skipped — SQ-0066's cli_uninstall surfaces this list to the user.
+	if len(r.Refused) != 1 || r.Refused[0] != own {
+		t.Errorf("expected the unmarked side-quest reported in Refused, got %v", r.Refused)
+	}
 }
 
 // Uninstall reports nothing removed and nothing refused when no launcher exists.
