@@ -77,7 +77,9 @@ case "$arch" in
 esac
 if [ "$VERSION" != dev ] && command -v curl >/dev/null 2>&1; then
 	asset="side-quest_${VERSION}_${os}_${arch}.tar.gz"
-	base="https://github.com/$REPO/releases/download/v$VERSION"
+	# SIDE_QUEST_RELEASE_BASE overrides the download host — for tests (a local fixture
+	# server) and air-gapped mirrors. Unset in normal use → the GitHub release (SQ-0084).
+	base="${SIDE_QUEST_RELEASE_BASE:-https://github.com/$REPO/releases/download/v$VERSION}"
 	tmp=$(mktemp -d)
 	if curl -fsSL "$base/$asset" -o "$tmp/$asset" &&
 		curl -fsSL "$base/checksums.txt" -o "$tmp/checksums.txt"; then

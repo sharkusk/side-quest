@@ -7,14 +7,41 @@
 package packaging
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
+
+// makeTarGz builds a .tar.gz holding a single executable file — the shape of a
+// side-quest release archive, whose sole member the shim extracts and runs.
+func makeTarGz(t *testing.T, name, body string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o755, Size: int64(len(body))}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write([]byte(body)); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
 
 func launcherPath(t *testing.T) string {
 	t.Helper()
@@ -164,6 +191,49 @@ func TestLauncherDelegatesToCmdUnderMSYS(t *testing.T) {
 	got := string(out)
 	if !strings.Contains(got, "CMD") || !strings.Contains(got, "side-quest.cmd") || !strings.Contains(got, "serve") {
 		t.Errorf("shim did not delegate to cmd.exe with the .cmd path + args; got %q", got)
+	}
+}
+
+// Step 3, end to end: with no cached binary and none on PATH, the shim downloads the
+// release asset from SIDE_QUEST_RELEASE_BASE, verifies its SHA-256 against
+// checksums.txt, extracts the tar.gz, and execs the binary. Pointed at a local fixture
+// server, this exercises the whole provision path that VERSION=dev otherwise skips —
+// the coverage gap that let SQ-0082/SQ-0083 ship (SQ-0084). Runs on Linux/darwin,
+// where `uname` matches runtime.GOOS/GOARCH.
+func TestLauncherDownloadsFromReleaseBase(t *testing.T) {
+	const ver = "9.9.9"
+	asset := fmt.Sprintf("side-quest_%s_%s_%s.tar.gz", ver, runtime.GOOS, runtime.GOARCH)
+	base := serveRelease(t, asset, makeTarGz(t, "side-quest", "#!/bin/sh\necho DOWNLOADED \"$@\"\n"))
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte(ver+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile(launcherPath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	launcher := filepath.Join(root, "bin", "side-quest")
+	if err := os.WriteFile(launcher, src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(launcher, "serve")
+	cmd.Env = []string{
+		"PATH=" + t.TempDir() + ":/usr/bin:/bin", // isolated: no cache hit, none on PATH
+		"HOME=" + t.TempDir(),
+		"CLAUDE_PLUGIN_DATA=" + t.TempDir(), // empty data dir → step 1 misses
+		"SIDE_QUEST_RELEASE_BASE=" + base,
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	if !strings.HasPrefix(string(out), "DOWNLOADED serve") {
+		t.Errorf("got %q, want the downloaded binary to run", out)
 	}
 }
 

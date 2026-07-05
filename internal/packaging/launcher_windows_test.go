@@ -8,12 +8,38 @@
 package packaging
 
 import (
+	"archive/zip"
+	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// makeZip builds a .zip holding srcFile under the given archive name — the shape of a
+// Windows side-quest release archive, whose side-quest.exe the .cmd extracts and runs.
+func makeZip(t *testing.T, name, srcFile string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(srcFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, err := zw.Create(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write(data); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
 
 // cmdLauncherPath returns the absolute path to the Windows .cmd launcher.
 func cmdLauncherPath(t *testing.T) string {
@@ -188,6 +214,34 @@ func TestWindowsLauncherRunsPathBinary(t *testing.T) {
 	}
 	if !strings.HasPrefix(strings.TrimSpace(out), "PATHBIN serve") {
 		t.Errorf("got %q, want the PATH binary", out)
+	}
+}
+
+// Step 3, end to end: with no cached binary and none on PATH, the .cmd downloads the
+// windows_amd64.zip from SIDE_QUEST_RELEASE_BASE, verifies its SHA-256 against
+// checksums.txt (PowerShell), Expand-Archives it, and execs side-quest.exe. Pointed at
+// a local fixture server, this covers the whole provision path that VERSION=dev skips —
+// the gap that let SQ-0083 (empty %ASSET%) ship. Reverting that fix makes this fail
+// (malformed URL → the fixture 404s) — which is the point (SQ-0084).
+func TestWindowsLauncherDownloadsFromReleaseBase(t *testing.T) {
+	const ver = "9.9.9"
+	asset := fmt.Sprintf("side-quest_%s_windows_amd64.zip", ver)
+	exePath := filepath.Join(t.TempDir(), "side-quest.exe")
+	buildMarkerExe(t, exePath, "DOWNLOADED")
+	base := serveRelease(t, asset, makeZip(t, "side-quest.exe", exePath))
+
+	launcher := stageLauncher(t, ver)
+	out, err := runCmdLauncher(t, launcher,
+		withEnv(os.Environ(), map[string]string{
+			"SIDE_QUEST_RELEASE_BASE": base,
+			"CLAUDE_PLUGIN_DATA":      t.TempDir(), // empty data dir → step 1 misses
+		}),
+		"serve")
+	if err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(out), "DOWNLOADED serve") {
+		t.Errorf("got %q, want the downloaded binary to run", out)
 	}
 }
 

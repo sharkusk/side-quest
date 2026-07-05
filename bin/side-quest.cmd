@@ -38,10 +38,13 @@ rem set OUTSIDE the block on purpose: cmd expands %VAR% inside a parenthesized b
 rem PARSE time, so an ASSET set within the block would read empty and drop the filename
 rem from the download URL — nothing would provision (SQ-0083).
 set "ASSET=side-quest_%VERSION%_windows_amd64.zip"
+rem SIDE_QUEST_RELEASE_BASE overrides the download host — for tests (a local fixture
+rem server) and air-gapped mirrors. Set before the block (parse-time %VAR%, per SQ-0083).
+if defined SIDE_QUEST_RELEASE_BASE (set "BASE=%SIDE_QUEST_RELEASE_BASE%") else (set "BASE=https://github.com/%REPO%/releases/download/v%VERSION%")
 if not "%VERSION%"=="dev" (
   powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$ErrorActionPreference='Stop';" ^
-    "$base='https://github.com/%REPO%/releases/download/v%VERSION%';" ^
+    "$base='%BASE%';" ^
     "New-Item -Force -ItemType Directory '%CACHE%' | Out-Null;" ^
     "$tmp=New-TemporaryFile; Invoke-WebRequest \"$base/%ASSET%\" -OutFile \"$tmp.zip\";" ^
     "Invoke-WebRequest \"$base/checksums.txt\" -OutFile \"$tmp.sums\";" ^
