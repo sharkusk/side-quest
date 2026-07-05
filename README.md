@@ -83,7 +83,9 @@ commit on that ref — no second commit on your branch, no manual step. The
 - **[Claude Code plugin](docs/plugin.md)** (recommended) —
   `/plugin install side-quest` registers the MCP server, the `/sq` command, and
   the guidance skill, and **auto-provisions the binary** (downloaded and
-  checksum-verified). No separate install.
+  checksum-verified). No separate install. To also run `side-quest` in your own
+  terminal, have the agent enable it or install the binary yourself — see
+  [Run side-quest from your own terminal](docs/plugin.md#run-side-quest-from-your-own-terminal).
 - **[Manual setup](docs/manual-setup.md)** — for any MCP-capable agent:
   [install the binary](docs/install.md) yourself and register the MCP server. The
   server carries side-quest's core guidance itself, so there's nothing to merge

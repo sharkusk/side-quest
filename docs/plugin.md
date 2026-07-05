@@ -18,20 +18,41 @@ and checksum-verified) into a per-plugin cache. If a download isn't possible
 ([installation](install.md)) and the plugin will use it from your `PATH`.
 
 **Still set up each repo.** The plugin wires your agent, not your repository.
-Every repo you want to track needs `side-quest init` and `side-quest
-install-hooks` run once, to create the quest ref and install the git hooks (see
-[Per-project setup](manual-setup.md#per-project-setup)). The plugin puts
+Every repo you want to track needs `side-quest onboard` run once — it creates the
+quest ref and installs the git hooks. Under the plugin it **skips** writing a
+project `.mcp.json` (the plugin already registers the MCP server). The plugin puts
 `side-quest` on the *agent's* `PATH`, so the simplest way is to ask the agent to
-run them. Your own shell's `PATH` does **not** include the plugin's binary — to
-run these yourself from a terminal, [install side-quest](install.md) first.
+run `onboard`; it is safe to re-run, and a later `onboard` refreshes the hooks
+after a plugin update. See
+[Per-project setup](manual-setup.md#per-project-setup) for what it does.
 
-The git hooks rely on that same `PATH`: an agent-run `git commit` finds
-`side-quest` and records the link, while a commit from your own terminal only
-does so if you've [installed side-quest](install.md) there — otherwise the
-hook skips cleanly.
+## Run `side-quest` from your own terminal
 
-**Restart the Claude Code session** after installing so the MCP server, the `/sq`
-command, and the skill load.
+The plugin puts the binary on the *agent's* `PATH`, not your shell's — so out of
+the box you can't run `side-quest` yourself, and a `git commit` from your own
+terminal won't record the quest link (the hook skips cleanly when it can't find
+`side-quest`). Two equally good ways to get it onto your `PATH`; pick either:
+
+- **Let the agent enable it.** Under the plugin the agent will offer, once, to
+  enable the terminal CLI — or just ask it any time ("enable the side-quest CLI").
+  It runs the `cli_install` MCP tool, which writes a small, read-only launcher
+  named `side-quest` into the first of `$XDG_BIN_HOME`, `~/.local/bin`, `~/bin`, or
+  `~/go/bin` that is already on your `PATH` (falling back to `~/.local/bin`, with a
+  note to add it). The launcher only resolves and runs the binary the plugin
+  already provisioned — **nothing is downloaded** — and it self-heals across plugin
+  updates. To remove it later, ask the agent to run `cli_uninstall`, or run
+  `side-quest uninstall-cli` yourself.
+
+- **Install the binary yourself.** Follow [installation](install.md) to put
+  `side-quest` on your `PATH` the usual way — a prebuilt binary, `go install`, or a
+  source build. Prefer this if you'd rather manage the binary directly, or on
+  Windows.
+
+Either route gives your terminal a working `side-quest`, and from then on a
+terminal `git commit` records the quest link exactly as an agent-run commit does.
+
+**Restart the Claude Code session** after installing the plugin so the MCP server,
+the `/sq` command, and the skill load.
 
 To move quests between machines, see
 [Sharing quests across machines](manual-setup.md#sharing-quests-across-machines).
