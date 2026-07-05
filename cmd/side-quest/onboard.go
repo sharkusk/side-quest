@@ -140,7 +140,8 @@ const mcpJSON = `{
 `
 
 // cmdOnboard runs the whole per-repo setup in one shot: create the quest ref,
-// install the git hooks, write a project .mcp.json if absent, then print the
+// install the git hooks, write a project .mcp.json if absent (skipped when the
+// plugin is active), then print the
 // guidance to paste into AGENTS.md. It is safe to re-run — an existing ref,
 // existing hooks, and an existing .mcp.json are each left as they are.
 func cmdOnboard(args []string) error {
