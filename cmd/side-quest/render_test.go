@@ -194,7 +194,7 @@ func TestRenderListWrapsLongTitles(t *testing.T) {
 		Title:    "a deliberately long quest title that needs to wrap across more than one line in a narrow terminal",
 	}}
 	var buf bytes.Buffer
-	renderList(&buf, quests, voice.New(config.TonePlain), width)
+	renderList(&buf, quests, voice.New(config.TonePlain), width, nil)
 
 	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
 	titleCol := -1
@@ -226,6 +226,42 @@ func TestRenderListWrapsLongTitles(t *testing.T) {
 		if !strings.Contains(flat, wd) {
 			t.Errorf("wrapped list dropped title word %q", wd)
 		}
+	}
+}
+
+// SQ-0070: --show-tag adds a column per chosen tag key, with each quest's value
+// (blank when it lacks the tag), left of the TITLE column.
+func TestRenderListShowsTagColumn(t *testing.T) {
+	quests := []*quest.Quest{
+		{ID: "SQ-0001", Status: quest.StatusOpen, Type: quest.TypeFeature, Priority: quest.PriorityLow,
+			Title: "Tagged", Tags: map[string]string{"launch": "alpha"}},
+		{ID: "SQ-0002", Status: quest.StatusOpen, Type: quest.TypeFeature, Priority: quest.PriorityLow,
+			Title: "Untagged"},
+	}
+	var buf bytes.Buffer
+	renderList(&buf, quests, voice.New(config.TonePlain), 0, []string{"launch"})
+
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	header := lines[0]
+	if li, ti := strings.Index(header, "LAUNCH"), strings.Index(header, "TITLE"); li < 0 || ti < 0 || li > ti {
+		t.Fatalf("want LAUNCH column before TITLE in header %q", header)
+	}
+	var taggedRow, untaggedRow string
+	for _, ln := range lines {
+		switch {
+		case strings.HasPrefix(ln, "SQ-0001"):
+			taggedRow = ln
+		case strings.HasPrefix(ln, "SQ-0002"):
+			untaggedRow = ln
+		}
+	}
+	// The tag value sits in its own column, before the title.
+	if ai, pi := strings.Index(taggedRow, "alpha"), strings.Index(taggedRow, "Tagged"); ai < 0 || pi < 0 || ai > pi {
+		t.Errorf("alpha should be its own column before the title: %q", taggedRow)
+	}
+	// A quest without the tag leaves the cell blank and still renders its title.
+	if !strings.Contains(untaggedRow, "Untagged") || strings.Contains(untaggedRow, "alpha") {
+		t.Errorf("untagged row should be blank in the LAUNCH column: %q", untaggedRow)
 	}
 }
 

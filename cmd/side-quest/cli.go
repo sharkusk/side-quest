@@ -44,6 +44,19 @@ func (t *tagFlag) Set(v string) error {
 	return nil
 }
 
+// stringsFlag collects a repeated string flag (e.g. --show-tag) in order.
+type stringsFlag []string
+
+func (s *stringsFlag) String() string { return strings.Join(*s, ",") }
+
+func (s *stringsFlag) Set(v string) error {
+	if v == "" {
+		return fmt.Errorf("tag key must be non-empty")
+	}
+	*s = append(*s, v)
+	return nil
+}
+
 // newFlagSet returns a FlagSet that stays silent on error (we surface parse
 // failures ourselves as usageErr) so output is not double-printed.
 func newFlagSet(name string) *flag.FlagSet {
@@ -190,10 +203,12 @@ func cmdList(args []string) error {
 	var status, typ, prio, filterExpr string
 	var asJSON, all, noWrap bool
 	var tags tagFlag
+	var showTags stringsFlag
 	fs.StringVar(&status, "status", "", "filter by status: open|partial|done|deferred|discarded")
 	fs.StringVar(&typ, "type", "", "filter by type: bug|feature")
 	fs.StringVar(&prio, "priority", "", "filter by priority: high|low")
 	fs.Var(&tags, "tag", "filter by tag key=value; repeat for AND across tags")
+	fs.Var(&showTags, "show-tag", "add a column showing tag KEY's value; repeat for more columns")
 	fs.BoolVar(&all, "all", false, "include every status (default shows only open and partial)")
 	fs.StringVar(&filterExpr, "filter", "", `boolean expression, e.g. "bug and not (done or deferred)"`)
 	fs.BoolVar(&asJSON, "json", false, "emit the matching quests as JSON")
@@ -273,7 +288,7 @@ func cmdList(args []string) error {
 	if !noWrap {
 		width = terminalWidth(os.Stdout)
 	}
-	renderList(os.Stdout, filtered, voiceFor(s), width)
+	renderList(os.Stdout, filtered, voiceFor(s), width, showTags)
 	return nil
 }
 

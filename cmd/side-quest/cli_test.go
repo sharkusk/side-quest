@@ -310,6 +310,28 @@ func TestListTagFilter(t *testing.T) {
 	}
 }
 
+// SQ-0070: `list --show-tag KEY` renders a column of that tag's values.
+func TestListShowTagColumn(t *testing.T) {
+	bin := buildBinary(t)
+	dir, _ := newRepo(t)
+	runBin(t, bin, dir, "new", "--tag", "launch=alpha", "One")
+	runBin(t, bin, dir, "new", "Two")
+
+	out, code := runBin(t, bin, dir, "list", "--show-tag", "launch")
+	if code != 0 {
+		t.Fatalf("list --show-tag exit=%d out=%s", code, out)
+	}
+	if !strings.Contains(out, "LAUNCH") {
+		t.Errorf("expected a LAUNCH column header:\n%s", out)
+	}
+	if !strings.Contains(out, "alpha") {
+		t.Errorf("expected the launch tag value in the column:\n%s", out)
+	}
+	if !strings.Contains(out, "Two") {
+		t.Errorf("untagged quest should still be listed:\n%s", out)
+	}
+}
+
 func TestNewInvalidTypeExitsNonZeroEmptyRef(t *testing.T) {
 	bin := buildBinary(t)
 	dir, s := newRepo(t)

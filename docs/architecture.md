@@ -350,7 +350,11 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   status. `--filter "expr"` takes a boolean expression (compiled by
   `internal/filter`) over bare enum values and `key=value` tags with
   `and`/`or`/`not`/parens; it is the whole selection and cannot be combined with
-  the simple flags above. Long titles word-wrap to the terminal width with each
+  the simple flags above. `--show-tag KEY` (repeatable) adds a column showing each
+  quest's value for that tag (blank when absent); it is **display-only** — it
+  changes columns, not selection — so it composes with any filter, including
+  `--filter`, and is ignored by `--json` (whose rows already carry every tag).
+  Long titles word-wrap to the terminal width with each
   continuation line hung under the TITLE column; `--no-wrap`, and piped or
   redirected output (a non-terminal), print one line per quest so scripts see
   stable rows.

@@ -43,37 +43,65 @@ func emitJSON(w io.Writer, v any) error {
 // When width > 0, long titles word-wrap to that terminal width with each
 // continuation line hung under the TITLE column; width <= 0 (piped output or
 // --no-wrap) prints one line per quest, keeping scripted output stable.
-func renderList(w io.Writer, quests []*quest.Quest, v *voice.Voice, width int) {
+func renderList(w io.Writer, quests []*quest.Quest, v *voice.Voice, width int, showTags []string) {
 	if len(quests) == 0 {
 		fmt.Fprintln(w, v.EmptyList())
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tSTATUS\tTYPE\tPRIORITY\tTITLE")
+	headers := listHeaders(showTags)
+	fmt.Fprintln(tw, strings.Join(headers, "\t")+"\tTITLE")
 	// Continuation lines are emitted as rows with empty leading cells, which
 	// tabwriter pads to the TITLE column for us — so a wrapped title hangs under
 	// the column instead of running off the terminal.
-	titleCol := listTitleColumn(quests)
+	titleCol := listTitleColumn(quests, showTags)
+	blank := strings.Repeat("\t", len(headers)) // leading empty cells for a continuation row
 	for _, q := range quests {
 		lines := []string{q.Title}
 		if width > 0 {
 			lines = wrapText(q.Title, width-titleCol)
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", q.ID, q.Status, q.Type, q.Priority, lines[0])
+		fmt.Fprintf(tw, "%s\t%s\n", strings.Join(listLeadingCells(q, showTags), "\t"), lines[0])
 		for _, cont := range lines[1:] {
-			fmt.Fprintf(tw, "\t\t\t\t%s\n", cont)
+			fmt.Fprintf(tw, "%s%s\n", blank, cont)
 		}
 	}
 	tw.Flush()
 }
 
+// listHeaders returns the header cells left of TITLE: the four fixed columns
+// plus one per --show-tag key (uppercased to match the fixed labels).
+func listHeaders(showTags []string) []string {
+	h := []string{"ID", "STATUS", "TYPE", "PRIORITY"}
+	for _, k := range showTags {
+		h = append(h, strings.ToUpper(k))
+	}
+	return h
+}
+
+// listLeadingCells returns a quest's cell values left of TITLE, aligned with
+// listHeaders: the four fixed fields plus each requested tag's value (an empty
+// cell when the quest lacks that tag).
+func listLeadingCells(q *quest.Quest, showTags []string) []string {
+	cells := []string{q.ID, string(q.Status), string(q.Type), string(q.Priority)}
+	for _, k := range showTags {
+		cells = append(cells, q.Tags[k])
+	}
+	return cells
+}
+
 // listTitleColumn reports the terminal column where renderList's TITLE cell
 // begins, matching tabwriter's layout (minwidth 0, padding 2): the sum over the
-// four leading columns of their widest cell plus the 2-space padding.
-func listTitleColumn(quests []*quest.Quest) int {
-	widths := []int{len("ID"), len("STATUS"), len("TYPE"), len("PRIORITY")}
+// leading columns (fixed + any --show-tag columns) of their widest cell plus the
+// 2-space padding.
+func listTitleColumn(quests []*quest.Quest, showTags []string) int {
+	headers := listHeaders(showTags)
+	widths := make([]int, len(headers))
+	for i, h := range headers {
+		widths[i] = len(h)
+	}
 	for _, q := range quests {
-		for i, cell := range []string{q.ID, string(q.Status), string(q.Type), string(q.Priority)} {
+		for i, cell := range listLeadingCells(q, showTags) {
 			if n := len(cell); n > widths[i] {
 				widths[i] = n
 			}
