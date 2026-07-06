@@ -208,8 +208,8 @@ func TestAgentsDocPointsToSkill(t *testing.T) {
 func TestFirstRunGuidancePresent(t *testing.T) {
 	for _, f := range []string{"internal/guidance/agents.md", "skills/side-quest/SKILL.md"} {
 		doc := string(repoFile(t, f))
-		if !strings.Contains(doc, "side-quest install-hooks") {
-			t.Errorf("%s must tell the agent to run `side-quest install-hooks` for first-run setup", f)
+		if !strings.Contains(doc, "side-quest onboard") {
+			t.Errorf("%s must tell the agent to run `side-quest onboard` for first-run setup", f)
 		}
 	}
 }

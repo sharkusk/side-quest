@@ -17,19 +17,21 @@ follow-up you manage through these tools, not by editing files.
   "urgent"/"critical"/"blocking" is high — else keep defaults.
 - Work one at a time. Make the quest you're on current (quest_set_current); the
   git hooks then link your commits to it — you never touch hashes.
-- Close it by committing "Completes: SQ-1234" (or "Quest: SQ-1234" to link
-  only), or quest_set_status.
-- List work with quest_list; read one with quest_show.
+- Linking a commit (Quest: SQ-1234, or the current-quest auto-link) advances an
+  open quest to partial — work has started; "Completes: SQ-1234" closes it, and
+  quest_set_status sets any state directly.
+- Active work is both open and partial — treat them alike as outstanding. List work
+  with quest_list (shows open + partial by default); read one with quest_show.
 
 ## First-run setup (if the repo isn't tracked yet)
 
 If a quest tool reports the repo isn't initialized — or you're the first to use
-side-quest here — the quest ref and git hooks are missing. They have no MCP
-tool, so run them once in the shell (`side-quest` is on your `PATH`), then retry:
+side-quest here — the quest ref and git hooks are missing. There's no MCP tool
+for setup, so run it once in the shell (`side-quest` is on your `PATH`), then retry:
 
 ```
-side-quest init            # create the quest ref
-side-quest install-hooks   # install the commit-linking git hooks
+side-quest onboard   # create the quest ref, install the commit-linking hooks,
+                     # and pull any existing quests if a remote is configured
 ```
 
 This is a one-time, per-repo step so the user need not do it by hand; skip it
@@ -45,7 +47,8 @@ explaining *why it came up now*. Do not set it current. Then keep working.
 
 Commits link to quests through message trailers, read by a `post-commit` hook:
 
-- `Quest: SQ-0001` — link this commit to SQ-0001 (no status change).
+- `Quest: SQ-0001` — link this commit to SQ-0001 (advances an open quest to
+  partial; never closes it).
 - `Completes: SQ-0001` — link it and mark SQ-0001 done.
 - `Quest: none` — an explicit opt-out for a genuine chore.
 

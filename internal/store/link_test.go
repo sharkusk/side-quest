@@ -70,8 +70,10 @@ func TestLinkQuestAppendsWithoutClosing(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := s.Get(q.ID)
-	if got.Status != quest.StatusOpen {
-		t.Fatalf("Quest: (not Completes) must not close: %+v", got)
+	// A Quest: link advances an open quest to partial ("work started") but never
+	// closes it — only Completes: does that (SQ-0094).
+	if got.Status != quest.StatusPartial || got.Completed != nil {
+		t.Fatalf("Quest: (not Completes) should advance to partial without closing: %+v", got)
 	}
 	if len(got.Commits) != 1 {
 		t.Fatalf("expected 1 linked commit, got %v", got.Commits)

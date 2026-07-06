@@ -442,6 +442,46 @@ func TestAddCommitAppendsAndDedupes(t *testing.T) {
 	}
 }
 
+// TestAddCommitPromotesOpenToPartial (SQ-0094): a non-closing linked commit advances
+// an untouched open quest to partial ("work has started"), mirroring how a closing
+// commit sets done — but it only promotes from open, never churning or resurrecting a
+// partial/deferred/done quest.
+func TestAddCommitPromotesOpenToPartial(t *testing.T) {
+	s := newStore(t)
+	_ = s.Init()
+	q, _ := s.Create("wip", "", "", "", nil)
+	if q.Status != quest.StatusOpen {
+		t.Fatalf("new quest status = %q, want open", q.Status)
+	}
+
+	// A non-closing link promotes open -> partial.
+	if err := s.AddCommit(q.ID, "aaa111", false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Get(q.ID); got.Status != quest.StatusPartial {
+		t.Fatalf("after a linked commit, status = %q, want partial", got.Status)
+	}
+	// A second non-closing link leaves it partial (no churn).
+	if err := s.AddCommit(q.ID, "bbb222", false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Get(q.ID); got.Status != quest.StatusPartial {
+		t.Errorf("status churned off partial: %q", got.Status)
+	}
+
+	// A non-closing link must NOT resurrect a deferred quest.
+	d, _ := s.Create("later", "", "", "", nil)
+	if err := s.SetStatus(d.ID, quest.StatusDeferred); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddCommit(d.ID, "ccc333", false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Get(d.ID); got.Status != quest.StatusDeferred {
+		t.Errorf("non-closing commit changed a deferred quest to %q, want deferred", got.Status)
+	}
+}
+
 // TestReplaceCommit (SQ-0048): a rebase rewrites a linked commit's sha, leaving
 // the old (now-dangling) sha recorded. ReplaceCommit swaps it for the new one by
 // prefix — without asking git to resolve the dead old sha — preserving order and

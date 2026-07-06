@@ -7,6 +7,8 @@ follow-up you manage through these tools, not by editing files.
   "urgent"/"critical"/"blocking" is high — else keep defaults.
 - Work one at a time. Make the quest you're on current (quest_set_current); the
   git hooks then link your commits to it — you never touch hashes.
-- Close it by committing "Completes: SQ-1234" (or "Quest: SQ-1234" to link
-  only), or quest_set_status.
-- List work with quest_list; read one with quest_show.
+- Linking a commit (Quest: SQ-1234, or the current-quest auto-link) advances an
+  open quest to partial — work has started; "Completes: SQ-1234" closes it, and
+  quest_set_status sets any state directly.
+- Active work is both open and partial — treat them alike as outstanding. List work
+  with quest_list (shows open + partial by default); read one with quest_show.

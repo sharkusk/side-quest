@@ -365,8 +365,10 @@ func TestEndToEndHooksDriveLinking(t *testing.T) {
 	if len(got.Commits) != 1 {
 		t.Fatalf("prepare+post-commit should have linked one commit: %v", got.Commits)
 	}
-	if got.Status != quest.StatusOpen {
-		t.Fatalf("Quest: (auto) should not close: %+v", got)
+	// The auto-injected Quest: trailer links the commit and advances the quest to
+	// partial ("work started") without closing it — only Completes: closes (SQ-0094).
+	if got.Status != quest.StatusPartial || got.Completed != nil {
+		t.Fatalf("Quest: (auto) should advance to partial without closing: %+v", got)
 	}
 
 	// 2) explicit Completes: closes the quest.

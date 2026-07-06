@@ -631,18 +631,23 @@ func (s *Store) Replace(id string, edited *quest.Quest) error {
 	})
 }
 
-// AddCommit appends sha to a quest's commit list (deduped). When complete is
-// true it also closes the quest (used by the Completes: trailer in a later
-// phase).
+// AddCommit appends sha to a quest's commit list (deduped) and advances its status
+// to reflect the work: a completing link (Completes: trailer) closes the quest, while
+// any other link on an untouched open quest promotes it to partial — "work has
+// started" — so it reads as in-progress rather than untouched (SQ-0094). Only open is
+// promoted, so a partial/deferred/done quest is never churned or resurrected.
 func (s *Store) AddCommit(id, sha string, complete bool) error {
 	return s.Update(id, func(q *quest.Quest) {
 		if !contains(q.Commits, sha) {
 			q.Commits = append(q.Commits, sha)
 		}
-		if complete && q.Status != quest.StatusDone {
+		switch {
+		case complete && q.Status != quest.StatusDone:
 			q.Status = quest.StatusDone
 			t := time.Now().UTC().Truncate(time.Second)
 			q.Completed = &t
+		case !complete && q.Status == quest.StatusOpen:
+			q.Status = quest.StatusPartial
 		}
 	})
 }
