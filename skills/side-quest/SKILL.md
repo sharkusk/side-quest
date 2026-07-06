@@ -19,8 +19,9 @@ follow-up you manage through these tools, not by editing files.
   (one-line restatement + why it came up) and resume. Set type/priority only
   when the request makes it obvious — a crash or regression is a bug;
   "urgent"/"critical"/"blocking" is high — else keep defaults.
-- Work one at a time. Make the quest you're on current (quest_set_current); the
-  git hooks then link your commits to it — you never touch hashes.
+- Work one at a time. Make the quest you're on current (quest_set_current) so the
+  git hooks link your commits to it (you never touch hashes); clear it — or switch
+  it — once that quest is done, so a later commit doesn't attach to a finished quest.
 - Linking a commit (Quest: SQ-1234, or the current-quest auto-link) advances an
   open quest to partial — work has started; "Completes: SQ-1234" closes it, and
   quest_set_status sets any state directly.
@@ -103,6 +104,9 @@ use `Quest: none` on any one-off unrelated commit made while it's set. Use
 - **Fallback — `quest_set_status`** — when there's no commit to carry a trailer:
   `done` (finished, uncommitted), `discarded` (rejected idea), `deferred`
   (postponed), or `partial` (advanced but not done).
+- **After closing, clear the current quest** if it pointed there
+  (`quest_set_current { "clear": true }`) or switch it to the next one — otherwise a
+  later commit auto-links to the quest you just finished.
 
 ## Triage and metadata
 
