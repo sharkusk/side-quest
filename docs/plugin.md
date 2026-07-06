@@ -28,10 +28,12 @@ after a plugin update. See
 
 ## Run `side-quest` from your own terminal
 
-The plugin puts the binary on the *agent's* `PATH`, not your shell's — so out of
-the box you can't run `side-quest` yourself, and a `git commit` from your own
-terminal won't record the quest link (the hook skips cleanly when it can't find
-`side-quest`). Two equally good ways to get it onto your `PATH`; pick either:
+The plugin provisions the `side-quest` binary for its MCP server, but it isn't on
+your command `PATH` — so out of the box you can't run `side-quest` in a terminal,
+and a `git commit` (yours *or* the agent's) won't record the quest link (the hook
+skips cleanly when it can't find `side-quest`). Enabling the terminal CLI puts a
+launcher on your `PATH` that your shell **and** the agent's Bash tool both use. Two
+equally good ways to do it; pick either:
 
 - **Let the agent enable it.** Under the plugin the agent will offer, once, to
   enable the terminal CLI — or just ask it any time ("enable the side-quest CLI").
