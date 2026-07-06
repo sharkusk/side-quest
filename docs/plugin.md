@@ -56,3 +56,27 @@ the `/sq` command, and the skill load.
 
 To move quests between machines, see
 [Sharing quests across machines](manual-setup.md#sharing-quests-across-machines).
+
+## Uninstalling
+
+Remove the plugin from Claude Code the usual way (`/plugin`). What's left afterward
+depends on your platform, because Claude Code manages its plugin **data** directory
+(where side-quest provisions its binary) differently per OS:
+
+- **macOS / Linux** — Claude Code removes the plugin's data directory on uninstall,
+  so the provisioned `side-quest` binary goes with it. If you enabled the terminal
+  CLI, its launcher notices the binary is gone the next time you run `side-quest`,
+  reports that it's inert, and offers to remove itself.
+
+- **Windows** — Claude Code leaves the data directory in place, so the provisioned
+  `side-quest.exe` — and a terminal launcher, if you enabled one — keep working after
+  the plugin is gone. To finish cleaning up: run `side-quest uninstall-cli` to remove
+  the terminal launcher, then delete the data directory yourself if you want the
+  binary gone:
+
+  ```
+  %USERPROFILE%\.claude\plugins\data\side-quest-side-quest
+  ```
+
+Either way, your quests are safe: they live in the repository's git refs
+(`refs/side-quest/*`), not in the plugin, so uninstalling never touches them.
