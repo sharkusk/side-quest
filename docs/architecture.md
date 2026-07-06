@@ -587,14 +587,25 @@ same repository.
   `commands/sq.md` is the `/sq` capture command (it calls the `quest_new` MCP tool);
   `AGENTS.md` is the agent-agnostic contract; `skills/side-quest/SKILL.md` is the
   Claude-flavored workflow skill.
-- **The `.mcp.json`** launches the server by bare name (`side-quest serve`). Inside
-  an installed plugin, Claude prepends the plugin's `bin/` to `PATH`, so `side-quest`
-  resolves to `bin/side-quest` (POSIX) or `bin/side-quest.cmd` (Windows).
-- **The launcher** (`bin/side-quest`) resolves the native binary in order: a cached
-  copy under `${CLAUDE_PLUGIN_DATA}` → a `side-quest` already on `PATH` → download
-  the matching release asset and verify its SHA-256 against the release
-  `checksums.txt` → otherwise print a `go install` hint and exit non-zero. No
-  compiled binaries are committed to the repo.
+- **Plugin MCP registration** points `plugin.json`'s `mcpServers` command straight at
+  the provisioned native binary — `${CLAUDE_PLUGIN_DATA}/bin/side-quest.exe serve`.
+  Claude spawns a plugin's MCP command with no shell and offers no per-OS `command`
+  field, so on a native-installer box (which may have no `node` at all) the only thing
+  it can launch is a real executable by absolute path — not `node`/`npx`, a shell
+  script, or a `.cmd`. The fixed name `side-quest.exe` is used on every OS (the
+  extension is cosmetic on macOS/Linux); the file is a per-machine native binary, so it
+  lives in the data dir, never the git tree (SQ-0089, superseding the SQ-0081 node
+  launcher).
+- **Provisioning** happens ahead of the spawn, in a `SessionStart` hook with two arms —
+  `scripts/provision.sh` (macOS/Linux) and `scripts/provision.ps1` (Windows) — each
+  self-selecting by which interpreter exists. A hook downloads the matching release
+  asset, verifies its SHA-256 against the release `checksums.txt`, extracts it to
+  `${CLAUDE_PLUGIN_DATA}/bin/side-quest.exe`, and stamps a version marker. It is
+  idempotent (the marker skips a re-download) and non-fatal (a failed provision never
+  blocks session start; the MCP spawn surfaces the missing binary and a reconnect after
+  the next successful run recovers). No compiled binaries are committed to the repo.
+- **Non-plugin users** get a project `.mcp.json` from `side-quest onboard` that launches
+  the server by bare name (`side-quest serve`), resolved from `PATH`.
 - **Versioning:** the root `VERSION` file is the single source of truth; `plugin.json`'s
   `version` matches it (test-enforced); the release tag is `v` + `VERSION`. The binary
   reports its version via `side-quest version`, stamped at release build time by
@@ -612,9 +623,9 @@ same repository.
   **read-only** launcher (marked `side-quest-cli-launcher`) into the first
   conventional on-PATH user-bin dir (`$XDG_BIN_HOME`, `~/.local/bin`, `~/bin`,
   `~/go/bin`; else `~/.local/bin` with a PATH notice). The launcher resolves the
-  newest `~/.claude/plugins/data/side-quest-side-quest/bin/side-quest-*` and execs
-  it — it never downloads (the plugin's MCP server provisions the binary on
-  startup). When the plugin's data dir is gone it announces itself as safe to
+  fixed `~/.claude/plugins/data/side-quest-side-quest/bin/side-quest.exe` and execs
+  it — it never downloads (the plugin's SessionStart hook provisions the binary), and
+  it points at the same path the MCP command spawns. When the plugin's data dir is gone it announces itself as safe to
   remove (offers to self-delete when interactive; the `.cmd` never self-deletes).
   The mechanism lives in `internal/cli` (`Install`/`Uninstall`/`Status`), shared by
   the `install-cli`/`uninstall-cli` subcommands and the MCP `cli_*` tools (SQ-0066);

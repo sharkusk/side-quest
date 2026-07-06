@@ -8,8 +8,28 @@
   "homepage": "https://github.com/sharkusk/side-quest",
   "mcpServers": {
     "side-quest": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/launch.js", "serve"]
+      "command": "${CLAUDE_PLUGIN_DATA}/bin/side-quest.exe",
+      "args": ["serve"]
     }
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/provision.sh\""
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/provision.ps1\""
+          }
+        ]
+      }
+    ]
   }
 }

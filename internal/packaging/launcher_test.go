@@ -1,16 +1,17 @@
 //go:build !windows
 
-// These tests exercise the POSIX shell launcher (bin/side-quest): they exec it
-// directly and plant #!/bin/sh stand-in binaries, neither of which runs under
-// Windows' native test runner. The Windows launcher (bin/side-quest.cmd) has its
-// own coverage in launcher_windows_test.go.
+// These tests exercise the POSIX provisioning hook (scripts/provision.sh): they run it
+// with a staged plugin root and a local fixture release server, asserting it lands the
+// native binary at the fixed data-dir path the MCP command spawns. The provision path is
+// what VERSION=dev otherwise skips — the coverage gap that let SQ-0082/0083/0085 ship
+// (SQ-0084/0089). The Windows arm (scripts/provision.ps1) is covered in
+// launcher_windows_test.go. #!/bin/sh stand-ins don't run under Windows' test runner.
 package packaging
 
 import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -18,11 +19,10 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
-// makeTarGz builds a .tar.gz holding a single executable file — the shape of a
-// side-quest release archive, whose sole member the shim extracts and runs.
+// makeTarGz builds a .tar.gz holding a single executable named `side-quest` — the shape
+// of a side-quest release archive, whose sole member provision.sh extracts.
 func makeTarGz(t *testing.T, name, body string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
@@ -43,19 +43,6 @@ func makeTarGz(t *testing.T, name, body string) []byte {
 	return buf.Bytes()
 }
 
-func launcherPath(t *testing.T) string {
-	t.Helper()
-	p, err := filepath.Abs("../../bin/side-quest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(p); err != nil {
-		t.Fatalf("launcher missing: %v", err)
-	}
-	return p
-}
-
-// writeExec writes an executable shell script.
 func writeExec(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
@@ -63,270 +50,125 @@ func writeExec(t *testing.T, path, body string) {
 	}
 }
 
-// cleanEnv isolates the launcher from the developer's real PATH/HOME so that a
-// real `side-quest` on the machine cannot leak into the resolution.
-func cleanEnv(pathDir, pluginData string) []string {
-	return []string{
-		"PATH=" + pathDir + ":/usr/bin:/bin",
-		"CLAUDE_PLUGIN_DATA=" + pluginData,
-		"HOME=" + pluginData,
-	}
-}
-
-// Step 1 of the chain: a cached binary for this VERSION is exec'd.
-func TestLauncherExecsCachedBinary(t *testing.T) {
-	ver := strings.TrimSpace(string(repoFile(t, "VERSION")))
-	data := t.TempDir()
-	cache := filepath.Join(data, "bin")
-	if err := os.MkdirAll(cache, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeExec(t, filepath.Join(cache, "side-quest-"+ver), "#!/bin/sh\necho CACHED \"$@\"\n")
-
-	cmd := exec.Command(launcherPath(t), "serve")
-	cmd.Env = cleanEnv(t.TempDir(), data)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("run: %v\n%s", err, out)
-	}
-	if !strings.HasPrefix(string(out), "CACHED serve") {
-		t.Errorf("got %q, want the cached binary", out)
-	}
-}
-
-// Step 1, the normal case: CLAUDE_PLUGIN_DATA is UNSET — the common state, since
-// Claude exports it only into its own MCP/hook processes, never a plain shell. The
-// launcher must reconstruct the plugin data dir from the documented deterministic
-// path (~/.claude/plugins/data/side-quest-side-quest/bin) — the same directory the
-// terminal launcher resolves (spec D2) — so a binary provisioned by one launcher is
-// found by the other. Before SQ-0079 the download launcher fell back to a private
-// ~/.cache/side-quest/bin, invisible to the terminal launcher and the MCP server it
-// starts, which then failed with -32000.
-func TestLauncherResolvesDataDirWhenPluginDataUnset(t *testing.T) {
-	// Stage a copy of the launcher at a dev VERSION so step 3's download is skipped
-	// and only a data-dir hit (step 1) can produce a success.
+// stageProvision copies scripts/provision.sh into a fresh plugin root stamped with the
+// given VERSION (provision.sh reads VERSION from <root>/VERSION), returning its path.
+func stageProvision(t *testing.T, version string) string {
+	t.Helper()
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("dev\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte(version+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
+	scripts := filepath.Join(root, "scripts")
+	if err := os.MkdirAll(scripts, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	src, err := os.ReadFile(launcherPath(t))
+	src, err := os.ReadFile("../../scripts/provision.sh")
 	if err != nil {
+		t.Fatalf("read provision.sh: %v", err)
+	}
+	p := filepath.Join(scripts, "provision.sh")
+	if err := os.WriteFile(p, src, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	launcher := filepath.Join(root, "bin", "side-quest")
-	if err := os.WriteFile(launcher, src, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Plant the "provisioned" binary where the reconstructed data dir points.
-	home := t.TempDir()
-	dataBin := filepath.Join(home, ".claude", "plugins", "data", "side-quest-side-quest", "bin")
-	if err := os.MkdirAll(dataBin, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeExec(t, filepath.Join(dataBin, "side-quest-dev"), "#!/bin/sh\necho DATADIR \"$@\"\n")
-
-	cmd := exec.Command(launcher, "serve")
-	// CLAUDE_PLUGIN_DATA intentionally absent; isolated PATH so no real side-quest
-	// leaks in via step 2.
-	cmd.Env = []string{
-		"PATH=" + t.TempDir() + ":/usr/bin:/bin",
-		"HOME=" + home,
-	}
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("run: %v\n%s", err, out)
-	}
-	if !strings.HasPrefix(string(out), "DATADIR serve") {
-		t.Errorf("got %q, want the data-dir binary — with CLAUDE_PLUGIN_DATA unset the launcher must resolve ~/.claude/plugins/data/side-quest-side-quest/bin, not a private cache dir", out)
-	}
+	return p
 }
 
-// Under Claude Code's Bash tool on Windows the shell is Git Bash (MSYS), so a bare
-// `side-quest` resolves to THIS POSIX shim — but its uname/curl/tar download path is
-// built for a Unix release and 404s on the windows_amd64.zip. It must detect MSYS and
-// hand off to the sibling .cmd (which owns Windows provisioning). Faking `uname` to
-// report MinGW (+ stub cygpath/cmd.exe) proves the delegation fires with the .cmd path
-// and forwarded args, on any host OS (SQ-0082).
-func TestLauncherDelegatesToCmdUnderMSYS(t *testing.T) {
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("dev\n"), 0o644); err != nil {
-		t.Fatal(err)
+func provisionEnv(data, base string) []string {
+	env := []string{"PATH=/usr/bin:/bin", "HOME=" + data, "CLAUDE_PLUGIN_DATA=" + data}
+	if base != "" {
+		env = append(env, "SIDE_QUEST_RELEASE_BASE="+base)
 	}
-	binDir := filepath.Join(root, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	src, err := os.ReadFile(launcherPath(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	launcher := filepath.Join(binDir, "side-quest")
-	if err := os.WriteFile(launcher, src, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	// A sibling .cmd so the delegation resolves a real target path.
-	if err := os.WriteFile(filepath.Join(binDir, "side-quest.cmd"), []byte("rem stub\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	// Stub the MSYS toolchain: uname reports MinGW; cygpath -w echoes the path; cmd.exe
-	// prints how it was invoked so we can assert the handoff.
-	stub := t.TempDir()
-	writeExec(t, filepath.Join(stub, "uname"), "#!/bin/sh\necho MINGW64_NT-10.0-19045\n")
-	writeExec(t, filepath.Join(stub, "cygpath"), "#!/bin/sh\nshift\necho \"$1\"\n") // drops -w, echoes PATH
-	writeExec(t, filepath.Join(stub, "cmd.exe"), "#!/bin/sh\necho CMD \"$@\"\n")
-
-	cmd := exec.Command(launcher, "serve")
-	cmd.Env = []string{
-		"PATH=" + stub + ":/usr/bin:/bin",
-		"HOME=" + t.TempDir(),
-	}
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("run: %v\n%s", err, out)
-	}
-	got := string(out)
-	if !strings.Contains(got, "CMD") || !strings.Contains(got, "side-quest.cmd") || !strings.Contains(got, "serve") {
-		t.Errorf("shim did not delegate to cmd.exe with the .cmd path + args; got %q", got)
-	}
+	return env
 }
 
-// Step 3, end to end: with no cached binary and none on PATH, the shim downloads the
-// release asset from SIDE_QUEST_RELEASE_BASE, verifies its SHA-256 against
-// checksums.txt, extracts the tar.gz, and execs the binary. Pointed at a local fixture
-// server, this exercises the whole provision path that VERSION=dev otherwise skips —
-// the coverage gap that let SQ-0082/SQ-0083 ship (SQ-0084). Runs on Linux/darwin,
-// where `uname` matches runtime.GOOS/GOARCH.
-func TestLauncherDownloadsFromReleaseBase(t *testing.T) {
+// End to end: the hook downloads the release asset from SIDE_QUEST_RELEASE_BASE, verifies
+// its SHA-256 against checksums.txt, extracts the tar.gz, and writes the binary to the
+// fixed path the MCP command spawns (<data>/bin/side-quest.exe) plus a version marker.
+func TestProvisionDownloadsBinary(t *testing.T) {
 	const ver = "9.9.9"
 	asset := fmt.Sprintf("side-quest_%s_%s_%s.tar.gz", ver, runtime.GOOS, runtime.GOARCH)
 	base := serveRelease(t, asset, makeTarGz(t, "side-quest", "#!/bin/sh\necho DOWNLOADED \"$@\"\n"))
+	data := t.TempDir()
 
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte(ver+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	src, err := os.ReadFile(launcherPath(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	launcher := filepath.Join(root, "bin", "side-quest")
-	if err := os.WriteFile(launcher, src, 0o755); err != nil {
-		t.Fatal(err)
+	cmd := exec.Command(stageProvision(t, ver))
+	cmd.Env = provisionEnv(data, base)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("provision: %v\n%s", err, out)
 	}
 
-	cmd := exec.Command(launcher, "serve")
-	cmd.Env = []string{
-		"PATH=" + t.TempDir() + ":/usr/bin:/bin", // isolated: no cache hit, none on PATH
-		"HOME=" + t.TempDir(),
-		"CLAUDE_PLUGIN_DATA=" + t.TempDir(), // empty data dir → step 1 misses
-		"SIDE_QUEST_RELEASE_BASE=" + base,
-	}
-	out, err := cmd.CombinedOutput()
+	target := filepath.Join(data, "bin", "side-quest.exe")
+	info, err := os.Stat(target)
 	if err != nil {
-		t.Fatalf("run: %v\n%s", err, out)
+		t.Fatalf("binary not provisioned at %s: %v", target, err)
+	}
+	if info.Mode()&0o111 == 0 {
+		t.Errorf("provisioned binary is not executable (mode %v)", info.Mode())
+	}
+	out, err := exec.Command(target, "serve").CombinedOutput()
+	if err != nil {
+		t.Fatalf("run provisioned binary: %v\n%s", err, out)
 	}
 	if !strings.HasPrefix(string(out), "DOWNLOADED serve") {
-		t.Errorf("got %q, want the downloaded binary to run", out)
+		t.Errorf("provisioned binary output = %q, want the archived binary", out)
+	}
+	marker, _ := os.ReadFile(filepath.Join(data, "bin", ".provisioned-version"))
+	if strings.TrimSpace(string(marker)) != ver {
+		t.Errorf("version marker = %q, want %q", marker, ver)
 	}
 }
 
-// Step 2 of the chain: a side-quest already on PATH (dev build) is exec'd.
-func TestLauncherExecsPathBinary(t *testing.T) {
-	shim := t.TempDir()
-	writeExec(t, filepath.Join(shim, "side-quest"), "#!/bin/sh\necho PATHBIN \"$@\"\n")
-
-	cmd := exec.Command(launcherPath(t), "serve")
-	cmd.Env = cleanEnv(shim, t.TempDir()) // empty plugin-data dir => no cache hit
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("run: %v\n%s", err, out)
+// Idempotent: with the marker already at this VERSION the hook returns before any
+// download. Proven by pointing at a dead base — a re-download would fail — and asserting
+// the pre-planted sentinel binary survives untouched.
+func TestProvisionIdempotent(t *testing.T) {
+	const ver = "9.9.9"
+	data := t.TempDir()
+	bin := filepath.Join(data, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
 	}
-	if !strings.HasPrefix(string(out), "PATHBIN serve") {
-		t.Errorf("got %q, want the PATH binary", out)
+	target := filepath.Join(bin, "side-quest.exe")
+	writeExec(t, target, "#!/bin/sh\necho SENTINEL\n")
+	if err := os.WriteFile(filepath.Join(bin, ".provisioned-version"), []byte(ver), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(stageProvision(t, ver))
+	cmd.Env = provisionEnv(data, "http://127.0.0.1:1") // any download would fail
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("provision (idempotent): %v\n%s", err, out)
+	}
+	got, _ := os.ReadFile(target)
+	if !strings.Contains(string(got), "SENTINEL") {
+		t.Error("provision overwrote an already-current binary; want the sentinel untouched")
 	}
 }
 
-// Step 4 of the chain: nothing resolves and download is disabled (VERSION=dev),
-// so the launcher prints the install hint and exits non-zero.
-func TestLauncherFailsWithHint(t *testing.T) {
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("dev\n"), 0o644); err != nil {
-		t.Fatal(err)
+// A dev checkout (VERSION=dev) has no release to download and must no-op cleanly — exit 0,
+// no binary — rather than error out and disturb session start.
+func TestProvisionDevIsNoop(t *testing.T) {
+	data := t.TempDir()
+	cmd := exec.Command(stageProvision(t, "dev"))
+	cmd.Env = provisionEnv(data, "")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("dev provision should exit 0: %v\n%s", err, out)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	src, err := os.ReadFile(launcherPath(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	fake := filepath.Join(root, "bin", "side-quest")
-	if err := os.WriteFile(fake, src, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	cmd := exec.Command(fake, "serve")
-	cmd.Env = cleanEnv(t.TempDir(), t.TempDir())
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected non-zero exit, got success: %s", out)
-	}
-	if !strings.Contains(string(out), "go install github.com/sharkusk/side-quest/cmd/side-quest@latest") {
-		t.Errorf("missing install hint: %s", out)
+	if _, err := os.Stat(filepath.Join(data, "bin", "side-quest.exe")); !os.IsNotExist(err) {
+		t.Errorf("dev provision unexpectedly created a binary (err=%v)", err)
 	}
 }
 
-// Regression test: a relative $0 (the real shipped deployment, e.g. `./side-quest`
-// with the plugin's own bin/ on PATH) must resolve the step-2 self-check correctly
-// (comparing an absolute SELF against found_abs) and terminate promptly at the
-// install hint, rather than mis-exec'ing the wrong thing. The context timeout is
-// a safety net, not a reproduction of an actual hang: POSIX shebang exec resolves
-// $0 to an absolute path on each hop, so even the uncanonicalized pre-fix code
-// self-heals after a couple of hops and terminates — it never hangs in practice.
-func TestLauncherRelativeInvocationResolvesSelf(t *testing.T) {
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("dev\n"), 0o644); err != nil {
-		t.Fatal(err)
+// A failed download must be non-fatal (exit 0) and leave no partial binary, so a bad
+// network or a missing asset never blocks session start (SQ-0089: the hook feeds the
+// MCP spawn, so a nonzero exit here could disrupt startup).
+func TestProvisionDownloadFailureIsNonFatal(t *testing.T) {
+	data := t.TempDir()
+	cmd := exec.Command(stageProvision(t, "9.9.9"))
+	cmd.Env = provisionEnv(data, "http://127.0.0.1:1") // nothing listening
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed provision must still exit 0 (non-fatal): %v\n%s", err, out)
 	}
-	binDir := filepath.Join(root, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	src, err := os.ReadFile(launcherPath(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	fake := filepath.Join(binDir, "side-quest")
-	if err := os.WriteFile(fake, src, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "./side-quest", "serve")
-	cmd.Dir = binDir
-	cmd.Env = []string{
-		"PATH=" + binDir + ":/usr/bin:/bin",
-		"CLAUDE_PLUGIN_DATA=" + t.TempDir(),
-		"HOME=" + t.TempDir(),
-	}
-	out, err := cmd.CombinedOutput()
-
-	if ctx.Err() != nil {
-		t.Fatalf("launcher hit context deadline (did not terminate): %s", out)
-	}
-	if err == nil {
-		t.Fatalf("expected non-zero exit, got success: %s", out)
-	}
-	if !strings.Contains(string(out), "go install github.com/sharkusk/side-quest/cmd/side-quest@latest") {
-		t.Errorf("missing install hint: %s", out)
+	if _, err := os.Stat(filepath.Join(data, "bin", "side-quest.exe")); !os.IsNotExist(err) {
+		t.Errorf("failed provision left a binary behind (err=%v)", err)
 	}
 }

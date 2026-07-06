@@ -2,8 +2,10 @@
 #
 # The MCP server is not a separate artifact: `side-quest serve` IS the binary, so
 # updating the binary updates the server. The installed Claude plugin registers its
-# server via .claude-plugin/plugin.json (`${CLAUDE_PLUGIN_ROOT}/bin/side-quest`); a
-# non-plugin user gets a project .mcp.json from `side-quest onboard`. This repo's own
+# server via .claude-plugin/plugin.json, whose command is the provisioned native binary
+# (`${CLAUDE_PLUGIN_DATA}/bin/side-quest.exe`) placed there by a SessionStart hook — no
+# `node`/shell is needed to spawn it (SQ-0089); a non-plugin user gets a project .mcp.json
+# from `side-quest onboard`. This repo's own
 # .mcp.json is git-ignored dogfooding config (bare `side-quest` -> HEAD on PATH),
 # written by `make dev` below — never shipped, so a plugin install sees no stray
 # PATH-resolved server (SQ-0080).

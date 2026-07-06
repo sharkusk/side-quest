@@ -8,15 +8,11 @@ set "SIDE_QUEST_PLUGIN=1"
 if defined CLAUDE_PLUGIN_DATA (set "DATA=%CLAUDE_PLUGIN_DATA%") else (set "DATA=%USERPROFILE%\.claude\plugins\data\side-quest-side-quest")
 set "BINDIR=%DATA%\bin"
 
-rem 1. newest provisioned binary wins.
-set "NEWEST="
-if exist "%BINDIR%\" (
-  for /f "delims=" %%f in ('dir /b /o-d "%BINDIR%\side-quest-*.exe" 2^>nul') do (
-    if not defined NEWEST set "NEWEST=%BINDIR%\%%f"
-  )
-)
-if defined NEWEST (
-  "!NEWEST!" %*
+rem 1. the provisioned binary (fixed name - the plugin's SessionStart hook writes exactly
+rem this path, the same one the MCP server command spawns; SQ-0079/0089).
+set "BIN=%BINDIR%\side-quest.exe"
+if exist "%BIN%" (
+  "%BIN%" %*
   exit /b !errorlevel!
 )
 

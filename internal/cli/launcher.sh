@@ -4,7 +4,7 @@
 # removed by `side-quest uninstall-cli` or, once the plugin is gone, by this script
 # itself. It NEVER downloads: if the plugin is installed, its MCP server has already
 # placed the binary. Resolution:
-#   1. newest <data>/bin/side-quest-* present  -> exec it
+#   1. <data>/bin/side-quest.exe present       -> exec it
 #   2. data dir present, no binary yet         -> ask the user to open a session
 #   3. data dir absent (plugin uninstalled)    -> inert; offer/announce removal
 set -eu
@@ -19,18 +19,11 @@ BINDIR="$DATA/bin"
 SELF_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 SELF="$SELF_DIR/$(basename -- "$0")"
 
-# 1. newest provisioned binary wins.
-if [ -d "$BINDIR" ]; then
-	newest=
-	for f in "$BINDIR"/side-quest-*; do
-		[ -x "$f" ] || continue
-		if [ -z "$newest" ] || [ "$f" -nt "$newest" ]; then
-			newest=$f
-		fi
-	done
-	if [ -n "$newest" ]; then
-		exec "$newest" "$@"
-	fi
+# 1. the provisioned binary (fixed name — the plugin's SessionStart hook writes exactly
+# this path, the same one the MCP server command spawns; SQ-0079/0089).
+BIN="$BINDIR/side-quest.exe"
+if [ -x "$BIN" ]; then
+	exec "$BIN" "$@"
 fi
 
 # 2. data dir exists but nothing provisioned yet.
