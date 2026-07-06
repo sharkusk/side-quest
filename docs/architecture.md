@@ -581,7 +581,10 @@ single flag (`rev-parse --absolute-git-dir`); everything else works on far older
 ## Packaging & distribution (Phase 7)
 
 side-quest ships both as a standalone binary and as a Claude Code plugin from the
-same repository.
+same repository. The cross-platform mechanism that lets a **native** (non-Node)
+binary serve as the plugin's MCP server — the three pieces that share one fixed
+path — is written up as a reusable pattern in
+[`docs/plugin-native-binary-distribution.md`](plugin-native-binary-distribution.md).
 
 - **Plugin manifests** live in `.claude-plugin/` (`plugin.json`, `marketplace.json`).
   `commands/sq.md` is the `/sq` capture command (it calls the `quest_new` MCP tool);
