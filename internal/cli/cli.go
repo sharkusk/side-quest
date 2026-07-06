@@ -209,3 +209,31 @@ func Status() StatusResult {
 	}
 	return StatusResult{}
 }
+
+// Refresh rewrites any installed launcher we own whose body no longer matches the
+// current LauncherBody — self-healing a stale launcher an older side-quest left on PATH
+// (e.g. one resolving a since-changed data-dir path, which would strand the CLI after an
+// upgrade). It only ever touches files carrying Marker (never a user's own binary) and
+// only when they differ, so it is a no-op once current. Called best-effort at serve
+// startup, so an upgraded binary heals the launcher on the next session without the agent
+// re-offering install (SQ-0091). Returns the paths rewritten; read/write errors are skipped.
+func Refresh() []string {
+	body := LauncherBody()
+	name := LauncherName()
+	var refreshed []string
+	for _, dir := range launcherDirs() {
+		p := filepath.Join(dir, name)
+		marked, err := isMarkedLauncher(p)
+		if err != nil || !marked {
+			continue
+		}
+		cur, err := os.ReadFile(p)
+		if err != nil || bytes.Equal(cur, body) {
+			continue
+		}
+		if os.WriteFile(p, body, 0o755) == nil {
+			refreshed = append(refreshed, p)
+		}
+	}
+	return refreshed
+}

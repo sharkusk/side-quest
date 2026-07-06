@@ -377,3 +377,79 @@ func TestStatusFindsMarkedOffPath(t *testing.T) {
 		t.Errorf("Status = %+v, want installed at ~/.local/bin/side-quest", st)
 	}
 }
+
+// launcherEnv points HOME/USERPROFILE at a temp home with an empty XDG_BIN_HOME and
+// PATH set to its ~/.local/bin, then returns that bin dir — the sandbox the Refresh
+// tests plant launchers in (matching the isolation the Install/Status tests use).
+func launcherEnv(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	dir := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() reads USERPROFILE on Windows (SQ-0086)
+	t.Setenv("XDG_BIN_HOME", "")
+	t.Setenv("PATH", dir)
+	return dir
+}
+
+// Refresh rewrites a stale marked launcher (one an older side-quest wrote, whose body no
+// longer matches this binary's) to the current LauncherBody — so an upgraded binary
+// self-heals a launcher that would otherwise resolve a since-changed path (SQ-0091).
+func TestRefreshRewritesStaleMarkedLauncher(t *testing.T) {
+	dir := launcherEnv(t)
+	target := filepath.Join(dir, LauncherName())
+	// A stale launcher: carries Marker near the top but an old body.
+	stale := []byte("#!/bin/sh\n# " + Marker + " (old)\necho STALE\n")
+	if err := os.WriteFile(target, stale, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	refreshed := Refresh()
+
+	got, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, LauncherBody()) {
+		t.Error("stale launcher was not rewritten to the current LauncherBody")
+	}
+	if len(refreshed) != 1 || refreshed[0] != target {
+		t.Errorf("Refresh() = %v, want [%s]", refreshed, target)
+	}
+}
+
+// An up-to-date launcher is left untouched (no rewrite, nothing reported).
+func TestRefreshLeavesCurrentLauncher(t *testing.T) {
+	dir := launcherEnv(t)
+	target := filepath.Join(dir, LauncherName())
+	if err := os.WriteFile(target, LauncherBody(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if r := Refresh(); len(r) != 0 {
+		t.Errorf("Refresh() = %v, want none (already current)", r)
+	}
+	if got, _ := os.ReadFile(target); !bytes.Equal(got, LauncherBody()) {
+		t.Error("current launcher was modified")
+	}
+}
+
+// Refresh never touches a file lacking Marker — a user's own side-quest, not ours.
+func TestRefreshIgnoresUnmarked(t *testing.T) {
+	dir := launcherEnv(t)
+	target := filepath.Join(dir, LauncherName())
+	mine := []byte("#!/bin/sh\necho not ours\n")
+	if err := os.WriteFile(target, mine, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if r := Refresh(); len(r) != 0 {
+		t.Errorf("Refresh() = %v, want none (unmarked)", r)
+	}
+	if got, _ := os.ReadFile(target); !bytes.Equal(got, mine) {
+		t.Error("unmarked file was modified")
+	}
+}
