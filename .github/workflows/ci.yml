@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+# Cancel an in-flight run for the same ref when a newer push arrives, so a burst of
+# commits to main doesn't pile up redundant matrix runs (SQ-0095).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     strategy:
