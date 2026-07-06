@@ -1,12 +1,13 @@
 package store
 
 import (
+	"errors"
 	"fmt"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/gitcmd"
@@ -274,13 +275,10 @@ func TestCreatePersistsAndReloads(t *testing.T) {
 // TestCreateConcurrentNoDuplicateIDs launches several creates concurrently and
 // asserts every id is unique — exercising the CAS retry loop under contention.
 func TestCreateConcurrentNoDuplicateIDs(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		// 8-way concurrent `git hash-object -w` contends on Windows loose-object file
-		// locking ("Permission denied") — a git-on-Windows limitation, not an
-		// ID-allocation bug. The CAS logic under test is platform-independent and
-		// covered on Linux/macOS; a retry-based fix is tracked in SQ-0088.
-		t.Skip("concurrent git object writes contend on Windows file locking (SQ-0088)")
-	}
+	// Previously skipped on Windows: 8-way concurrent `git hash-object -w`
+	// contends on loose-object file locking ("Permission denied"). commitTx now
+	// retries that transient write (retryTransient), so the test runs on every
+	// platform and the Windows CI job proves the fix end-to-end (SQ-0088).
 	s := newStore(t)
 	if err := s.Init(); err != nil {
 		t.Fatal(err)
@@ -312,6 +310,81 @@ func TestCreateConcurrentNoDuplicateIDs(t *testing.T) {
 	}
 	if len(seen) != n {
 		t.Fatalf("expected %d unique ids, got %d", n, len(seen))
+	}
+}
+
+// stubTransientSleep replaces the retry backoff with a no-op for the duration of
+// a test and returns a restore func.
+func stubTransientSleep(t *testing.T) {
+	t.Helper()
+	orig := transientSleep
+	transientSleep = func(time.Duration) {}
+	t.Cleanup(func() { transientSleep = orig })
+}
+
+func TestIsTransientGitWrite(t *testing.T) {
+	cases := []struct {
+		msg  string
+		want bool
+	}{
+		{"hash-object: Permission denied", true},
+		{"error: unable to create '.../objects/...': Permission denied", true},
+		{"fatal: Unable to create '.../index.lock': File exists", true},
+		{"cannot lock ref 'refs/side-quest/quests'", false}, // ref race, handled by CAS
+		{"cannot update ref: nonexistent object", false},     // genuine fault
+		{"", false},
+	}
+	for _, c := range cases {
+		var err error
+		if c.msg != "" {
+			err = errors.New(c.msg)
+		}
+		if got := isTransientGitWrite(err); got != c.want {
+			t.Errorf("isTransientGitWrite(%q) = %v, want %v", c.msg, got, c.want)
+		}
+	}
+}
+
+func TestRetryTransientSucceedsAfterContention(t *testing.T) {
+	stubTransientSleep(t)
+	calls := 0
+	err := retryTransient(func() error {
+		calls++
+		if calls < 3 {
+			return errors.New("hash-object: Permission denied")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("want success after transient retries, got %v", err)
+	}
+	if calls != 3 {
+		t.Fatalf("want 3 attempts, got %d", calls)
+	}
+}
+
+func TestRetryTransientSurfacesNonTransientImmediately(t *testing.T) {
+	stubTransientSleep(t)
+	calls := 0
+	sentinel := errors.New("cannot update ref: nonexistent object")
+	err := retryTransient(func() error { calls++; return sentinel })
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("want sentinel surfaced, got %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("a non-transient error must not be retried, got %d attempts", calls)
+	}
+}
+
+func TestRetryTransientGivesUpAfterCap(t *testing.T) {
+	stubTransientSleep(t)
+	calls := 0
+	err := retryTransient(func() error { calls++; return errors.New("Permission denied") })
+	if err == nil {
+		t.Fatal("want the last transient error surfaced after exhausting retries")
+	}
+	if calls != transientMaxTries {
+		t.Fatalf("want %d attempts, got %d", transientMaxTries, calls)
 	}
 }
 

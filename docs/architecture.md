@@ -120,6 +120,17 @@ Because it's a scratch index, your real index and working files are never involv
 the invariant the whole design rests on, and there is a test asserting `git status` stays
 empty after a write (`TestCreateDoesNotTouchWorkingTree`).
 
+**Transient object-write retry (distinct from the CAS retry below).** Steps 2, 4 and 5 each
+create a *loose object* (blob, tree, commit). Git writes a loose object as a temp file it then
+renames into place, and on Windows several processes creating the **same** content-addressed
+object concurrently — e.g. eight lanes creating quests with identical bytes, so an identical
+blob/tree — race on that rename and one fails with `Permission denied`. Because the object is
+content-addressed the write is **idempotent**, so `retryTransient` rides it out (a short bounded
+backoff; `isTransientGitWrite` classifies the error). This is a **different layer** from the CAS
+lost-race retry: this one is the *object write* contending on the filesystem; that one is the
+*ref update* losing a compare-and-swap. The two are deliberately not conflated — `retryTransient`
+matches `Permission denied`/`Unable to create`, never `cannot lock ref` (SQ-0088).
+
 ## CAS: safe concurrency without a lock
 
 **CAS = Compare-And-Swap**: an atomic "set X to *new* only if X still equals *old*." Git

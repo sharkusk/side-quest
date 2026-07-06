@@ -236,9 +236,17 @@ func (s *Store) commitTx(readFrom string, parents []string, msg string, tx *txn)
 			return "", err
 		}
 	}
+	// hash-object, write-tree and commit-tree all create loose objects and so can
+	// hit Windows' concurrent-write contention; retryTransient rides it out (the
+	// writes are content-addressed and idempotent). update-index only stages into
+	// the per-call scratch index, so it never contends.
 	for path, data := range tx.puts {
-		blob, err := g.RunInput(string(data), "hash-object", "-w", "--stdin")
-		if err != nil {
+		var blob string
+		if err := retryTransient(func() error {
+			var e error
+			blob, e = g.RunInput(string(data), "hash-object", "-w", "--stdin")
+			return e
+		}); err != nil {
 			return "", err
 		}
 		if _, err := g.Run("update-index", "--add", "--cacheinfo",
@@ -251,8 +259,12 @@ func (s *Store) commitTx(readFrom string, parents []string, msg string, tx *txn)
 			return "", err
 		}
 	}
-	tree, err := g.Run("write-tree")
-	if err != nil {
+	var tree string
+	if err := retryTransient(func() error {
+		var e error
+		tree, e = g.Run("write-tree")
+		return e
+	}); err != nil {
 		return "", err
 	}
 	args := []string{"commit-tree", tree, "-m", msg}
@@ -261,7 +273,59 @@ func (s *Store) commitTx(readFrom string, parents []string, msg string, tx *txn)
 			args = append(args, "-p", p)
 		}
 	}
-	return g.Run(args...)
+	var commit string
+	if err := retryTransient(func() error {
+		var e error
+		commit, e = g.Run(args...)
+		return e
+	}); err != nil {
+		return "", err
+	}
+	return commit, nil
+}
+
+const transientMaxTries = 8
+
+// transientSleep is the backoff between retries of a transient loose-object
+// write; a package var so tests can stub it to a no-op.
+var transientSleep = time.Sleep
+
+// isTransientGitWrite reports whether err is a retryable loose-object write
+// failure rather than a real fault. Git writes a loose object as a temp file it
+// then renames into place; on Windows, several processes creating the SAME
+// content-addressed object concurrently race on that rename and one fails with
+// "Permission denied" (or "Unable to create"). Because the object is
+// content-addressed, the write is idempotent — a retry after the winner
+// finishes simply finds/writes the identical object. gitcmd pins LC_ALL=C, so
+// git's message is stable English and this substring match is locale-safe.
+//
+// This is deliberately narrower than the CAS discriminator's "cannot lock ref"
+// (a ref-level race, handled by mutate's retry) — those must not be conflated.
+func isTransientGitWrite(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "Permission denied") ||
+		strings.Contains(s, "Unable to create") ||
+		strings.Contains(s, "unable to create") ||
+		strings.Contains(s, "unable to write")
+}
+
+// retryTransient runs fn, retrying only a transient loose-object write
+// (isTransientGitWrite) up to transientMaxTries with a short growing backoff.
+// Success or any non-transient error returns immediately. Safe because git
+// object writes are content-addressed and idempotent — this never masks a real
+// fault, it just rides out Windows file-lock contention (SQ-0088).
+func retryTransient(fn func() error) error {
+	var err error
+	for try := 0; try < transientMaxTries; try++ {
+		if err = fn(); err == nil || !isTransientGitWrite(err) {
+			return err
+		}
+		transientSleep(time.Duration(try+1) * 5 * time.Millisecond)
+	}
+	return err
 }
 
 // cas points the ref at newCommit only if it currently equals oldTip (or, when
