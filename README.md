@@ -210,9 +210,11 @@ Two optional surfaces *reinforce* it when you want more than the baseline:
 
 Once onboarded, quests sync automatically: every `git push` reconciles your quest
 ref with the remote's, merging in anything a teammate or your other machine
-added — no extra command. See [`docs/sync.md`](docs/sync.md) for how the merge
-works, or run `side-quest sync` to reconcile without pushing (e.g. after working
-offline). To wire the refspec by hand instead of via `onboard`, see
+added — no extra command. And cloning a repo that already has quests just works:
+`side-quest onboard` in the clone pulls the existing set, so you start from the
+team's quests rather than an empty ref. See [`docs/sync.md`](docs/sync.md) for how
+the merge works, or run `side-quest sync` to reconcile without pushing (e.g. after
+working offline). To wire the refspec by hand instead of via `onboard`, see
 [Sharing quests across machines](docs/manual-setup.md#sharing-quests-across-machines).
 
 ## Development

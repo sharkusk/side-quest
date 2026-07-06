@@ -144,9 +144,11 @@ git config --add remote.origin.push HEAD
   your current branch — there is no quest push refspec.
 
 A fresh `git clone` does **not** include the quest ref (Git skips custom refs on
-clone) — run `side-quest install-hooks` in the clone, then `git fetch`, to pull
-existing quests. To publish before the hooks are configured, push the ref
-explicitly:
+clone). Run **`side-quest onboard`** in the clone: when a remote is configured it
+pulls the existing quests for you — it fetches the remote ref, merges it into your
+local quests, and wires up the refspec above — so you start from the team's quests
+instead of an empty ref (which would mint duplicate ids that clash on your first
+push). To publish before the hooks are configured, push the ref explicitly:
 
 ```
 git push origin refs/side-quest/quests
