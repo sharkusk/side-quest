@@ -178,6 +178,20 @@ func cmdOnboard(args []string) error {
 		return err
 	}
 
+	// 2b. A configured remote means this clone may already have published quests —
+	// pull them now, before the user creates any, so a fresh clone doesn't mint
+	// duplicate ids that clash on the first push (SQ-0096). Best-effort: an offline
+	// or no-remote-ref-yet sync must never fail onboard. resolveRemote errs (skipped)
+	// when there's no remote or an ambiguous one — then there's nothing to pull.
+	if rem, err := resolveRemote(s, ""); err == nil {
+		switch res, err := s.Sync(rem, store.SyncOptions{}); {
+		case err != nil:
+			fmt.Printf("side-quest: couldn't reconcile quests with %s now (%v) — run `side-quest sync` when online.\n", rem, err)
+		case res.Merged > 0 || res.Renamed > 0:
+			fmt.Printf("side-quest: pulled existing quests from %s (merged %d).\n", rem, res.Merged)
+		}
+	}
+
 	// 3. project .mcp.json, at the repo root, only if absent — but never when the
 	// plugin is active, since it already registers the side-quest MCP server; a
 	// second identically-named one would be redundant. We skip silently: .mcp.json

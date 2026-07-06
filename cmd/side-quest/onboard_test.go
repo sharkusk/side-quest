@@ -155,6 +155,53 @@ func TestOnboardSetsUpRepo(t *testing.T) {
 	}
 }
 
+// TestOnboardSyncsExistingQuestsFromRemote (SQ-0096): onboarding a clone whose origin
+// already carries published quests must pull them, so the user doesn't start from an
+// empty ref and mint duplicate ids that clash on the first push.
+func TestOnboardSyncsExistingQuestsFromRemote(t *testing.T) {
+	t.Setenv("CLAUDE_PLUGIN_DATA", "")
+	t.Setenv("SIDE_QUEST_PLUGIN", "")
+	bin := buildBinary(t)
+
+	origin := t.TempDir()
+	if _, err := gitcmd.New(origin).Run("init", "--bare", "-q"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Producer clone: create a quest and publish it to origin.
+	prod, ps := newRepo(t)
+	if _, err := gitcmd.New(prod).Run("remote", "add", "origin", origin); err != nil {
+		t.Fatal(err)
+	}
+	if err := ps.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ps.Create("UPSTREAMPROBE existing quest", "", "", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, code := runBin(t, bin, prod, "sync"); code != 0 {
+		t.Fatal("producer sync failed to publish the quest ref")
+	}
+
+	// Consumer clone: a fresh repo pointed at the same origin, then onboard.
+	cons, _ := newRepo(t)
+	if _, err := gitcmd.New(cons).Run("remote", "add", "origin", origin); err != nil {
+		t.Fatal(err)
+	}
+	if out, code := runBin(t, bin, cons, "onboard"); code != 0 {
+		t.Fatalf("onboard exit=%d out=%q", code, out)
+	}
+
+	// The upstream quest must now be present locally — onboard synced it.
+	out, code := runBin(t, bin, cons, "list")
+	if code != 0 {
+		t.Fatalf("list exit=%d out=%q", code, out)
+	}
+	if !strings.Contains(out, "UPSTREAMPROBE") {
+		t.Errorf("onboard did not pull existing quests from origin; list=\n%s", out)
+	}
+}
+
 // Bare onboard no longer touches the project's AGENTS.md — guidance now rides the
 // MCP server; the merge is opt-in (SQ-0051).
 func TestOnboardSkipsAgentsByDefault(t *testing.T) {
