@@ -13,17 +13,17 @@ side-quest.
 Inside the repo you want to track, the one-shot way:
 
 ```
-side-quest onboard         # init + install-hooks + write .mcp.json (if absent)
+side-quest onboard         # init + install-hooks + sync + write .mcp.json (if absent)
 ```
 
-`onboard` does everything below in one command; it is safe to re-run. Guidance
-rides the MCP server, so `onboard` does not touch your `AGENTS.md` by default — add
-`--agents-md` to also merge the guidance block in place (see
+Guidance rides the MCP server, so `onboard` does not touch your `AGENTS.md` by
+default — add `--agents-md` to also merge the guidance block in place (see
 [Wire up your agent](#wire-up-your-agent)). To do it by hand instead:
 
 ```
 side-quest init            # create the quest ref
 side-quest install-hooks   # install git hooks + the refs/side-quest/quests fetch refspec
+side-quest sync            # syncronizes quests from remote repository
 ```
 
 `init` creates the orphan ref (`refs/side-quest/quests`) that stores quests, off
