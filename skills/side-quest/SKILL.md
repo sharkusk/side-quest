@@ -97,6 +97,14 @@ If you do use it: it is **sticky** until you change it. Clear it
 use `Quest: none` on any one-off unrelated commit made while it's set. Use
 `quest_get_current` to see what the worktree currently points at.
 
+**In a git worktree, the pointer starts empty.** It's worktree-local (kept in the
+worktree's git dir, never on the ref), so a fresh `git worktree` or clone doesn't
+inherit the main tree's current quest — `quest_get_current` returns empty until
+you set one there. The quests themselves are shared across worktrees (they live on
+the ref); only this pointer is local. Since you author trailers explicitly, this
+costs you nothing — but if you were leaning on auto-linking, re-run
+`quest_set_current` after switching into the worktree.
+
 ## Closing a quest
 
 - **Preferred:** put `Completes: SQ-xxxx` in the finishing commit — one move links

@@ -312,6 +312,14 @@ not ref state: each worktree has its own, and it never travels with a push.
 Setting it requires the target quest to exist — a missing id is rejected, so the
 pointer can never dangle and `prepare-commit-msg` cannot inject a bogus trailer.
 
+The flip side of worktree-locality is a workflow wrinkle: a **new worktree (or
+clone) starts with no current quest** — the pointer isn't inherited, because it
+lives in the per-worktree git dir, not on the shared ref. Quests are all visible
+there (they ride the ref), but auto-linking is off until `quest_set_current` is
+run *in that worktree*. Agent guidance (`agents.md`, `SKILL.md`) tells agents to
+prefer explicit `Quest:`/`Completes:` trailers, which sidestep the pointer
+entirely and behave identically in every worktree.
+
 ## Sync
 
 Two clones of the quest ref can each gain commits independently, which git's ordinary
