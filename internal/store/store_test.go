@@ -352,7 +352,7 @@ func TestIsTransientGitWrite(t *testing.T) {
 		{"error: unable to create '.../objects/...': Permission denied", true},
 		{"fatal: Unable to create '.../index.lock': File exists", true},
 		{"cannot lock ref 'refs/side-quest/quests'", false}, // ref race, handled by CAS
-		{"cannot update ref: nonexistent object", false},     // genuine fault
+		{"cannot update ref: nonexistent object", false},    // genuine fault
 		{"", false},
 	}
 	for _, c := range cases {

@@ -57,17 +57,17 @@ func TestParseAndMatch(t *testing.T) {
 
 func TestParseErrors(t *testing.T) {
 	for _, expr := range []string{
-		"",                 // empty
-		"   ",              // whitespace only
-		"bug and",          // trailing operator
-		"or bug",           // leading binary operator
-		"not",              // not with no operand
-		"(bug",             // unbalanced open paren
-		"bug)",             // unbalanced close paren
-		"banana",           // unknown bare term (no enum owns it)
-		"=cli",             // tag with empty key
-		"area=",            // tag with empty value
-		"bug feature",      // two atoms with no operator between them
+		"",            // empty
+		"   ",         // whitespace only
+		"bug and",     // trailing operator
+		"or bug",      // leading binary operator
+		"not",         // not with no operand
+		"(bug",        // unbalanced open paren
+		"bug)",        // unbalanced close paren
+		"banana",      // unknown bare term (no enum owns it)
+		"=cli",        // tag with empty key
+		"area=",       // tag with empty value
+		"bug feature", // two atoms with no operator between them
 	} {
 		if _, err := Parse(expr); err == nil {
 			t.Errorf("Parse(%q) = nil error, want error", expr)
