@@ -258,6 +258,10 @@ func (s *Store) writeMerge(local, remote string, dryRun bool) (SyncResult, error
 type SyncOptions struct {
 	DryRun   bool
 	NoVerify bool
+	// NoPush fetches and merges the remote but never publishes — a pull-only sync.
+	// onboard uses it so per-repo setup can't push a ref before the user pushes
+	// any real work (SQ-0102).
+	NoPush bool
 }
 
 const maxSyncTries = 10
@@ -282,6 +286,9 @@ func (s *Store) Sync(remote string, opts SyncOptions) (SyncResult, error) {
 			return SyncResult{}, err
 		}
 		last = res
+		if opts.NoPush {
+			return last, nil // pull-only: merged the remote, never publish
+		}
 
 		local, err := s.tip()
 		if err != nil {

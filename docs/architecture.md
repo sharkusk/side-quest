@@ -356,10 +356,15 @@ its own document: **[`docs/sync.md`](sync.md)**. Summary of the moving parts, fo
   merging, or pushing — quest data stays private to this clone. The gate lives
   inside `Sync` so it covers both routes that reach it (`side-quest sync` and the
   `pre-push` hook); the `sync` command additionally announces the skip through the
-  voice layer and stops before requiring a remote. Note it only governs the
-  ongoing sync path: `onboard` performs a one-time setup `Sync` *before* you can
-  set the flag, so an initial (quest-less) `_config.yaml` ref may already sit on
-  the remote — no quest created after the flag is set is ever pushed.
+  voice layer and stops before requiring a remote. Setup stays clean too: onboard's
+  initial sync is **pull-only** (see `NoPush` below), so it never publishes a ref
+  before you push real work — a repo destined for `local_only` leaves nothing
+  upstream.
+- **Pull-only sync (`SyncOptions.NoPush`).** After the fetch+merge, `Sync` returns
+  before the publish step, so it consumes remote quests without publishing local
+  ones. `onboard` uses it for the one-time setup sync (SQ-0102): a fresh clone must
+  adopt any already-published quests — so it doesn't mint duplicate ids — but setup
+  itself must never push.
 
 ## Command-line interface (`cmd/side-quest`)
 

@@ -180,11 +180,13 @@ func cmdOnboard(args []string) error {
 
 	// 2b. A configured remote means this clone may already have published quests —
 	// pull them now, before the user creates any, so a fresh clone doesn't mint
-	// duplicate ids that clash on the first push (SQ-0096). Best-effort: an offline
-	// or no-remote-ref-yet sync must never fail onboard. resolveRemote errs (skipped)
-	// when there's no remote or an ambiguous one — then there's nothing to pull.
+	// duplicate ids that clash on the first push (SQ-0096). This is pull-only
+	// (NoPush): setup must never publish a ref before the user pushes real work, so
+	// e.g. a repo destined for local_only stays clean upstream (SQ-0102). Best-effort:
+	// an offline or no-remote-ref-yet sync must never fail onboard. resolveRemote errs
+	// (skipped) when there's no remote or an ambiguous one — then there's nothing to pull.
 	if rem, err := resolveRemote(s, ""); err == nil {
-		switch res, err := s.Sync(rem, store.SyncOptions{}); {
+		switch res, err := s.Sync(rem, store.SyncOptions{NoPush: true}); {
 		case err != nil:
 			fmt.Printf("side-quest: couldn't reconcile quests with %s now (%v) — run `side-quest sync` when online.\n", rem, err)
 		case res.Merged > 0 || res.Renamed > 0:

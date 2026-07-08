@@ -71,6 +71,59 @@ func TestSyncLocalOnlyDoesNotPush(t *testing.T) {
 	}
 }
 
+// TestSyncNoPushPullsButDoesNotPush: NoPush fetches and merges remote quests but
+// never publishes, even when the local ref is ahead of the remote (SQ-0102, the
+// mode onboard uses so setup can't push a ref before the user pushes work).
+func TestSyncNoPushPullsButDoesNotPush(t *testing.T) {
+	origin := newOrigin(t)
+	a := clone(t, origin)
+	if err := a.Init(); err != nil {
+		t.Fatal(err)
+	}
+	mustCreate(t, a) // A: SQ-0001
+	if _, err := a.git.Run("push", origin, Ref); err != nil {
+		t.Fatal(err)
+	}
+
+	// B adopts A's quest, so it shares history and its next id is SQ-0002.
+	b := clone(t, origin)
+	if _, err := b.git.Run("fetch", origin, FetchRefspec); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.reconcile(false); err != nil {
+		t.Fatal(err)
+	}
+	originBefore, err := gitcmd.New(origin).Run("rev-parse", Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustCreate(t, b) // B: SQ-0002 — now strictly ahead of the remote
+
+	res, err := b.Sync("origin", SyncOptions{NoPush: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Pushed {
+		t.Error("NoPush must not push")
+	}
+	// The remote must be untouched — B's SQ-0002 was not published.
+	originAfter, err := gitcmd.New(origin).Run("rev-parse", Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(originAfter) != strings.TrimSpace(originBefore) {
+		t.Error("NoPush changed the remote ref")
+	}
+	// ...but B kept both quests locally (its own plus the pulled one).
+	got, err := b.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Errorf("B should hold both quests locally, has %d", len(got))
+	}
+}
+
 func TestReconcileFastForward(t *testing.T) {
 	origin := newOrigin(t)
 	a := clone(t, origin)
