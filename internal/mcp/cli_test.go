@@ -61,6 +61,14 @@ func TestCliToolsLifecycle(t *testing.T) {
 	t.Setenv("PATH", sandboxPath(t, dir))
 	t.Setenv("CLAUDE_PLUGIN_DATA", data)
 
+	// cli_install now also writes a project-level /sq command; run inside a
+	// throwaway git repo so it never touches the real working tree (SQ-0108).
+	repo := t.TempDir()
+	if out, err := exec.Command("git", "-C", repo, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	t.Chdir(repo)
+
 	cs, ctx := dialTest(t, newTestStore(t))
 
 	if st := callJSON(t, cs, ctx, "cli_status"); st["installed"] != false || st["offered"] != false {
@@ -76,6 +84,14 @@ func TestCliToolsLifecycle(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(data, ".cli-offered")); err != nil {
 		t.Fatalf("cli_install did not mark offered: %v", err)
+	}
+	if in["sq_command"] != "installed" {
+		t.Errorf("cli_install sq_command = %v, want installed", in["sq_command"])
+	}
+	if p, _ := in["sq_command_path"].(string); p == "" {
+		t.Error("cli_install returned no sq_command_path")
+	} else if _, err := os.Stat(p); err != nil {
+		t.Errorf("cli_install did not write the /sq command: %v", err)
 	}
 
 	if st := callJSON(t, cs, ctx, "cli_status"); st["installed"] != true || st["offered"] != true {

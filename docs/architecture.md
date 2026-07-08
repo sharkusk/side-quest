@@ -687,14 +687,17 @@ path — is written up as a reusable pattern in
   `uninstall-cli` removes the marked launcher while the plugin is still installed,
   and neither command touches a `side-quest` lacking the marker.
 - **Project-level `/sq` command** — Claude Code namespaces a plugin's own command as
-  `/side-quest:sq`, so `install-cli` *also* drops a copy of the command into the
-  current repo's `.claude/commands/sq.md`, giving a bare `/sq`. The command markdown
-  is embedded in the binary (`commands` package, single source with the plugin's
-  file) and carries a `side-quest-managed-command` marker: install writes it when
-  absent, **refreshes** it when the existing copy is marked (so updates propagate),
-  and **leaves** an unmarked copy untouched (your own customization) — the same
-  marker discipline as the launcher. Best-effort: outside a git repo, or on a write
-  error, it prints a note and the launcher install still succeeds (SQ-0107).
+  `/side-quest:sq`, so enabling the CLI *also* drops a copy of the command into the
+  current repo's `.claude/commands/sq.md`, giving a bare `/sq`. Both surfaces do it
+  via one shared helper, `cli.InstallCommand` (SQ-0108): the terminal `install-cli`
+  subcommand formats the outcome to stdout, and the MCP `cli_install` tool — the
+  path a plugin user hits by asking their agent — returns it as `sq_command` in its
+  JSON. The command markdown is embedded in the binary (`commands` package, single
+  source with the plugin's file) and carries a `side-quest-managed-command` marker:
+  it is written when absent, **refreshed** when the existing copy is marked (so
+  updates propagate), and **left** untouched when unmarked (your own customization)
+  — the same marker discipline as the launcher. Best-effort: outside a git repo, or
+  on a write error, enabling the CLI still succeeds (SQ-0107).
 - **Releases** are produced by GoReleaser (`.goreleaser.yaml`) via a tag-triggered
   GitHub Actions workflow: six targets (darwin/linux/windows × amd64/arm64), archived
   with README + LICENSE, plus `checksums.txt`.

@@ -44,7 +44,7 @@ func (h *handlers) register(s *sdk.Server) {
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_unlink_commit", Description: "Remove a recorded commit from a quest (sha matched by prefix)."}, h.questUnlinkCommit)
 
 	sdk.AddTool(s, &sdk.Tool{Name: "cli_status", Description: "Report whether the terminal side-quest CLI is enabled (a launcher on the user's PATH) and whether the one-time enable offer has been made. Call early in a plugin session to decide whether to offer."}, h.cliStatus)
-	sdk.AddTool(s, &sdk.Tool{Name: "cli_install", Description: "Enable the terminal side-quest CLI: write a read-only launcher onto the user's PATH so they can run side-quest from their own terminal (and have their own git commits link). Runs in-process; safe to re-run to re-enable if the launcher was removed. Offer before calling."}, h.cliInstall)
+	sdk.AddTool(s, &sdk.Tool{Name: "cli_install", Description: "Enable the terminal side-quest CLI: write a read-only launcher onto the user's PATH so they can run side-quest from their own terminal (and have their own git commits link). Also installs a project-level /sq slash command in the current repo (bare /sq; the plugin's own is /side-quest:sq). Runs in-process; safe to re-run. Offer before calling."}, h.cliInstall)
 	sdk.AddTool(s, &sdk.Tool{Name: "cli_uninstall", Description: "Disable the terminal side-quest CLI by removing the launcher this tool installed (never touches a side-quest it did not install)."}, h.cliUninstall)
 	sdk.AddTool(s, &sdk.Tool{Name: "cli_dismiss", Description: "Record that the user declined the terminal-CLI offer, so it is not offered again for this install."}, h.cliDismiss)
 }

@@ -46,18 +46,29 @@ func (h *handlers) cliStatus(ctx context.Context, req *sdk.CallToolRequest, in e
 	}{st.Installed, st.Path, offerMade()})
 }
 
-// cliInstall writes the launcher in-process and records that the offer was made.
+// cliInstall writes the launcher in-process, installs the project-level /sq
+// command in the current repo (so a plugin user gets a bare /sq — the plugin's
+// own is /side-quest:sq), and records that the offer was made (SQ-0108).
 func (h *handlers) cliInstall(ctx context.Context, req *sdk.CallToolRequest, in emptyIn) (*sdk.CallToolResult, any, error) {
 	r, err := cli.Install()
 	if err != nil {
 		return nil, nil, err
 	}
 	markOffered()
+	// Best-effort: a /sq-command hiccup must not fail enabling the CLI. "." is the
+	// server's cwd, i.e. the user's project.
+	cmd, cerr := cli.InstallCommand(".")
+	sqCommand := cmd.Outcome
+	if cerr != nil {
+		sqCommand = "error"
+	}
 	return jsonResult(struct {
-		Path   string `json:"path"`
-		Dir    string `json:"dir"`
-		OnPath bool   `json:"on_path"`
-	}{r.Path, r.Dir, r.OnPath})
+		Path          string `json:"path"`
+		Dir           string `json:"dir"`
+		OnPath        bool   `json:"on_path"`
+		SqCommand     string `json:"sq_command"`
+		SqCommandPath string `json:"sq_command_path,omitempty"`
+	}{r.Path, r.Dir, r.OnPath, sqCommand, cmd.Path})
 }
 
 // cliUninstall removes the marked launcher(s) this tool installed.
