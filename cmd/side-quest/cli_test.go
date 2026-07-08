@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,7 +42,16 @@ func TestMain(m *testing.M) {
 		runFakeEditor(action, os.Getenv(fakeEditorText), os.Args[len(os.Args)-1])
 		return // unreached: runFakeEditor always exits
 	}
-	os.Exit(m.Run())
+	// Build the CLI once for the whole package; every buildBinary(t) shares it.
+	bin, cleanup, err := buildSharedBinary()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "test setup:", err)
+		os.Exit(1)
+	}
+	sharedBin = bin
+	code := m.Run()
+	cleanup()
+	os.Exit(code)
 }
 
 // runFakeEditor performs one action on path, then exits: "append" adds text as a

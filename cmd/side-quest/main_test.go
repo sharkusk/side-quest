@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,14 +26,38 @@ func exePath(dir string) string {
 }
 
 // buildBinary compiles cmd/side-quest to a temp path and returns it.
+// sharedBin is the default-version CLI built once for the whole package by
+// TestMain. buildBinary returns it instead of recompiling: the suite spawns the
+// binary hundreds of times, so building it per test (70+ times) dominated wall
+// time — worst on Windows, where each link and Defender scan is costly (SQ-0103).
+var sharedBin string
+
+// buildSharedBinary compiles the default (version "dev") CLI once into a fresh
+// temp dir, returning its path and a cleanup func. Called from TestMain; a build
+// failure is fatal to the whole package run.
+func buildSharedBinary() (string, func(), error) {
+	dir, err := os.MkdirTemp("", "side-quest-testbin")
+	if err != nil {
+		return "", func() {}, err
+	}
+	bin := exePath(dir)
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		os.RemoveAll(dir)
+		return "", func() {}, fmt.Errorf("build failed: %v\n%s", err, out)
+	}
+	return bin, func() { os.RemoveAll(dir) }, nil
+}
+
+// buildBinary returns the package-wide CLI binary built once by TestMain. It
+// keeps its (t *testing.T) signature so the 70 call sites are unchanged; a fresh
+// binary per test is unnecessary because the compiled binary is immutable and no
+// test mutates it. Tests that need a specific version use buildBinaryVersion.
 func buildBinary(t *testing.T) string {
 	t.Helper()
-	bin := exePath(t.TempDir())
-	out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput()
-	if err != nil {
-		t.Fatalf("build failed: %v\n%s", err, out)
+	if sharedBin == "" {
+		t.Fatal("shared CLI binary not built; TestMain setup did not run")
 	}
-	return bin
+	return sharedBin
 }
 
 // putBinDirOnPath prepends bin's directory to PATH for this test, so the portable git
