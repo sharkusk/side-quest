@@ -74,6 +74,39 @@ func TestRequireQuestAbsentKeyIsFalse(t *testing.T) {
 	}
 }
 
+func TestLocalOnlyDefaultsFalse(t *testing.T) {
+	if Default().LocalOnly {
+		t.Fatal("local_only should default to false")
+	}
+}
+
+func TestLocalOnlyRoundTrips(t *testing.T) {
+	c := Default()
+	c.LocalOnly = true
+	data, err := Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Unmarshal(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.LocalOnly {
+		t.Fatalf("local_only did not round-trip: %+v", got)
+	}
+}
+
+func TestLocalOnlyAbsentKeyIsFalse(t *testing.T) {
+	// A config file written before this key existed must default it to false.
+	got, err := Unmarshal([]byte("id_prefix: SQ\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.LocalOnly {
+		t.Fatal("absent local_only must default to false")
+	}
+}
+
 func TestStrategyValid(t *testing.T) {
 	for _, s := range []Strategy{Sequential, Random} {
 		if !s.Valid() {

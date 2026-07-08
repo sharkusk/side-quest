@@ -84,6 +84,9 @@ func (v *Voice) NoteAdded(id string) string { return fmt.Sprintf(v.pick(keyNoteA
 // QuestSelected confirms a quest was made current.
 func (v *Voice) QuestSelected(id string) string { return fmt.Sprintf(v.pick(keyQuestSelected), id) }
 
+// LocalOnly announces that a sync was skipped because local-only mode is on.
+func (v *Voice) LocalOnly() string { return v.pick(keyLocalOnlySync) }
+
 // ResolveTone applies the SIDE_QUEST_TONE override: a valid env value wins,
 // otherwise the config value is used. Invalid/empty env is ignored.
 func ResolveTone(env string, cfg config.Tone) config.Tone {

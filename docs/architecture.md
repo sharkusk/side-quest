@@ -351,6 +351,15 @@ its own document: **[`docs/sync.md`](sync.md)**. Summary of the moving parts, fo
   instead, which can guarantee it's fast-forwardable at push time in a way a static refspec
   cannot. `install-hooks`/`onboard` configure these refspecs idempotently (`addRefspec` in
   `cmd/side-quest/hooks.go`).
+- **Local-only mode (`local_only`, default off).** When the config flag is set,
+  `Sync` short-circuits at its top and returns `UpToDate` without fetching,
+  merging, or pushing — quest data stays private to this clone. The gate lives
+  inside `Sync` so it covers both routes that reach it (`side-quest sync` and the
+  `pre-push` hook); the `sync` command additionally announces the skip through the
+  voice layer and stops before requiring a remote. Note it only governs the
+  ongoing sync path: `onboard` performs a one-time setup `Sync` *before* you can
+  set the flag, so an initial (quest-less) `_config.yaml` ref may already sit on
+  the remote — no quest created after the flag is set is ever pushed.
 
 ## Command-line interface (`cmd/side-quest`)
 
@@ -408,7 +417,7 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   path, so a long hand-edit is never lost. Edits are last-write-wins.
 - `reclassify <id> [--type --priority]` — change type and/or priority.
 - `config get` / `config set <key> <value>` — read config; set `require_quest`,
-  `auto_trailer`, or `id_strategy`.
+  `auto_trailer`, `local_only`, or `id_strategy`.
 - `onboard` — one-shot per-repo setup: `init` + `install-hooks`, and — unless the
   Claude Code plugin is active (`CLAUDE_PLUGIN_DATA` set, or the binary runs from
   under `~/.claude/plugins/`) — write a project `.mcp.json` if absent; when the

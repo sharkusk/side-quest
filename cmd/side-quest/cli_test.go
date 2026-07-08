@@ -768,6 +768,46 @@ func TestConfigSetTone(t *testing.T) {
 	}
 }
 
+// TestConfigSetLocalOnlyAndSyncSkips: local_only persists, shows in `config get`,
+// and makes `sync` a themed no-op that publishes nothing to the remote (SQ-0100).
+func TestConfigSetLocalOnlyAndSyncSkips(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	runBin(t, bin, dir, "init")
+
+	// A bare origin so sync has a remote it must decline to push to.
+	origin := t.TempDir()
+	if _, err := gitcmd.New(origin).Run("init", "--bare", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gitcmd.New(dir).Run("remote", "add", "origin", origin); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, code := runBin(t, bin, dir, "config", "set", "local_only", "true"); code != 0 {
+		t.Fatal("set local_only")
+	}
+	if cfg, _ := s.Config(); !cfg.LocalOnly {
+		t.Fatalf("local_only not persisted: %+v", cfg)
+	}
+	if out, code := runBin(t, bin, dir, "config", "get"); code != 0 || !strings.Contains(out, "local_only") {
+		t.Fatalf("config get missing local_only: %s", out)
+	}
+
+	runBin(t, bin, dir, "new", "a quest") // local is now ahead of the empty remote
+	t.Setenv("SIDE_QUEST_TONE", "plain")
+	out, code := runBin(t, bin, dir, "sync")
+	if code != 0 {
+		t.Fatalf("local-only sync exit=%d out=%s", code, out)
+	}
+	if !strings.Contains(out, "local-only") {
+		t.Errorf("sync did not announce local-only: %q", out)
+	}
+	if _, err := gitcmd.New(origin).Run("rev-parse", "--verify", "-q", "refs/side-quest/quests"); err == nil {
+		t.Error("local-only sync pushed a quest ref to origin")
+	}
+}
+
 // TestNewJSONNeutralAcrossTones locks in the invariant that --json output
 // never carries tone flavor, regardless of SIDE_QUEST_TONE.
 func TestNewJSONNeutralAcrossTones(t *testing.T) {

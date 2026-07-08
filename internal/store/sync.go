@@ -266,6 +266,12 @@ const maxSyncTries = 10
 // ref with a domain merge, and publishes the result, retrying on a lost push
 // race. It never mutates the remote in DryRun.
 func (s *Store) Sync(remote string, opts SyncOptions) (SyncResult, error) {
+	// Local-only mode keeps quest data private: never fetch, merge, or push.
+	// The gate lives here so it covers every sync route (manual `sync` and the
+	// pre-push hook both funnel through Sync). SQ-0100.
+	if cfg, err := s.Config(); err == nil && cfg.LocalOnly {
+		return SyncResult{UpToDate: true}, nil
+	}
 	var last SyncResult
 	for try := 0; try < maxSyncTries; try++ {
 		if _, err := s.git.Run("fetch", remote, FetchRefspec); err != nil && !isMissingRemoteRef(err) {

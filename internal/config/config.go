@@ -56,6 +56,10 @@ type Config struct {
 	// carry no Quest:/Completes: trailer (and no explicit `Quest: none`).
 	// Default false = assisted mode (warn only).
 	RequireQuest bool `yaml:"require_quest"`
+	// LocalOnly, when true, keeps quest data private to this clone: Sync (and the
+	// pre-push hook that drives it) becomes a no-op, so the quest ref is never
+	// fetched, merged, or pushed. Default false = normal sync-on-push behavior.
+	LocalOnly bool `yaml:"local_only"`
 }
 
 // Default returns the configuration a freshly-initialized project starts with.

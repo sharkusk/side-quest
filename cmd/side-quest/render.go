@@ -247,4 +247,5 @@ func renderConfig(w io.Writer, c config.Config) {
 	fmt.Fprintf(w, "tone:          %s\n", c.Tone)
 	fmt.Fprintf(w, "auto_trailer:  %t\n", c.AutoTrailer)
 	fmt.Fprintf(w, "require_quest: %t\n", c.RequireQuest)
+	fmt.Fprintf(w, "local_only:    %t\n", c.LocalOnly)
 }

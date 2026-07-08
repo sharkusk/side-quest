@@ -32,6 +32,14 @@ func TestPlainNeutralAndContainsData(t *testing.T) {
 	}
 }
 
+func TestLocalOnlyNonEmptyBothTones(t *testing.T) {
+	for _, tone := range []config.Tone{config.TonePlain, config.ToneDCC} {
+		if got := New(tone).LocalOnly(); got == "" || strings.Contains(got, "%!") {
+			t.Errorf("tone %q LocalOnly = %q", tone, got)
+		}
+	}
+}
+
 func TestNoFormatErrorsAllTonesAllMethods(t *testing.T) {
 	for _, tone := range []config.Tone{config.TonePlain, config.ToneDCC} {
 		v := New(tone)
@@ -74,6 +82,7 @@ func TestEveryPoolLineInterpolatesCleanly(t *testing.T) {
 		keyHooksInstalled:  func(v *Voice) string { return v.HooksInstalled("/d") },
 		keyNoteAdded:       func(v *Voice) string { return v.NoteAdded("SQ-1") },
 		keyQuestSelected:   func(v *Voice) string { return v.QuestSelected("SQ-1") },
+		keyLocalOnlySync:   func(v *Voice) string { return v.LocalOnly() },
 	}
 	for tone, keys := range pools {
 		for key, lines := range keys {

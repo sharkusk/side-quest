@@ -546,6 +546,12 @@ func cmdConfigSet(args []string) error {
 			return err
 		}
 		return s.SetAutoTrailer(b)
+	case "local_only":
+		b, err := parseBool(val)
+		if err != nil {
+			return err
+		}
+		return s.SetLocalOnly(b)
 	case "id_strategy":
 		st := config.Strategy(val)
 		if !st.Valid() {
@@ -559,7 +565,7 @@ func cmdConfigSet(args []string) error {
 		}
 		return s.SetTone(tn)
 	default:
-		return fmt.Errorf("unknown config key %q (settable: require_quest, auto_trailer, id_strategy, tone)", key)
+		return fmt.Errorf("unknown config key %q (settable: require_quest, auto_trailer, local_only, id_strategy, tone)", key)
 	}
 }
 

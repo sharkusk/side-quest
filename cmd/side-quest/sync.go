@@ -25,6 +25,12 @@ func cmdSync(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Local-only mode: announce and stop before touching a remote (and skip the
+	// clash-prone-ids nag — you never push, so ids can't clash across clones).
+	if cfg, err := s.Config(); err == nil && cfg.LocalOnly {
+		fmt.Println(voiceFor(s).LocalOnly())
+		return nil
+	}
 	rem, err := resolveRemote(s, *remote)
 	if err != nil {
 		return err

@@ -783,6 +783,21 @@ func (s *Store) SetAutoTrailer(v bool) error {
 	})
 }
 
+// SetLocalOnly flips the local_only flag on the ref. When true, Sync (and the
+// pre-push hook) becomes a no-op so quest data never leaves this clone.
+func (s *Store) SetLocalOnly(v bool) error {
+	return s.mutate("side-quest: set local_only", func(snap *Snapshot, tx *txn) error {
+		cfg := snap.Config
+		cfg.LocalOnly = v
+		data, err := config.Marshal(cfg)
+		if err != nil {
+			return err
+		}
+		tx.put(configPath, data)
+		return nil
+	})
+}
+
 func contains(xs []string, x string) bool {
 	for _, v := range xs {
 		if v == x {

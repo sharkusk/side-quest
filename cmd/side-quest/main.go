@@ -30,7 +30,7 @@ Quests
   reclassify <id> [--type --priority]  change a quest's type/priority
   current [<id> | --clear]        get / set / clear this worktree's active quest
   config get [--json]             show effective config
-  config set <key> <value>        set require_quest | auto_trailer | id_strategy | tone
+  config set <key> <value>        set require_quest | auto_trailer | local_only | id_strategy | tone
   sync [--dry-run] [--remote <name>]  reconcile quests with a remote (fetch+merge+push)
 
 Advanced

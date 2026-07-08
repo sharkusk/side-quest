@@ -45,6 +45,32 @@ func clone(t *testing.T, originDir string) *Store {
 	return s
 }
 
+// TestSyncLocalOnlyDoesNotPush: with local_only set, Sync is a clean no-op even
+// when the local ref is ahead of the remote — nothing is published (SQ-0100).
+func TestSyncLocalOnlyDoesNotPush(t *testing.T) {
+	origin := newOrigin(t)
+	a := clone(t, origin)
+	if err := a.Init(); err != nil {
+		t.Fatal(err)
+	}
+	mustCreate(t, a) // local is now ahead of the empty remote
+
+	if err := a.SetLocalOnly(true); err != nil {
+		t.Fatal(err)
+	}
+	res, err := a.Sync("origin", SyncOptions{})
+	if err != nil {
+		t.Fatalf("local-only Sync should be a clean no-op: %v", err)
+	}
+	if res.Pushed {
+		t.Error("local-only Sync must not push")
+	}
+	// The remote must have no quest ref at all — nothing was published.
+	if _, err := gitcmd.New(origin).Run("rev-parse", "--verify", "-q", Ref); err == nil {
+		t.Error("local-only left a quest ref on the remote")
+	}
+}
+
 func TestReconcileFastForward(t *testing.T) {
 	origin := newOrigin(t)
 	a := clone(t, origin)
