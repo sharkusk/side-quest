@@ -60,10 +60,11 @@ allocation, see [`docs/architecture.md`](docs/architecture.md).**
 > access. Don't put secrets, credentials, or anything you wouldn't want
 > published into a quest's title, note, or body.
 
-#### Making Quests Local Only
+#### Optional Surf Punks _Locals Only_ Privacy Mode
 
-Ask you agent to make your quests local only so they won't get pushed to remote
-repos. Or you can do it yourself with the cli:
+If you want to keep things private, simply ask your agent to make your quests
+local only so they won't get pushed to remote repos. Or you can do it yourself
+with the cli:
 
 ```
 side-quest config set local_only true
