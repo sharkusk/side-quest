@@ -80,6 +80,12 @@ func (g *Git) RunInput(stdin string, args ...string) (string, error) {
 	return strings.TrimRight(string(b), "\n"), err
 }
 
+// RunRawInput feeds stdin to git and returns stdout untrimmed. Use for binary,
+// length-delimited protocols like `cat-file --batch` where trailing bytes matter.
+func (g *Git) RunRawInput(stdin []byte, args ...string) ([]byte, error) {
+	return g.run(stdin, args...)
+}
+
 // dedupeEnvKeepLast returns env with each KEY=VALUE key appearing once, keeping
 // the LAST value seen (later entries override earlier ones). Entries without a
 // '=' are passed through unchanged. Order of first appearance is preserved.

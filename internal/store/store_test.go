@@ -37,6 +37,27 @@ func newStore(t *testing.T) *Store {
 	return s
 }
 
+// TestParseBatch checks the `cat-file --batch` stream parser (SQ-0053): entries
+// are length-delimited, so content that itself contains a newline must survive.
+func TestParseBatch(t *testing.T) {
+	// Two entries; the second's content contains a newline to prove size-based
+	// (not line-based) parsing.
+	buf := []byte("a1 blob 5\nhello\nb2 blob 3\nx\ny\n")
+	got, err := parseBatch(buf, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || string(got[0]) != "hello" || string(got[1]) != "x\ny" {
+		t.Fatalf("parseBatch = %q, %q", got[0], got[1])
+	}
+}
+
+func TestParseBatchMissingObject(t *testing.T) {
+	if _, err := parseBatch([]byte("deadbeef missing\n"), 1); err == nil {
+		t.Fatal("a missing object must be an error")
+	}
+}
+
 // mustCreate writes one throwaway open quest and returns it, failing the test
 // on error. Handy when a test needs a real id to point at (e.g. SetCurrent).
 func mustCreate(t *testing.T, s *Store) *quest.Quest {

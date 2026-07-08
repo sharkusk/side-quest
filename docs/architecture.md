@@ -131,6 +131,13 @@ lost-race retry: this one is the *object write* contending on the filesystem; th
 *ref update* losing a compare-and-swap. The two are deliberately not conflated — `retryTransient`
 matches `Permission denied`/`Unable to create`, never `cannot lock ref` (SQ-0088).
 
+**Reads at scale.** Mutations are constant-cost in git spawns (a snapshot reads only
+config + one `ls-tree`), but listing once cost one `cat-file` per quest — O(N)
+subprocesses. `List()` now batches every quest through a single `git cat-file --batch`
+(`readFilesBatch`/`parseBatch`), which flattens list latency from linear to roughly
+constant (≈28× faster at 500 quests). The full assessment, benchmarks, and why
+pagination/archival were deferred live in **[`docs/scale.md`](scale.md)** (SQ-0053).
+
 ## CAS: safe concurrency without a lock
 
 **CAS = Compare-And-Swap**: an atomic "set X to *new* only if X still equals *old*." Git

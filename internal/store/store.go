@@ -8,12 +8,14 @@
 package store
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -71,6 +73,63 @@ func (s *Store) tip() (string, error) {
 // readFile returns the bytes of path in the tree at commit tip.
 func (s *Store) readFile(tip, path string) ([]byte, error) {
 	return s.git.RunRaw("cat-file", "-p", tip+":"+path)
+}
+
+// readFilesBatch reads many blob paths from the tree at tip in a SINGLE git
+// process via `cat-file --batch`, rather than one `cat-file -p` spawn per file.
+// This keeps List() O(1) in subprocess spawns as the quest count grows, which is
+// the one place the orphan-ref design didn't scale (SQ-0053). Contents are
+// returned in the same order as paths.
+func (s *Store) readFilesBatch(tip string, paths []string) ([][]byte, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	var in bytes.Buffer
+	for _, p := range paths {
+		in.WriteString(tip + ":" + p + "\n")
+	}
+	out, err := s.git.RunRawInput(in.Bytes(), "cat-file", "--batch")
+	if err != nil {
+		return nil, err
+	}
+	return parseBatch(out, len(paths))
+}
+
+// parseBatch decodes `git cat-file --batch` output for n requested objects. Each
+// record is a header line "<oid> <type> <size>\n", then exactly <size> content
+// bytes, then a trailing "\n"; a missing object is "<ref> missing\n". Parsing is
+// length-delimited (not line-based) so a blob containing newlines is read whole.
+func parseBatch(out []byte, n int) ([][]byte, error) {
+	res := make([][]byte, 0, n)
+	i := 0
+	for len(res) < n {
+		nl := bytes.IndexByte(out[i:], '\n')
+		if nl < 0 {
+			return nil, fmt.Errorf("cat-file --batch: truncated header at record %d", len(res))
+		}
+		header := string(out[i : i+nl])
+		i += nl + 1
+		fields := strings.Fields(header)
+		if len(fields) == 2 && fields[1] == "missing" {
+			return nil, fmt.Errorf("cat-file --batch: object %q missing", fields[0])
+		}
+		if len(fields) != 3 {
+			return nil, fmt.Errorf("cat-file --batch: bad header %q", header)
+		}
+		size, err := strconv.Atoi(fields[2])
+		if err != nil {
+			return nil, fmt.Errorf("cat-file --batch: bad size in %q: %w", header, err)
+		}
+		if i+size > len(out) {
+			return nil, fmt.Errorf("cat-file --batch: truncated content at record %d", len(res))
+		}
+		res = append(res, out[i:i+size])
+		i += size
+		if i < len(out) && out[i] == '\n' { // skip the trailing record separator
+			i++
+		}
+	}
+	return res, nil
 }
 
 // CommitMessage returns a linked commit's abbreviated SHA and its message, for
@@ -526,13 +585,20 @@ func (s *Store) List() ([]*quest.Quest, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(snap.IDs) == 0 {
+		return nil, nil
+	}
+	paths := make([]string, len(snap.IDs))
+	for i, id := range snap.IDs {
+		paths[i] = questPath(id)
+	}
+	blobs, err := s.readFilesBatch(snap.Tip, paths)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]*quest.Quest, 0, len(snap.IDs))
-	for _, id := range snap.IDs {
-		raw, err := s.readFile(snap.Tip, questPath(id))
-		if err != nil {
-			return nil, err
-		}
-		q, err := quest.Unmarshal(id, raw)
+	for i, id := range snap.IDs {
+		q, err := quest.Unmarshal(id, blobs[i])
 		if err != nil {
 			return nil, err
 		}
