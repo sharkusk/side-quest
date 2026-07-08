@@ -13,3 +13,5 @@ follow-up you manage through these tools, not by editing files.
   quest_set_status sets any state directly.
 - Active work is both open and partial — treat them alike as outstanding. List work
   with quest_list (shows open + partial by default); read one with quest_show.
+- Relay the flavor. A tool may append a flavored line beside its JSON; show it to
+  the user verbatim — it's the tracker's voice.
