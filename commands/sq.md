@@ -3,6 +3,7 @@ name: side-quest
 description: Capture a side quest without derailing your current work
 argument-hint: <the idea to capture>
 ---
+<!-- side-quest-managed-command: refreshed by `side-quest install-cli`; delete this line to keep your own edits. -->
 
 A new idea just surfaced mid-task: **$ARGUMENTS**
 

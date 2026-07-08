@@ -686,6 +686,15 @@ path — is written up as a reusable pattern in
   the `install-cli`/`uninstall-cli` subcommands and the MCP `cli_*` tools (SQ-0066);
   `uninstall-cli` removes the marked launcher while the plugin is still installed,
   and neither command touches a `side-quest` lacking the marker.
+- **Project-level `/sq` command** — Claude Code namespaces a plugin's own command as
+  `/side-quest:sq`, so `install-cli` *also* drops a copy of the command into the
+  current repo's `.claude/commands/sq.md`, giving a bare `/sq`. The command markdown
+  is embedded in the binary (`commands` package, single source with the plugin's
+  file) and carries a `side-quest-managed-command` marker: install writes it when
+  absent, **refreshes** it when the existing copy is marked (so updates propagate),
+  and **leaves** an unmarked copy untouched (your own customization) — the same
+  marker discipline as the launcher. Best-effort: outside a git repo, or on a write
+  error, it prints a note and the launcher install still succeeds (SQ-0107).
 - **Releases** are produced by GoReleaser (`.goreleaser.yaml`) via a tag-triggered
   GitHub Actions workflow: six targets (darwin/linux/windows × amd64/arm64), archived
   with README + LICENSE, plus `checksums.txt`.
