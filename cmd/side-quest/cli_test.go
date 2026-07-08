@@ -768,6 +768,46 @@ func TestConfigSetTone(t *testing.T) {
 	}
 }
 
+// TestExportWritesNativeFilePerQuest: `export <dir>` writes one round-trippable
+// SQ-*.md per quest, across every status, creating the dir if missing (SQ-0101).
+func TestExportWritesNativeFilePerQuest(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	runBin(t, bin, dir, "init")
+
+	q1, err := s.Create("first quest", "some context", quest.TypeFeature, quest.PriorityLow, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q2, err := s.Create("second quest", "", quest.TypeBug, quest.PriorityHigh, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetStatus(q2.ID, quest.StatusDiscarded); err != nil { // a non-active status must still export
+		t.Fatal(err)
+	}
+	q2.Status = quest.StatusDiscarded // reflect the transition in our expectation
+
+	out := filepath.Join(t.TempDir(), "sub", "export-out") // nested + missing: MkdirAll must create it
+	if o, code := runBin(t, bin, dir, "export", out); code != 0 {
+		t.Fatalf("export exit=%d out=%s", code, o)
+	}
+
+	for _, want := range []*quest.Quest{q1, q2} {
+		data, err := os.ReadFile(filepath.Join(out, want.ID+".md"))
+		if err != nil {
+			t.Fatalf("missing export file for %s: %v", want.ID, err)
+		}
+		got, err := quest.Unmarshal(want.ID, data)
+		if err != nil {
+			t.Fatalf("export for %s does not parse: %v", want.ID, err)
+		}
+		if got.Title != want.Title || got.Status != want.Status || got.Type != want.Type {
+			t.Errorf("%s round-trip mismatch: got title=%q status=%q type=%q", want.ID, got.Title, got.Status, got.Type)
+		}
+	}
+}
+
 // TestConfigSetLocalOnlyAndSyncSkips: local_only persists, shows in `config get`,
 // and makes `sync` a themed no-op that publishes nothing to the remote (SQ-0100).
 func TestConfigSetLocalOnlyAndSyncSkips(t *testing.T) {

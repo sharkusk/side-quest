@@ -32,6 +32,7 @@ Quests
   config get [--json]             show effective config
   config set <key> <value>        set require_quest | auto_trailer | local_only | id_strategy | tone
   sync [--dry-run] [--remote <name>]  reconcile quests with a remote (fetch+merge+push)
+  export <dir>                    write every quest to <dir> as a native SQ-<id>.md file
 
 Advanced
   init                            create the quest ref (_config.yaml)
@@ -132,6 +133,8 @@ func run(cmd string, args []string) error {
 		return cmdPrePushHook(args)
 	case "onboard":
 		return cmdOnboard(args)
+	case "export":
+		return cmdExport(args)
 	case "agents-md":
 		return cmdAgentsMd(args)
 	case "serve":

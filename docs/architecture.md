@@ -416,6 +416,11 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   buffer that no longer parses or is rejected keeps its temp file and reports the
   path, so a long hand-edit is never lost. Edits are last-write-wins.
 - `reclassify <id> [--type --priority]` — change type and/or priority.
+- `export <dir>` — write every quest (all statuses) to `<dir>` as its native
+  `SQ-<id>.md` file — the exact frontmatter+body from the ref (`quest.Marshal`),
+  so the export round-trips back into a store. `MkdirAll`s the target; overwrites
+  same-named files but touches nothing else, so re-export is idempotent
+  (`cmd/side-quest/export.go`, SQ-0101).
 - `config get` / `config set <key> <value>` — read config; set `require_quest`,
   `auto_trailer`, `local_only`, or `id_strategy`.
 - `onboard` — one-shot per-repo setup: `init` + `install-hooks`, and — unless the

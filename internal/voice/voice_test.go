@@ -40,6 +40,18 @@ func TestLocalOnlyNonEmptyBothTones(t *testing.T) {
 	}
 }
 
+func TestExportedNonEmptyCarriesCountAndPath(t *testing.T) {
+	for _, tone := range []config.Tone{config.TonePlain, config.ToneDCC} {
+		got := New(tone).Exported(47, "/out")
+		if got == "" || strings.Contains(got, "%!") {
+			t.Errorf("tone %q Exported = %q", tone, got)
+		}
+		if !strings.Contains(got, "47") || !strings.Contains(got, "/out") {
+			t.Errorf("tone %q Exported missing count/path: %q", tone, got)
+		}
+	}
+}
+
 func TestNoFormatErrorsAllTonesAllMethods(t *testing.T) {
 	for _, tone := range []config.Tone{config.TonePlain, config.ToneDCC} {
 		v := New(tone)
@@ -83,6 +95,7 @@ func TestEveryPoolLineInterpolatesCleanly(t *testing.T) {
 		keyNoteAdded:       func(v *Voice) string { return v.NoteAdded("SQ-1") },
 		keyQuestSelected:   func(v *Voice) string { return v.QuestSelected("SQ-1") },
 		keyLocalOnlySync:   func(v *Voice) string { return v.LocalOnly() },
+		keyExported:        func(v *Voice) string { return v.Exported(1, "/d") },
 	}
 	for tone, keys := range pools {
 		for key, lines := range keys {

@@ -22,6 +22,7 @@ const (
 	keyNoteAdded
 	keyQuestSelected
 	keyLocalOnlySync
+	keyExported
 )
 
 // pools maps tone -> key -> candidate lines. plain has exactly one neutral line
@@ -42,6 +43,7 @@ var pools = map[config.Tone]map[msgKey][]string{
 		keyNoteAdded:       {"noted %s"},
 		keyQuestSelected:   {"current quest: %s"},
 		keyLocalOnlySync:   {"side-quest: local-only mode — quests stay private; not syncing."},
+		keyExported:        {"exported %d quests to %s"},
 	},
 	config.ToneDCC: {
 		keyQuestCreated: {
@@ -100,6 +102,11 @@ var pools = map[config.Tone]map[msgKey][]string{
 			"Local-only mode: your quests stay in the vault. The System syncs nothing, coder.",
 			"This dungeon is off the grid — local-only. Nothing leaves, nothing enters.",
 			"Local-only engaged. Your side quests are yours alone; the sponsors get nothing.",
+		},
+		keyExported: {
+			"%d quests spilled into %s. The archive grows, coder.",
+			"Exported %d side quests to %s. The System keeps a copy; so should you.",
+			"%d objectives etched into %s. Nothing is ever truly deleted.",
 		},
 	},
 }
