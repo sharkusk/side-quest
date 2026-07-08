@@ -1,1 +1,8 @@
+# Markdown is embedded into the binary and shipped to MCP clients verbatim
+# (core.md/agents.md/plugin.md, SKILL.md). Force LF so the byte budget stays
+# deterministic across platforms — Windows autocrlf would otherwise add one byte
+# per line and push Core over its 1200-byte limit — and so clients never receive
+# CRLF (SQ-0106).
+*.md text eol=lf
+
 internal/cli/launcher.cmd text eol=crlf
