@@ -38,7 +38,7 @@ agent (MCP) or by you (CLI).
    commit hash back onto the quest. The task↔commit loop closes on its own.
 4. **Sync**: every `git push` reconciles your quests with the remote's, so they
    travel with the repo and merge cleanly across machines and teammates.
-5. **Magic**: The plugin (or Agents.md for non Claude users), provides concise
+5. **Magic**: The plugin (or `AGENTS.md` for non-Claude users) provides concise
    guidance to your AI. So, before you know it, your agent is automatically
    creating quests, assigning commits to them, and completing them with no
    input from you.
