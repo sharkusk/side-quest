@@ -101,7 +101,9 @@ checksum-verified):
 /plugin install side-quest
 ```
 
-Restart the session so they load. Using another MCP-capable agent? Follow
+You must *restart the session* to provision the mcp binary. Depending on your download speed you may also need to restart the mcp server after an install (or update) using /mcp.
+
+Using another MCP-capable agent? Follow
 [Manual setup](docs/manual-setup.md) instead.
 
 **2. Enable the terminal CLI (optional)**: Allows you to manage your quests
