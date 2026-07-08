@@ -524,13 +524,16 @@ of the agent's narrative note, and only moves the current-quest pointer when
 `set_current:true`. stdout carries only JSON-RPC; diagnostics go to stderr.
 
 The response's **first** content block is always neutral JSON, so parsers can
-rely on it. As of SQ-0028 a **mutation** (`quest_new`, `quest_set_status`,
-`quest_note`) may append a **second** text block carrying the same tone-flavored
-line the CLI would print (via `internal/voice`), gated on the on-ref `tone`:
-silent for `plain`, `dcc`/`dcc-superfan` add flavor (superfan collapses to dcc —
-a server prints no fallback hint). Reads never voice. So an agent that wants pure
-data selects `plain` (or just reads `content[0]`), while a human-facing client
-surfaces the flavor.
+rely on it. As of SQ-0028 a **mutation** may append a **second** text block
+carrying the same tone-flavored line the CLI would print (via `internal/voice`,
+through the `jsonResultVoiced` helper), gated on the on-ref `tone`: silent for
+`plain`, `dcc`/`dcc-superfan` add flavor (superfan collapses to dcc — a server
+prints no fallback hint). SQ-0105 extended this from the original trio to **every**
+mutation — `quest_new`, `quest_set_status`, `quest_note`, `quest_set_current`,
+`quest_reclassify`, `quest_update`, and the `link`/`relink`/`unlink` ops — so an
+agent driving the server can relay the tracker's voice for any change (SQ-0104
+guidance tells it to). Reads never voice. An agent that wants pure data selects
+`plain` (or just reads `content[0]`); a human-facing client surfaces the flavor.
 
 On startup `serve` compares its own build version against the `side-quest` found
 on `PATH` (which the git hooks and the human CLI invoke) and, if they differ,

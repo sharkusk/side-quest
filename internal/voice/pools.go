@@ -23,6 +23,11 @@ const (
 	keyQuestSelected
 	keyLocalOnlySync
 	keyExported
+	keyReclassified
+	keyUpdated
+	keyLinked
+	keyRelinked
+	keyUnlinked
 )
 
 // pools maps tone -> key -> candidate lines. plain has exactly one neutral line
@@ -44,6 +49,11 @@ var pools = map[config.Tone]map[msgKey][]string{
 		keyQuestSelected:   {"current quest: %s"},
 		keyLocalOnlySync:   {"side-quest: local-only mode — quests stay private; not syncing."},
 		keyExported:        {"exported %d quests to %s"},
+		keyReclassified:    {"reclassified %s"},
+		keyUpdated:         {"updated %s"},
+		keyLinked:          {"linked commit %s"},
+		keyRelinked:        {"relinked %s"},
+		keyUnlinked:        {"unlinked a commit from %s"},
 	},
 	config.ToneDCC: {
 		keyQuestCreated: {
@@ -107,6 +117,26 @@ var pools = map[config.Tone]map[msgKey][]string{
 			"%d quests spilled into %s. The archive grows, coder.",
 			"Exported %d side quests to %s. The System keeps a copy; so should you.",
 			"%d objectives etched into %s. Nothing is ever truly deleted.",
+		},
+		keyReclassified: {
+			"%s reclassified. The System revises its dossier.",
+			"New designation for %s. The audience adjusts its bets.",
+		},
+		keyUpdated: {
+			"%s updated. The record shifts; nothing escapes the ledger, coder.",
+			"Details on %s rewritten. The System notes the edit.",
+		},
+		keyLinked: {
+			"Commit %s bound to its quest. The chain tightens.",
+			"%s enters the ledger. The System logs the deed, coder.",
+		},
+		keyRelinked: {
+			"%s relinked after the rebase. The System reconciles history.",
+			"Repointed %s to its true commit. Continuity restored, coder.",
+		},
+		keyUnlinked: {
+			"A commit cut loose from %s. The ledger forgets, this once.",
+			"%s unlinked. The System strikes a line from the record.",
 		},
 	},
 }

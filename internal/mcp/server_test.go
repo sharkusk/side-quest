@@ -426,6 +426,37 @@ func TestMutationVoiceBlock(t *testing.T) {
 	}
 }
 
+// TestMoreMutationsVoice (SQ-0105): set_current, reclassify, and update now
+// append a voice block under a flavored tone too — not just new/status/note.
+func TestMoreMutationsVoice(t *testing.T) {
+	cs, ctx := dialTest(t, newTestStore(t))
+	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_new", Arguments: map[string]any{"title": "voice me"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var created quest.Quest
+	if err := json.Unmarshal([]byte(contentText(t, res)), &created); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+	}{
+		{"quest_set_current", map[string]any{"id": created.ID}},
+		{"quest_reclassify", map[string]any{"id": created.ID, "priority": "high"}},
+		{"quest_update", map[string]any{"id": created.ID, "title": "renamed"}},
+	} {
+		r, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: tc.name, Arguments: tc.args})
+		if err != nil || r.IsError {
+			t.Fatalf("%s failed: err=%v out=%s", tc.name, err, contentText(t, r))
+		}
+		if len(r.Content) != 2 {
+			t.Errorf("%s under dcc should append a voice block; got %d block(s)", tc.name, len(r.Content))
+		}
+	}
+}
+
 func TestGetCurrentEmpty(t *testing.T) {
 	cs, ctx := dialTest(t, newTestStore(t))
 	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_get_current", Arguments: map[string]any{}})

@@ -52,6 +52,31 @@ func TestExportedNonEmptyCarriesCountAndPath(t *testing.T) {
 	}
 }
 
+func TestMutationVoiceLinesCarryTheirArg(t *testing.T) {
+	for _, tone := range []config.Tone{config.TonePlain, config.ToneDCC} {
+		v := New(tone)
+		cases := map[string]string{
+			"Reclassified": v.Reclassified("SQ-0007"),
+			"Updated":      v.Updated("SQ-0007"),
+			"Linked":       v.Linked("abc1234"),
+			"Relinked":     v.Relinked("SQ-0007"),
+			"Unlinked":     v.Unlinked("SQ-0007"),
+		}
+		for name, got := range cases {
+			if got == "" || strings.Contains(got, "%!") {
+				t.Errorf("tone %q %s = %q", tone, name, got)
+			}
+			wantArg := "SQ-0007"
+			if name == "Linked" {
+				wantArg = "abc1234"
+			}
+			if !strings.Contains(got, wantArg) {
+				t.Errorf("tone %q %s missing %q: %q", tone, name, wantArg, got)
+			}
+		}
+	}
+}
+
 func TestNoFormatErrorsAllTonesAllMethods(t *testing.T) {
 	for _, tone := range []config.Tone{config.TonePlain, config.ToneDCC} {
 		v := New(tone)
@@ -96,6 +121,11 @@ func TestEveryPoolLineInterpolatesCleanly(t *testing.T) {
 		keyQuestSelected:   func(v *Voice) string { return v.QuestSelected("SQ-1") },
 		keyLocalOnlySync:   func(v *Voice) string { return v.LocalOnly() },
 		keyExported:        func(v *Voice) string { return v.Exported(1, "/d") },
+		keyReclassified:    func(v *Voice) string { return v.Reclassified("SQ-1") },
+		keyUpdated:         func(v *Voice) string { return v.Updated("SQ-1") },
+		keyLinked:          func(v *Voice) string { return v.Linked("abc1234") },
+		keyRelinked:        func(v *Voice) string { return v.Relinked("SQ-1") },
+		keyUnlinked:        func(v *Voice) string { return v.Unlinked("SQ-1") },
 	}
 	for tone, keys := range pools {
 		for key, lines := range keys {

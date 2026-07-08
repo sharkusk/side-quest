@@ -161,6 +161,16 @@ func (h *handlers) voiced(res *sdk.CallToolResult, line func(*voice.Voice) strin
 	return res
 }
 
+// jsonResultVoiced renders payload as the neutral JSON block and appends the
+// optional tone-flavored line — the shorthand every voiced mutation handler uses.
+func (h *handlers) jsonResultVoiced(payload any, line func(*voice.Voice) string) (*sdk.CallToolResult, any, error) {
+	res, meta, err := jsonResult(payload)
+	if err != nil {
+		return res, meta, err
+	}
+	return h.voiced(res, line), meta, nil
+}
+
 // --- handlers ---
 
 func (h *handlers) questNew(ctx context.Context, req *sdk.CallToolRequest, in newIn) (*sdk.CallToolResult, any, error) {
@@ -298,12 +308,12 @@ func (h *handlers) questReclassify(ctx context.Context, req *sdk.CallToolRequest
 	if err := h.store.Reclassify(in.ID, quest.Type(in.Type), quest.Priority(in.Priority)); err != nil {
 		return nil, nil, err
 	}
-	return jsonResult(struct {
+	return h.jsonResultVoiced(struct {
 		OK       bool   `json:"ok"`
 		ID       string `json:"id"`
 		Type     string `json:"type,omitempty"`
 		Priority string `json:"priority,omitempty"`
-	}{true, in.ID, in.Type, in.Priority})
+	}{true, in.ID, in.Type, in.Priority}, func(v *voice.Voice) string { return v.Reclassified(in.ID) })
 }
 
 func (h *handlers) questUpdate(ctx context.Context, req *sdk.CallToolRequest, in updateIn) (*sdk.CallToolResult, any, error) {
@@ -323,12 +333,12 @@ func (h *handlers) questUpdate(ctx context.Context, req *sdk.CallToolRequest, in
 	if tags == nil {
 		tags = map[string]string{}
 	}
-	return jsonResult(struct {
+	return h.jsonResultVoiced(struct {
 		OK    bool              `json:"ok"`
 		ID    string            `json:"id"`
 		Title string            `json:"title,omitempty"`
 		Tags  map[string]string `json:"tags"`
-	}{true, in.ID, in.Title, tags})
+	}{true, in.ID, in.Title, tags}, func(v *voice.Voice) string { return v.Updated(in.ID) })
 }
 
 func (h *handlers) questNote(ctx context.Context, req *sdk.CallToolRequest, in noteIn) (*sdk.CallToolResult, any, error) {
@@ -360,20 +370,20 @@ func (h *handlers) questSetCurrent(ctx context.Context, req *sdk.CallToolRequest
 	if err := h.store.SetCurrent(in.ID); err != nil {
 		return nil, nil, err
 	}
-	return jsonResult(struct {
+	return h.jsonResultVoiced(struct {
 		OK      bool   `json:"ok"`
 		Current string `json:"current"`
-	}{true, in.ID})
+	}{true, in.ID}, func(v *voice.Voice) string { return v.QuestSelected(in.ID) })
 }
 
 func (h *handlers) questLinkCommit(ctx context.Context, req *sdk.CallToolRequest, in shaIn) (*sdk.CallToolResult, any, error) {
 	if err := h.store.Link(in.SHA); err != nil {
 		return nil, nil, err
 	}
-	return jsonResult(struct {
+	return h.jsonResultVoiced(struct {
 		OK  bool   `json:"ok"`
 		SHA string `json:"sha"`
-	}{true, in.SHA})
+	}{true, in.SHA}, func(v *voice.Voice) string { return v.Linked(in.SHA) })
 }
 
 // questRelinkCommit is the inverse-repair for a rebase: the old sha is matched by
@@ -387,21 +397,21 @@ func (h *handlers) questRelinkCommit(ctx context.Context, req *sdk.CallToolReque
 	if err := h.store.ReplaceCommit(in.ID, in.OldSHA, newSHA); err != nil {
 		return nil, nil, err
 	}
-	return jsonResult(struct {
+	return h.jsonResultVoiced(struct {
 		OK     bool   `json:"ok"`
 		ID     string `json:"id"`
 		OldSHA string `json:"old_sha"`
 		NewSHA string `json:"new_sha"`
-	}{true, in.ID, in.OldSHA, newSHA})
+	}{true, in.ID, in.OldSHA, newSHA}, func(v *voice.Voice) string { return v.Relinked(in.ID) })
 }
 
 func (h *handlers) questUnlinkCommit(ctx context.Context, req *sdk.CallToolRequest, in unlinkIn) (*sdk.CallToolResult, any, error) {
 	if err := h.store.RemoveCommit(in.ID, in.SHA); err != nil {
 		return nil, nil, err
 	}
-	return jsonResult(struct {
+	return h.jsonResultVoiced(struct {
 		OK  bool   `json:"ok"`
 		ID  string `json:"id"`
 		SHA string `json:"sha"`
-	}{true, in.ID, in.SHA})
+	}{true, in.ID, in.SHA}, func(v *voice.Voice) string { return v.Unlinked(in.ID) })
 }

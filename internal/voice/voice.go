@@ -90,6 +90,21 @@ func (v *Voice) LocalOnly() string { return v.pick(keyLocalOnlySync) }
 // Exported confirms n quests were written to dir.
 func (v *Voice) Exported(n int, dir string) string { return fmt.Sprintf(v.pick(keyExported), n, dir) }
 
+// Reclassified confirms a quest's type/priority changed.
+func (v *Voice) Reclassified(id string) string { return fmt.Sprintf(v.pick(keyReclassified), id) }
+
+// Updated confirms a quest's title/tags were edited.
+func (v *Voice) Updated(id string) string { return fmt.Sprintf(v.pick(keyUpdated), id) }
+
+// Linked confirms a commit was linked; sha is the commit (link has no quest id).
+func (v *Voice) Linked(sha string) string { return fmt.Sprintf(v.pick(keyLinked), sha) }
+
+// Relinked confirms a quest's commit was repointed after a rebase.
+func (v *Voice) Relinked(id string) string { return fmt.Sprintf(v.pick(keyRelinked), id) }
+
+// Unlinked confirms a commit was removed from a quest.
+func (v *Voice) Unlinked(id string) string { return fmt.Sprintf(v.pick(keyUnlinked), id) }
+
 // ResolveTone applies the SIDE_QUEST_TONE override: a valid env value wins,
 // otherwise the config value is used. Invalid/empty env is ignored.
 func ResolveTone(env string, cfg config.Tone) config.Tone {
