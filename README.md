@@ -7,11 +7,14 @@
 
 # side-quest
 
-> You're deep in a refactor. Your agent spots a flaky test three files away. The
-> old way, you either derail to go fix it or you forget it by lunch. With
+> You're deep in architecting a new feature that is going to make your
+> application rock. Out of the blue you have an insight that is going to change
+> the world (or at least your application's world). The old way, you either
+> derail and go off on that tangent, or you forget it by lunch. With
 > side-quest, your agent just says *"captured as SQ-0042"*, and you never left
-> the flow. Later, the commit that fixes it links itself back to SQ-0042, no
-> hand-written notes, no overhead, no bookkeeping.
+> the flow. Later, when you find some time to implement your inspiration, the
+> commit links itself back to SQ-0042, no hand-written notes, no overhead, no
+> bookkeeping.
 
 *side-quest* is a git-native issue (i.e. *quest*) tracker built for rapid
 development. It allows you to capture the tangents that surface mid-work
@@ -35,21 +38,36 @@ agent (MCP) or by you (CLI).
    commit hash back onto the quest. The task↔commit loop closes on its own.
 4. **Sync**: every `git push` reconciles your quests with the remote's, so they
    travel with the repo and merge cleanly across machines and teammates.
+5. **Magic**: The plugin (or Agents.md for non Claude users), provides concise
+   guidance to your AI. So, before you know it, your agent is automatically
+   creating quests, assigning commits to them, and completing them with no
+   input from you.
 
 Quests live as one Markdown file each on a dedicated git ref
 (`refs/side-quest/quests`), off your main history and never checked out — so they
 travel with a clone but never clutter your working tree.
 
-> ⚠️ **Uploading the repo uploads your quests too.** Because quests live inside the
-> repository, they travel with it on every push — so pushing to GitHub (or any
-> remote) publishes **all** your quests and their full history alongside your code,
-> including ones you've closed or discarded. A public repo makes them public; a
-> shared private repo makes them visible to everyone with access. Don't put secrets,
-> credentials, or anything you wouldn't want published into a quest's title, note,
-> or body.
-
 **→ For the storage model, compare-and-swap writes, the mutation flow, and id
 allocation, see [`docs/architecture.md`](docs/architecture.md).**
+
+### Quests Travel with your Repo
+
+> ⚠️ **By default pushing the repo uploads your quests too.** Because quests
+> live inside the repository, they travel with it on every push — so pushing to
+> GitHub (or any remote) publishes **all** your quests and their full history
+> alongside your code, including ones you've closed or discarded. A public repo
+> makes them public; a shared private repo makes them visible to everyone with
+> access. Don't put secrets, credentials, or anything you wouldn't want
+> published into a quest's title, note, or body.
+
+#### Making Quests Local Only
+
+Ask you agent to make your quests local only so they won't get pushed to remote
+repos. Or you can do it yourself with the cli:
+
+```
+side-quest config set local_only true
+```
 
 ## Why it's different
 
@@ -76,6 +94,9 @@ checksum-verified):
 
 ```
 /plugin marketplace add sharkusk/side-quest
+```
+
+```
 /plugin install side-quest
 ```
 

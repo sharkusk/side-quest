@@ -70,6 +70,7 @@ var pools = map[config.Tone]map[msgKey][]string{
 			"%s: partial credit. The System is unimpressed but noting it.",
 		},
 		keyStatusDone: {
+			"New Achievement! You've completed %s. Reward: more quests!",
 			"%s cleared. The crowd goes wild.",
 			"Objective %s complete. Loot box incoming.",
 			"%s done. The System deducts one excuse from your ledger.",
