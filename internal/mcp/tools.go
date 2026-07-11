@@ -20,8 +20,8 @@ func (h *handlers) register(s *sdk.Server) {
 	// Closed string domains, derived from the quest constants so a rename breaks
 	// the build. Applied as JSON-Schema enums below (see enumSchema).
 	statuses := []string{
-		string(quest.StatusOpen), string(quest.StatusPartial), string(quest.StatusDone),
-		string(quest.StatusDeferred), string(quest.StatusDiscarded),
+		string(quest.StatusOpen), string(quest.StatusPartial), string(quest.StatusConfirm),
+		string(quest.StatusDone), string(quest.StatusDeferred), string(quest.StatusDiscarded),
 	}
 	types := []string{string(quest.TypeBug), string(quest.TypeFeature)}
 	prios := []string{string(quest.PriorityHigh), string(quest.PriorityLow)}
@@ -32,7 +32,7 @@ func (h *handlers) register(s *sdk.Server) {
 		InputSchema: enumSchema[listIn](map[string][]string{"status": statuses, "type": types, "priority": prios})}, h.questList)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_show", Description: "Show one quest by id."}, h.questShow)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_get_current", Description: "Return this worktree's current quest id (empty if none)."}, h.questGetCurrent)
-	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_status", Description: "Set a quest's lifecycle status (open|partial|done|deferred|discarded).",
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_status", Description: "Set a quest's lifecycle status (open|partial|confirm|done|deferred|discarded). Use confirm when you've finished a change but want the user to confirm it before the quest is done — it stays outstanding until they close it.",
 		InputSchema: enumSchema[statusIn](map[string][]string{"status": statuses})}, h.questSetStatus)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_reclassify", Description: "Change a quest's type and/or priority.",
 		InputSchema: enumSchema[reclassifyIn](map[string][]string{"type": types, "priority": prios})}, h.questReclassify)
@@ -246,7 +246,7 @@ func (h *handlers) questGetCurrent(ctx context.Context, req *sdk.CallToolRequest
 
 type statusIn struct {
 	ID     string `json:"id" jsonschema:"the quest id"`
-	Status string `json:"status" jsonschema:"open|partial|done|deferred|discarded"`
+	Status string `json:"status" jsonschema:"open|partial|confirm|done|deferred|discarded"`
 }
 
 type reclassifyIn struct {

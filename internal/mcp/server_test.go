@@ -236,7 +236,7 @@ func TestToolSchemasExposeEnums(t *testing.T) {
 		byName[tl.Name] = tl
 	}
 
-	statuses := []string{"deferred", "discarded", "done", "open", "partial"} // sorted
+	statuses := []string{"confirm", "deferred", "discarded", "done", "open", "partial"} // sorted
 	types := []string{"bug", "feature"}
 	prios := []string{"high", "low"}
 	cases := []struct {

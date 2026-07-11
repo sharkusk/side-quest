@@ -24,15 +24,16 @@ type Status string
 const (
 	StatusOpen      Status = "open"
 	StatusPartial   Status = "partial"
+	StatusConfirm   Status = "confirm"
 	StatusDone      Status = "done"
 	StatusDeferred  Status = "deferred"
 	StatusDiscarded Status = "discarded"
 )
 
-// Valid reports whether s is one of the five known statuses.
+// Valid reports whether s is one of the six known statuses.
 func (s Status) Valid() bool {
 	switch s {
-	case StatusOpen, StatusPartial, StatusDone, StatusDeferred, StatusDiscarded:
+	case StatusOpen, StatusPartial, StatusConfirm, StatusDone, StatusDeferred, StatusDiscarded:
 		return true
 	}
 	return false

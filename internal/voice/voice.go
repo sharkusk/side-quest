@@ -47,6 +47,8 @@ func statusKey(st quest.Status) msgKey {
 	switch st {
 	case quest.StatusPartial:
 		return keyStatusPartial
+	case quest.StatusConfirm:
+		return keyStatusConfirm
 	case quest.StatusDone:
 		return keyStatusDone
 	case quest.StatusDeferred:

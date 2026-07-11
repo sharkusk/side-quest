@@ -12,6 +12,7 @@ const (
 	keyQuestCreated msgKey = iota
 	keyStatusOpen
 	keyStatusPartial
+	keyStatusConfirm
 	keyStatusDone
 	keyStatusDeferred
 	keyStatusDiscarded
@@ -38,6 +39,7 @@ var pools = map[config.Tone]map[msgKey][]string{
 		keyQuestCreated:    {"created %s"},
 		keyStatusOpen:      {"%s -> open"},
 		keyStatusPartial:   {"%s -> partial"},
+		keyStatusConfirm:   {"%s -> confirm (awaiting your sign-off)"},
 		keyStatusDone:      {"%s -> done"},
 		keyStatusDeferred:  {"%s -> deferred"},
 		keyStatusDiscarded: {"%s -> discarded"},
@@ -68,6 +70,11 @@ var pools = map[config.Tone]map[msgKey][]string{
 		keyStatusPartial: {
 			"Progress on %s. Don't get cocky.",
 			"%s: partial credit. The System is unimpressed but noting it.",
+		},
+		keyStatusConfirm: {
+			"%s awaits your judgment. The System defers to the human, this once.",
+			"%s: work's done, coder — but the sponsor wants your sign-off before it counts.",
+			"%s held at the checkpoint. Confirm it, and the crowd may yet cheer.",
 		},
 		keyStatusDone: {
 			"New Achievement! You've completed %s. Reward: more quests!",

@@ -204,12 +204,12 @@ func cmdList(args []string) error {
 	var asJSON, all, noWrap bool
 	var tags tagFlag
 	var showTags stringsFlag
-	fs.StringVar(&status, "status", "", "filter by status: open|partial|done|deferred|discarded")
+	fs.StringVar(&status, "status", "", "filter by status: open|partial|confirm|done|deferred|discarded")
 	fs.StringVar(&typ, "type", "", "filter by type: bug|feature")
 	fs.StringVar(&prio, "priority", "", "filter by priority: high|low")
 	fs.Var(&tags, "tag", "filter by tag key=value; repeat for AND across tags")
 	fs.Var(&showTags, "show-tag", "add a column showing tag KEY's value; repeat for more columns")
-	fs.BoolVar(&all, "all", false, "include every status (default shows only open and partial)")
+	fs.BoolVar(&all, "all", false, "include every status (default shows only open, partial, and confirm)")
 	fs.StringVar(&filterExpr, "filter", "", `boolean expression, e.g. "bug and not (done or deferred)"`)
 	fs.BoolVar(&asJSON, "json", false, "emit the matching quests as JSON")
 	fs.BoolVar(&noWrap, "no-wrap", false, "print raw titles without word-wrapping")
@@ -249,13 +249,13 @@ func cmdList(args []string) error {
 	if err != nil {
 		return err
 	}
-	// Default to the "what's outstanding?" view — open and partial only — unless
-	// the caller asked for a specific --status, opted into --all, or supplied an
-	// explicit --filter expression (which takes full control of the selection).
+	// Default to the "what's outstanding?" view — open, partial, and confirm only —
+	// unless the caller asked for a specific --status, opted into --all, or supplied
+	// an explicit --filter expression (which takes full control of the selection).
 	openOnly := status == "" && !all && filterExpr == ""
 	filtered := make([]*quest.Quest, 0, len(quests))
 	for _, q := range quests {
-		if openOnly && q.Status != quest.StatusOpen && q.Status != quest.StatusPartial {
+		if openOnly && q.Status != quest.StatusOpen && q.Status != quest.StatusPartial && q.Status != quest.StatusConfirm {
 			continue
 		}
 		if pred != nil {

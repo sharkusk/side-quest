@@ -110,6 +110,7 @@ func TestEveryPoolLineInterpolatesCleanly(t *testing.T) {
 		keyQuestCreated:    func(v *Voice) string { return v.QuestCreated("SQ-1") },
 		keyStatusOpen:      func(v *Voice) string { return v.StatusSet("SQ-1", quest.StatusOpen) },
 		keyStatusPartial:   func(v *Voice) string { return v.StatusSet("SQ-1", quest.StatusPartial) },
+		keyStatusConfirm:   func(v *Voice) string { return v.StatusSet("SQ-1", quest.StatusConfirm) },
 		keyStatusDone:      func(v *Voice) string { return v.StatusSet("SQ-1", quest.StatusDone) },
 		keyStatusDeferred:  func(v *Voice) string { return v.StatusSet("SQ-1", quest.StatusDeferred) },
 		keyStatusDiscarded: func(v *Voice) string { return v.StatusSet("SQ-1", quest.StatusDiscarded) },

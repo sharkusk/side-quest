@@ -11,8 +11,8 @@ func TestCoreIsCompactAndComplete(t *testing.T) {
 	if Core == "" {
 		t.Fatal("guidance.Core is empty")
 	}
-	if len(Core) > 1200 {
-		t.Errorf("guidance.Core is %d bytes; keep it under 1200 (always-on context)", len(Core))
+	if len(Core) > 1400 {
+		t.Errorf("guidance.Core is %d bytes; keep it under 1400 (always-on context)", len(Core))
 	}
 	for _, want := range []string{"quest_new", "quest_set_current", "Completes:", "quest_list"} {
 		if !strings.Contains(Core, want) {

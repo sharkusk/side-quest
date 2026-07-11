@@ -52,7 +52,7 @@ server behave identically and a shorthand id can never be silently persisted ver
 random hex id, a typo) passes through unchanged and is caught by the normal existence
 check.
 
-Each quest's frontmatter carries `title`, `status` (open/partial/done/deferred/discarded),
+Each quest's frontmatter carries `title`, `status` (open/partial/confirm/done/deferred/discarded),
 `type` (bug/feature), `priority` (high/low), `created`, an optional `completed`, `commits`,
 an optional `context`, and optional `tags`. `type` and `priority` are constrained enums with
 defaults (`feature`/`low`) applied at creation; like `status`, they are validated only at the
@@ -386,8 +386,10 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
 - `list` — list quests; filters `--status`/`--type`/`--priority` (validated),
   `--tag k=v` (repeatable; a quest matches only if it has every given tag),
   combined with AND, and `--json`. With no `--status`/`--all`/`--filter` it
-  defaults to the outstanding view (open + partial only); `--all` restores every
-  status. `--filter "expr"` takes a boolean expression (compiled by
+  defaults to the outstanding view (open, partial, and confirm only); `--all`
+  restores every status. `confirm` is an agent-set checkpoint — "work's done, but
+  the user should confirm before it counts" — so it reads as outstanding until the
+  user closes it to `done` or bounces it back to `partial`. `--filter "expr"` takes a boolean expression (compiled by
   `internal/filter`) over bare enum values and `key=value` tags with
   `and`/`or`/`not`/parens; it is the whole selection and cannot be combined with
   the simple flags above. `--show-tag KEY` (repeatable) adds a column showing each
