@@ -10,8 +10,9 @@ import (
 )
 
 // Link applies a commit's side-quest trailers to the store: for every
-// Quest:/Completes: trailer in the commit's message, it appends the commit's
-// canonical hash to that quest and, for Completes:, closes the quest.
+// Quest:/Confirm:/Completes: trailer in the commit's message, it appends the
+// commit's canonical hash to that quest and moves its status accordingly —
+// Confirm: parks it in `confirm` for sign-off, Completes: closes it.
 //
 // This is the post-commit entry point where the chicken-and-egg is resolved:
 // the commit already exists (its hash is known), and the quest update is a
@@ -32,7 +33,14 @@ func (s *Store) Link(sha string) error {
 	}
 	refs, _ := trailer.Parse(msg)
 	for _, r := range refs {
-		if err := s.AddCommit(r.ID, full, r.Completes); err != nil {
+		kind := LinkTouch
+		switch {
+		case r.Completes:
+			kind = LinkComplete
+		case r.Confirms:
+			kind = LinkConfirm
+		}
+		if err := s.AddCommit(r.ID, full, kind); err != nil {
 			if errors.Is(err, ErrNotFound) {
 				continue // unknown id — skip, keep processing other refs
 			}

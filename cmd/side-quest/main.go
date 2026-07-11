@@ -39,7 +39,7 @@ Advanced
   install-hooks                   install git hooks + refs/side-quest/* refspec
   install-cli                     put a side-quest launcher on your PATH (plugin users)
   uninstall-cli                   remove the side-quest launcher this CLI installed
-  link <sha>                      apply a commit's Quest:/Completes: trailers
+  link <sha>                      apply a commit's Quest:/Confirm:/Completes: trailers
   relink <id> <old-sha> <new-sha> repoint a recorded commit after a rebase
   unlink <id> <sha>               remove a recorded commit from a quest
   commit-msg <file>               (hook) warn or reject when a trailer is missing
@@ -262,7 +262,7 @@ func cmdCommitMsg(args []string) error {
 	}
 	switch trailer.Decision(string(msg), requireQuest) {
 	case trailer.Reject:
-		fmt.Fprintln(os.Stderr, "side-quest: no Quest:/Completes: trailer and require_quest is on — commit blocked.")
+		fmt.Fprintln(os.Stderr, "side-quest: no Quest:/Confirm:/Completes: trailer and require_quest is on — commit blocked.")
 		fmt.Fprintln(os.Stderr, "  Add e.g.  Quest: SQ-0001   (or  Quest: none  for a genuine chore).")
 		os.Exit(1)
 	case trailer.Warn:

@@ -761,22 +761,38 @@ func (s *Store) Replace(id string, edited *quest.Quest) error {
 	})
 }
 
+// LinkKind is how a linked commit should move the quest's status. It is derived
+// from the commit's trailer: a bare Quest: is a touch, Confirm: parks the quest
+// for sign-off, Completes: closes it.
+type LinkKind int
+
+const (
+	LinkTouch    LinkKind = iota // bare work link — promote an untouched open quest to partial
+	LinkConfirm                  // work done, awaiting the user — move to confirm
+	LinkComplete                 // closes the quest — move to done
+)
+
 // AddCommit appends sha to a quest's commit list (deduped) and advances its status
-// to reflect the work: a completing link (Completes: trailer) closes the quest, while
-// any other link on an untouched open quest promotes it to partial — "work has
-// started" — so it reads as in-progress rather than untouched (SQ-0094). Only open is
-// promoted, so a partial/deferred/done quest is never churned or resurrected.
-func (s *Store) AddCommit(id, sha string, complete bool) error {
+// to reflect the work: LinkComplete (Completes: trailer) closes the quest, LinkConfirm
+// (Confirm: trailer) parks it in `confirm` for the user to sign off, and a bare
+// LinkTouch on an untouched open quest promotes it to partial — "work has started" —
+// so it reads as in-progress rather than untouched (SQ-0094). A touch only promotes
+// open, so a partial/confirm/deferred/done quest is never churned by an ordinary link;
+// the explicit Confirm:/Completes: forms override any non-done status, matching each
+// other's intent (an already-done quest is left alone — no resurrection, no restamp).
+func (s *Store) AddCommit(id, sha string, kind LinkKind) error {
 	return s.Update(id, func(q *quest.Quest) {
 		if !contains(q.Commits, sha) {
 			q.Commits = append(q.Commits, sha)
 		}
 		switch {
-		case complete && q.Status != quest.StatusDone:
+		case kind == LinkComplete && q.Status != quest.StatusDone:
 			q.Status = quest.StatusDone
 			t := time.Now().UTC().Truncate(time.Second)
 			q.Completed = &t
-		case !complete && q.Status == quest.StatusOpen:
+		case kind == LinkConfirm && q.Status != quest.StatusDone:
+			q.Status = quest.StatusConfirm
+		case kind == LinkTouch && q.Status == quest.StatusOpen:
 			q.Status = quest.StatusPartial
 		}
 	})

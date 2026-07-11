@@ -143,7 +143,7 @@ func TestUnlinkAndRelinkCommitTools(t *testing.T) {
 		return sha
 	}
 	c1, c2 := mk("one"), mk("two")
-	if err := s.AddCommit(q.ID, c1, false); err != nil {
+	if err := s.AddCommit(q.ID, c1, store.LinkTouch); err != nil {
 		t.Fatal(err)
 	}
 

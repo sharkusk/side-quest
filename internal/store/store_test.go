@@ -518,13 +518,13 @@ func TestAddCommitAppendsAndDedupes(t *testing.T) {
 	_ = s.Init()
 	q, _ := s.Create("linkme", "", "", "", nil)
 
-	if err := s.AddCommit(q.ID, "abc123", false); err != nil {
+	if err := s.AddCommit(q.ID, "abc123", LinkTouch); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.AddCommit(q.ID, "abc123", false); err != nil { // duplicate
+	if err := s.AddCommit(q.ID, "abc123", LinkTouch); err != nil { // duplicate
 		t.Fatal(err)
 	}
-	if err := s.AddCommit(q.ID, "def456", true); err != nil { // completing link
+	if err := s.AddCommit(q.ID, "def456", LinkComplete); err != nil { // completing link
 		t.Fatal(err)
 	}
 	got, _ := s.Get(q.ID)
@@ -549,14 +549,14 @@ func TestAddCommitPromotesOpenToPartial(t *testing.T) {
 	}
 
 	// A non-closing link promotes open -> partial.
-	if err := s.AddCommit(q.ID, "aaa111", false); err != nil {
+	if err := s.AddCommit(q.ID, "aaa111", LinkTouch); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := s.Get(q.ID); got.Status != quest.StatusPartial {
 		t.Fatalf("after a linked commit, status = %q, want partial", got.Status)
 	}
 	// A second non-closing link leaves it partial (no churn).
-	if err := s.AddCommit(q.ID, "bbb222", false); err != nil {
+	if err := s.AddCommit(q.ID, "bbb222", LinkTouch); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := s.Get(q.ID); got.Status != quest.StatusPartial {
@@ -568,11 +568,45 @@ func TestAddCommitPromotesOpenToPartial(t *testing.T) {
 	if err := s.SetStatus(d.ID, quest.StatusDeferred); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.AddCommit(d.ID, "ccc333", false); err != nil {
+	if err := s.AddCommit(d.ID, "ccc333", LinkTouch); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := s.Get(d.ID); got.Status != quest.StatusDeferred {
 		t.Errorf("non-closing commit changed a deferred quest to %q, want deferred", got.Status)
+	}
+}
+
+// TestAddCommitConfirm (SQ-0110): a Confirm: link parks the quest in `confirm` for
+// user sign-off — outstanding, not done, and never timestamped as completed. It moves
+// any non-done quest (matching Completes:' explicit-override intent) but leaves an
+// already-done quest untouched.
+func TestAddCommitConfirm(t *testing.T) {
+	s := newStore(t)
+	_ = s.Init()
+
+	// open -> confirm, with no completion stamp.
+	q, _ := s.Create("signme", "", "", "", nil)
+	if err := s.AddCommit(q.ID, "aaa111", LinkConfirm); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get(q.ID)
+	if got.Status != quest.StatusConfirm {
+		t.Fatalf("after Confirm link, status = %q, want confirm", got.Status)
+	}
+	if got.Completed != nil {
+		t.Errorf("confirm must not stamp Completed: %v", got.Completed)
+	}
+
+	// A done quest is not downgraded to confirm.
+	d, _ := s.Create("finished", "", "", "", nil)
+	if err := s.SetStatus(d.ID, quest.StatusDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddCommit(d.ID, "bbb222", LinkConfirm); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Get(d.ID); got.Status != quest.StatusDone {
+		t.Errorf("Confirm link downgraded a done quest to %q, want done", got.Status)
 	}
 }
 
@@ -587,8 +621,8 @@ func TestReplaceCommit(t *testing.T) {
 	old := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	keep := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	fresh := "cccccccccccccccccccccccccccccccccccccccc"
-	_ = s.AddCommit(q.ID, old, false)
-	_ = s.AddCommit(q.ID, keep, false)
+	_ = s.AddCommit(q.ID, old, LinkTouch)
+	_ = s.AddCommit(q.ID, keep, LinkTouch)
 
 	// prefix match on the dead old sha, replaced in place with the fresh one
 	if err := s.ReplaceCommit(q.ID, "aaaaaaa", fresh); err != nil {
@@ -613,8 +647,8 @@ func TestRemoveCommit(t *testing.T) {
 	q, _ := s.Create("unlinkme", "", "", "", nil)
 	a := "1111111111111111111111111111111111111111"
 	b := "2222222222222222222222222222222222222222"
-	_ = s.AddCommit(q.ID, a, false)
-	_ = s.AddCommit(q.ID, b, false)
+	_ = s.AddCommit(q.ID, a, LinkTouch)
+	_ = s.AddCommit(q.ID, b, LinkTouch)
 
 	if err := s.RemoveCommit(q.ID, "1111111"); err != nil {
 		t.Fatalf("RemoveCommit: %v", err)
@@ -709,7 +743,7 @@ func TestConcurrentUpdateSameQuest(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			errs <- s.AddCommit(q.ID, fmt.Sprintf("sha%02d", i), false)
+			errs <- s.AddCommit(q.ID, fmt.Sprintf("sha%02d", i), LinkTouch)
 		}(i)
 	}
 	wg.Wait()

@@ -19,6 +19,17 @@ func TestParseCompletes(t *testing.T) {
 	}
 }
 
+func TestParseConfirm(t *testing.T) {
+	refs, _ := Parse("ready for review\n\nConfirm: SQ-0003\n")
+	if len(refs) != 1 || refs[0].ID != "SQ-0003" || !refs[0].Confirms || refs[0].Completes {
+		t.Fatalf("bad parse: %+v", refs)
+	}
+	// A Confirm: trailer is a real ref, so it satisfies the commit-msg check.
+	if Decision("Confirm: SQ-0003\n", true) != Accept {
+		t.Error("Confirm: ref -> Accept even when a quest is required")
+	}
+}
+
 func TestParseMultiple(t *testing.T) {
 	refs, _ := Parse("msg\n\nQuest: SQ-1\nCompletes: SQ-2\n")
 	if len(refs) != 2 {

@@ -173,7 +173,7 @@ func TestRelinkAndUnlinkCommands(t *testing.T) {
 	}
 	c1 := mkCommit("one")
 	c2 := mkCommit("two")
-	if err := s.AddCommit(q.ID, c1, false); err != nil {
+	if err := s.AddCommit(q.ID, c1, store.LinkTouch); err != nil {
 		t.Fatal(err)
 	}
 

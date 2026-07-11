@@ -211,6 +211,8 @@ Quests link to the commits that address them through **git trailers**, applied
 by thin hook shims that call the `side-quest` binary. All logic lives in Go.
 
 - `Quest: SQ-0001` — this commit worked on SQ-0001 (append its hash).
+- `Confirm: SQ-0001` — append the hash **and** move the quest to `confirm`, parking
+  it for the user's sign-off (any non-done quest; a done one is left alone).
 - `Completes: SQ-0001` — append the hash **and** close the quest.
 - `Quest: none` — explicit escape hatch: a genuine chore, not linked.
 

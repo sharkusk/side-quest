@@ -31,7 +31,8 @@ agent (MCP) or by you (CLI).
 1. **Capture**: mid-task, an idea surfaces. Your agent (or you) files it as a
    quest in one call. No context switch; you keep working.
 2. **Work**: when a commit addresses a quest, tag its message: `Quest: SQ-0042`
-   (or `Completes: SQ-0042` to close it). A `prepare-commit-msg` hook can fill
+   (or `Confirm: SQ-0042` to park it for your sign-off, `Completes: SQ-0042` to
+   close it). A `prepare-commit-msg` hook can fill
    this in from your *current* quest automatically. If using an AI Agent this is
    completely handled for you!
 3. **Link**: a `post-commit` hook reads the trailer and writes the now-known

@@ -39,7 +39,7 @@ func (h *handlers) register(s *sdk.Server) {
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_update", Description: "Update a quest's title and/or tags (a tag with an empty value is deleted)."}, h.questUpdate)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_note", Description: "Append a timestamped note to a quest's body (non-destructive)."}, h.questNote)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_current", Description: "Set this worktree's current quest by id (the quest you're actively working on), or clear it with clear:true. While a quest is current, the git hooks link the commits you make to it automatically."}, h.questSetCurrent)
-	sdk.AddTool(s, &sdk.Tool{Name: "quest_link_commit", Description: "Apply a commit's Quest:/Completes: trailers to the referenced quests."}, h.questLinkCommit)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_link_commit", Description: "Apply a commit's Quest:/Confirm:/Completes: trailers to the referenced quests."}, h.questLinkCommit)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_relink_commit", Description: "Repoint a recorded commit after a rebase rewrote its hash: replace old_sha (matched by prefix, never resolved — it may be dangling) with new_sha."}, h.questRelinkCommit)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_unlink_commit", Description: "Remove a recorded commit from a quest (sha matched by prefix)."}, h.questUnlinkCommit)
 

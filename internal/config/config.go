@@ -53,7 +53,7 @@ type Config struct {
 	Tone        Tone     `yaml:"tone"`
 	AutoTrailer bool     `yaml:"auto_trailer"`
 	// RequireQuest, when true, makes the commit-msg hook REJECT commits that
-	// carry no Quest:/Completes: trailer (and no explicit `Quest: none`).
+	// carry no Quest:/Confirm:/Completes: trailer (and no explicit `Quest: none`).
 	// Default false = assisted mode (warn only).
 	RequireQuest bool `yaml:"require_quest"`
 	// LocalOnly, when true, keeps quest data private to this clone: Sync (and the
