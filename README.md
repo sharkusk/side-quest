@@ -102,7 +102,12 @@ checksum-verified):
 /plugin install side-quest
 ```
 
-You must *restart the session* to provision the mcp binary. Depending on your download speed you may also need to restart the mcp server after an install (or update) using /mcp.
+After install — **and after every plugin update** — the plugin downloads the
+matching `side-quest` binary in the background; give it a few seconds. The MCP
+server keeps running the *previous* binary until it's reloaded, so once the
+download lands, **restart the MCP server from `/mcp`** (or start a fresh session).
+Not sure it took effect? Ask your agent to call the `server_info` tool — it reports
+the running server's version; if it's behind the latest release, restart again.
 
 Using another MCP-capable agent? Follow
 [Manual setup](docs/manual-setup.md) instead.

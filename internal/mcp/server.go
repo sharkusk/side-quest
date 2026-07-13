@@ -24,7 +24,7 @@ func NewServer(s *store.Store, version string) *sdk.Server {
 		&sdk.Implementation{Name: "side-quest", Version: version},
 		&sdk.ServerOptions{Instructions: instructions()},
 	)
-	(&handlers{store: s}).register(srv)
+	(&handlers{store: s, version: version}).register(srv)
 	return srv
 }
 
@@ -38,5 +38,9 @@ func instructions() string {
 	return guidance.Core
 }
 
-// handlers holds the store the tool handlers act on.
-type handlers struct{ store *store.Store }
+// handlers holds the store the tool handlers act on, plus the build version so
+// server_info can report which binary is actually running (SQ-0113).
+type handlers struct {
+	store   *store.Store
+	version string
+}

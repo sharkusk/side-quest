@@ -95,18 +95,42 @@ func TestServerAdvertisesGivenVersion(t *testing.T) {
 	}
 }
 
-func TestListToolsExposesSeventeen(t *testing.T) {
+func TestListToolsExposesEighteen(t *testing.T) {
 	cs, ctx := dialTest(t, newTestStore(t))
 	lt, err := cs.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(lt.Tools) != 17 {
+	if len(lt.Tools) != 18 {
 		names := make([]string, len(lt.Tools))
 		for i, tl := range lt.Tools {
 			names[i] = tl.Name
 		}
-		t.Fatalf("want 17 tools, got %d: %v", len(lt.Tools), names)
+		t.Fatalf("want 18 tools, got %d: %v", len(lt.Tools), names)
+	}
+}
+
+// TestServerInfoTool (SQ-0113): server_info reports the running build version, so
+// after a plugin update an agent can tell whether the server is still on the old
+// binary. dialTest builds the server with version "test".
+func TestServerInfoTool(t *testing.T) {
+	cs, ctx := dialTest(t, newTestStore(t))
+	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "server_info", Arguments: map[string]any{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("server_info error: %s", contentText(t, res))
+	}
+	var info struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal([]byte(contentText(t, res)), &info); err != nil {
+		t.Fatal(err)
+	}
+	if info.Name != "side-quest" || info.Version != "test" {
+		t.Fatalf("server_info = %+v, want side-quest/test", info)
 	}
 }
 

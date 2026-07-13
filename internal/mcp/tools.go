@@ -33,6 +33,7 @@ func (h *handlers) register(s *sdk.Server) {
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_show", Description: "Show one quest by id."}, h.questShow)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_history", Description: "Return a quest's change history to answer historical questions about it: one entry per commit that touched the quest, oldest first, each with the date, author (who/email), and what changed (created, status x→y, type/priority x→y, note added, linked/unlinked commit, title/tags/body edited)."}, h.questHistory)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_get_current", Description: "Return this worktree's current quest id (empty if none)."}, h.questGetCurrent)
+	sdk.AddTool(s, &sdk.Tool{Name: "server_info", Description: "Report the running side-quest MCP server's build version. Use it to verify the server is current after a plugin install or update: compare this version to the latest release (or to `side-quest version` for the provisioned binary). If it's older, the server is still running the previous binary — restart it from /mcp so it reloads the new build."}, h.serverInfo)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_status", Description: "Set a quest's lifecycle status (open|partial|confirm|done|deferred|discarded). Use confirm when you've finished a change but want the user to confirm it before the quest is done — it stays outstanding until they close it.",
 		InputSchema: enumSchema[statusIn](map[string][]string{"status": statuses})}, h.questSetStatus)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_reclassify", Description: "Change a quest's type and/or priority.",
@@ -241,6 +242,13 @@ func (h *handlers) questHistory(ctx context.Context, req *sdk.CallToolRequest, i
 		return nil, nil, err
 	}
 	return jsonResult(entries)
+}
+
+func (h *handlers) serverInfo(ctx context.Context, req *sdk.CallToolRequest, in emptyIn) (*sdk.CallToolResult, any, error) {
+	return jsonResult(struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	}{"side-quest", h.version})
 }
 
 func (h *handlers) questGetCurrent(ctx context.Context, req *sdk.CallToolRequest, in emptyIn) (*sdk.CallToolResult, any, error) {

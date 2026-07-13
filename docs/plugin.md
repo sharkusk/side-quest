@@ -17,6 +17,16 @@ and checksum-verified) into a per-plugin cache. If a download isn't possible
 (offline, or before the project is public), install the binary yourself
 ([installation](install.md)) and the plugin will use it from your `PATH`.
 
+**The download happens in the background and takes a few seconds** — and the same
+is true on **every plugin update**, which fetches the new matching binary. The
+running MCP server keeps using the *previous* binary until it is reloaded, so once
+the download finishes, **restart the MCP server** (from `/mcp`, or by starting a
+fresh Claude Code session — stdio servers don't reconnect on their own). To confirm
+the running server is current, ask your agent to call the **`server_info`** tool: it
+reports the server's build version, which you can compare against the latest release
+(or, if you enabled the terminal CLI, against `side-quest version`). A version older
+than expected means the server is still on the old binary — restart it.
+
 **Still set up each repo.** The plugin wires your agent, not your repository.
 Every repo you want to track needs `side-quest onboard` run once — it creates the
 quest ref and installs the git hooks. Under the plugin it **skips** writing a
@@ -53,8 +63,9 @@ equally good ways to do it; pick either:
 Either route gives your terminal a working `side-quest`, and from then on a
 terminal `git commit` records the quest link exactly as an agent-run commit does.
 
-**Restart the Claude Code session** after installing the plugin so the MCP server,
-the `/sq` command, and the skill load.
+**Restart the Claude Code session** after installing *or updating* the plugin so the
+MCP server, the `/sq` command, and the skill load the current build (see the
+provisioning note above about giving the binary download a moment to finish first).
 
 To move quests between machines, see
 [Sharing quests across machines](manual-setup.md#sharing-quests-across-machines).
