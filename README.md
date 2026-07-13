@@ -102,12 +102,16 @@ checksum-verified):
 /plugin install side-quest
 ```
 
-After install — **and after every plugin update** — the plugin downloads the
-matching `side-quest` binary in the background; give it a few seconds. The MCP
-server keeps running the *previous* binary until it's reloaded, so once the
-download lands, **restart the MCP server from `/mcp`** (or start a fresh session).
-Not sure it took effect? Ask your agent to call the `server_info` tool — it reports
-the running server's version; if it's behind the latest release, restart again.
+> [!IMPORTANT]
+> **On installs _and_ every update: wait for the binary to download, then start a
+> fresh Claude Code session.** Provisioning fetches the matching `side-quest` binary
+> in the background (a few seconds); until the MCP server is reloaded it keeps running
+> the *previous* binary — stale tools, stale enums, **and stale guidance**. A `/mcp`
+> reconnect or `/reload-plugins` refreshes the *tools*, but the agent's in-context
+> guidance is read at session start, so **only a new session reliably loads updated
+> guidance**. Verify with the `server_info` tool (or `side-quest version`): a version
+> behind the latest release means the server is still on the old binary — finish the
+> download and restart.
 
 Using another MCP-capable agent? Follow
 [Manual setup](docs/manual-setup.md) instead.

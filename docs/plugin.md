@@ -17,15 +17,23 @@ and checksum-verified) into a per-plugin cache. If a download isn't possible
 (offline, or before the project is public), install the binary yourself
 ([installation](install.md)) and the plugin will use it from your `PATH`.
 
-**The download happens in the background and takes a few seconds** — and the same
-is true on **every plugin update**, which fetches the new matching binary. The
-running MCP server keeps using the *previous* binary until it is reloaded, so once
-the download finishes, **restart the MCP server** (from `/mcp`, or by starting a
-fresh Claude Code session — stdio servers don't reconnect on their own). To confirm
-the running server is current, ask your agent to call the **`server_info`** tool: it
-reports the server's build version, which you can compare against the latest release
-(or, if you enabled the terminal CLI, against `side-quest version`). A version older
-than expected means the server is still on the old binary — restart it.
+> [!IMPORTANT]
+> **After an install or update, start a fresh Claude Code session once the download
+> finishes — a reconnect is not enough for guidance changes.**
+>
+> Provisioning fetches the binary in the background (a few seconds), and every plugin
+> update fetches a new one. Until the MCP server is reloaded it keeps running the
+> *previous* binary, so its tools, enum values, **and the guidance it feeds the agent**
+> all stay stale. The catch: guidance is delivered in the MCP `initialize` handshake,
+> which Claude Code reads **at session start**. A `/mcp` reconnect or `/reload-plugins`
+> picks up new *tools*, but **only a fresh session reliably loads updated guidance**.
+> And reload only helps *after* the download lands — reloading too early just respawns
+> the old binary.
+>
+> **Verify the running build** with the **`server_info`** MCP tool (ask your agent to
+> call it): it reports the server's version. Compare it to the latest release, or to
+> `side-quest version` if you enabled the terminal CLI. A version behind the latest
+> means the server is still on the old binary — finish provisioning, then restart.
 
 **Still set up each repo.** The plugin wires your agent, not your repository.
 Every repo you want to track needs `side-quest onboard` run once — it creates the
