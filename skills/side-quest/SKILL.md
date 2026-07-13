@@ -185,3 +185,10 @@ you through its lifecycle — this section is the human-readable version.
 - **Set up or refresh a repo.** To track a repo (or refresh it after a plugin
   update), run `side-quest onboard` — it creates the quest ref, installs the git
   hooks, and (outside the plugin) writes `.mcp.json`. Safe to re-run.
+- **Stay current after an update.** Your guidance and tools come from the MCP
+  server's binary, loaded at session start, so after the user updates side-quest a
+  still-running server serves the old build until it restarts. If the user mentions
+  updating/reinstalling (or a tool or enum looks stale), call `server_info` and
+  compare its version to the build they installed; if it's behind, tell them to
+  restart the MCP server (`/mcp`) or start a fresh session before relying on this
+  guidance — a reconnect reloads tools, not the session-start brief.
