@@ -95,18 +95,18 @@ func TestServerAdvertisesGivenVersion(t *testing.T) {
 	}
 }
 
-func TestListToolsExposesSixteen(t *testing.T) {
+func TestListToolsExposesSeventeen(t *testing.T) {
 	cs, ctx := dialTest(t, newTestStore(t))
 	lt, err := cs.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(lt.Tools) != 16 {
+	if len(lt.Tools) != 17 {
 		names := make([]string, len(lt.Tools))
 		for i, tl := range lt.Tools {
 			names[i] = tl.Name
 		}
-		t.Fatalf("want 16 tools, got %d: %v", len(lt.Tools), names)
+		t.Fatalf("want 17 tools, got %d: %v", len(lt.Tools), names)
 	}
 }
 
@@ -198,6 +198,53 @@ func TestUnlinkAndRelinkCommitTools(t *testing.T) {
 	json.Unmarshal([]byte(contentText(t, shown)), &after)
 	if len(after.Commits) != 0 {
 		t.Fatalf("unlink did not remove the sha: %v", after.Commits)
+	}
+}
+
+// TestQuestHistoryTool (SQ-0112): the MCP surface exposes a quest's change log so
+// an agent can answer historical questions — oldest first, with author name/email
+// and the field-level diff per commit.
+func TestQuestHistoryTool(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Create("track me", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetStatus(q.ID, quest.StatusDone); err != nil {
+		t.Fatal(err)
+	}
+
+	cs, ctx := dialTest(t, s)
+	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_history", Arguments: map[string]any{"id": q.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("quest_history error: %s", contentText(t, res))
+	}
+	var hist []struct {
+		Commit  string   `json:"commit"`
+		Who     string   `json:"who"`
+		Email   string   `json:"email"`
+		Changes []string `json:"changes"`
+	}
+	if err := json.Unmarshal([]byte(contentText(t, res)), &hist); err != nil {
+		t.Fatal(err)
+	}
+	if len(hist) != 2 {
+		t.Fatalf("want 2 history entries, got %d: %+v", len(hist), hist)
+	}
+	if len(hist[0].Changes) != 1 || hist[0].Changes[0] != "created" {
+		t.Errorf("first entry = %v, want [created]", hist[0].Changes)
+	}
+	if len(hist[1].Changes) != 1 || hist[1].Changes[0] != "status: open → done" {
+		t.Errorf("second entry = %v, want [status: open → done]", hist[1].Changes)
+	}
+	if hist[1].Email != "t@example.com" || hist[1].Who != "Tester" {
+		t.Errorf("author not surfaced: who=%q email=%q", hist[1].Who, hist[1].Email)
 	}
 }
 

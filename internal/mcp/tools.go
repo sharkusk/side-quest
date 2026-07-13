@@ -31,6 +31,7 @@ func (h *handlers) register(s *sdk.Server) {
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_list", Description: "List quests, optionally filtered by status/type/priority/tags (AND).",
 		InputSchema: enumSchema[listIn](map[string][]string{"status": statuses, "type": types, "priority": prios})}, h.questList)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_show", Description: "Show one quest by id."}, h.questShow)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_history", Description: "Return a quest's change history to answer historical questions about it: one entry per commit that touched the quest, oldest first, each with the date, author (who/email), and what changed (created, status x→y, type/priority x→y, note added, linked/unlinked commit, title/tags/body edited)."}, h.questHistory)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_get_current", Description: "Return this worktree's current quest id (empty if none)."}, h.questGetCurrent)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_status", Description: "Set a quest's lifecycle status (open|partial|confirm|done|deferred|discarded). Use confirm when you've finished a change but want the user to confirm it before the quest is done — it stays outstanding until they close it.",
 		InputSchema: enumSchema[statusIn](map[string][]string{"status": statuses})}, h.questSetStatus)
@@ -232,6 +233,14 @@ func (h *handlers) questShow(ctx context.Context, req *sdk.CallToolRequest, in i
 		return nil, nil, err
 	}
 	return jsonResult(q)
+}
+
+func (h *handlers) questHistory(ctx context.Context, req *sdk.CallToolRequest, in idIn) (*sdk.CallToolResult, any, error) {
+	entries, err := h.store.History(in.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return jsonResult(entries)
 }
 
 func (h *handlers) questGetCurrent(ctx context.Context, req *sdk.CallToolRequest, in emptyIn) (*sdk.CallToolResult, any, error) {

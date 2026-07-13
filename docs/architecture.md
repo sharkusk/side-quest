@@ -411,7 +411,9 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   values (the first commit shares the label line); `--full` expands each to its
   complete message (a
   commit whose sha no longer resolves shows `(message unavailable)`). `--full`
-  affects the human render only — `--json` stays the raw quest.
+  affects the human render only — `--json` stays the raw quest. `--history`
+  appends the quest's **change log** (see below); with `--json` it emits
+  `{"quest": …, "history": […]}` instead of the bare quest.
 - `status <id> <status>` — set the lifecycle status.
 - `note <id> <text>` — append a note to a quest (the note text is every
   argument after the id, joined with spaces).
@@ -510,14 +512,29 @@ override it for one invocation with the `SIDE_QUEST_TONE` environment variable
 advertised in the README — the flavored default is meant to be discovered on first
 run — but it is fully documented and configurable here.
 
+## Change log (`show --history`, `quest_history`)
+
+Because every mutation is a commit on `refs/side-quest/quests`, a quest's full
+history is already recorded — no separate audit log. `Store.History(id)` walks the
+commits that touched `quests/<id>.md` (via `git log <ref> -- <path>`) and, for
+each, reconstructs **what changed** by diffing the quest against its **first
+parent** (the merge convention; sync can introduce merge commits). The mutation
+commit messages are intentionally generic (`side-quest: update SQ-0001`), so the
+description comes from the field diff, not the message: `created`, `status: X → Y`,
+`type`/`priority: X → Y`, `linked`/`unlinked commit <sha>`, `note added`, `title`/
+`tags`/`body edited`. Each entry carries the author's name/email and date (from the
+commit), and entries are returned oldest-first. All the needed blobs (each commit's
+version and its parent's) are read in one `cat-file --batch`. Surfaced by the CLI
+`show --history` and the MCP `quest_history` tool.
+
 ## MCP frontend (`internal/mcp` + `side-quest serve`)
 
 `side-quest serve` runs a stdio MCP server (JSON-RPC over stdin/stdout) built on
 `github.com/modelcontextprotocol/go-sdk`. `cmd/side-quest/serve.go` is a thin
 frontend: it opens the store for the cwd and hands it to `internal/mcp.NewServer`,
-which registers twelve tools:
+which registers thirteen tools:
 
-- `quest_new`, `quest_list`, `quest_show`, `quest_get_current` (capture/read)
+- `quest_new`, `quest_list`, `quest_show`, `quest_history`, `quest_get_current` (capture/read)
 - `quest_set_status`, `quest_reclassify`, `quest_update`, `quest_note`,
   `quest_set_current`, `quest_link_commit`, `quest_relink_commit`,
   `quest_unlink_commit` (mutation)

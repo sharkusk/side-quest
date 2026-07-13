@@ -156,10 +156,11 @@ side-quest config set require_quest true
 
 ![Showing a completed quest](docs/img/show.png)
 
-A bare `list` shows only outstanding quests (open + partial); `--all` includes
-every status, and `--filter` takes a boolean expression over bare enum values
-(`bug`, `high`, `done`, …) and `key=value` tags with `and`/`or`/`not`/parens —
-e.g. `--filter "not (done or deferred)"`. Add `--json` to `new`, `list`, `show`, or
+A bare `list` shows only outstanding quests (open, partial, and confirm); `--all`
+includes every status, and `--filter` takes a boolean expression over bare enum
+values (`bug`, `high`, `done`, …) and `key=value` tags with `and`/`or`/`not`/parens
+— e.g. `--filter "not (done or deferred)"`. `show --history` prints a quest's
+change log — who changed what, and when. Add `--json` to `new`, `list`, `show`, or
 `config get` for machine-readable output. Flags may appear before or after the
 title/id positional; `<id>` accepts shorthand (`side-quest show 1` = `SQ-0001`);
 and every command prints its own help with `side-quest <command> -h`.

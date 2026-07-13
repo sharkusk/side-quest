@@ -16,6 +16,7 @@ import (
 
 	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/quest"
+	"github.com/sharkusk/side-quest/internal/store"
 	"github.com/sharkusk/side-quest/internal/voice"
 )
 
@@ -143,6 +144,38 @@ func showField(w io.Writer, label, value string, width int) {
 // text == "(message unavailable)".
 type commitLine struct {
 	short, text string
+}
+
+// renderHistory prints a quest's change log beneath its detail view: one line per
+// commit, oldest first, with the date, short sha, author, and what changed (the
+// changes within a commit joined by "; ").
+func renderHistory(w io.Writer, entries []store.HistoryEntry) {
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "history (oldest first):")
+	if len(entries) == 0 {
+		fmt.Fprintln(w, "  (no recorded changes)")
+		return
+	}
+	for _, e := range entries {
+		fmt.Fprintf(w, "  %s  %s  %s — %s\n",
+			e.When.Format("2006-01-02 15:04"),
+			e.Commit,
+			historyWho(e),
+			strings.Join(e.Changes, "; "))
+	}
+}
+
+// historyWho renders the author as "Name <email>", or just whichever part is
+// present when the other is empty.
+func historyWho(e store.HistoryEntry) string {
+	switch {
+	case e.Who != "" && e.Email != "":
+		return e.Who + " <" + e.Email + ">"
+	case e.Email != "":
+		return "<" + e.Email + ">"
+	default:
+		return e.Who
+	}
 }
 
 func renderShow(w io.Writer, q *quest.Quest, width int, commits []commitLine) {

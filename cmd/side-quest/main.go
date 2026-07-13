@@ -23,7 +23,7 @@ Setup
 Quests
   new [--type --priority --context --tag k=v --current --json] <title>
   list [--status --type --priority --json]   list quests (filters combine)
-  show <id> [--json]              show one quest
+  show <id> [--history] [--json]  show one quest (--history adds its change log)
   status <id> <status>            set a quest's status
   note <id> <text>                append a note to a quest
   edit <id>                       open a quest in $EDITOR and write it back

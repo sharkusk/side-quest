@@ -294,11 +294,12 @@ func cmdList(args []string) error {
 
 func cmdShow(args []string) error {
 	fs := newFlagSet("show")
-	var asJSON, noWrap, full bool
+	var asJSON, noWrap, full, history bool
 	fs.BoolVar(&asJSON, "json", false, "emit the quest as JSON")
 	fs.BoolVar(&noWrap, "no-wrap", false, "print raw field values without word-wrapping")
 	fs.BoolVar(&full, "full", false, "with the linked commits, print each commit's complete message (default: subject only)")
-	setUsage(fs, "usage: side-quest show [flags] <id>\nshow one quest; --full prints linked commits' complete messages; <id> accepts shorthand (11 or 0011 for SQ-0011)")
+	fs.BoolVar(&history, "history", false, "also show the quest's change history: date, who, and what changed per commit")
+	setUsage(fs, "usage: side-quest show [flags] <id>\nshow one quest; --full prints linked commits' complete messages; --history adds the change log; <id> accepts shorthand (11 or 0011 for SQ-0011)")
 	rest, err := parseInterspersed(fs, args)
 	if helpRequested(err) {
 		return nil
@@ -317,7 +318,19 @@ func cmdShow(args []string) error {
 	if err != nil {
 		return err
 	}
+	var hist []store.HistoryEntry
+	if history {
+		if hist, err = s.History(rest[0]); err != nil {
+			return err
+		}
+	}
 	if asJSON {
+		if history {
+			return emitJSON(os.Stdout, struct {
+				Quest   *quest.Quest         `json:"quest"`
+				History []store.HistoryEntry `json:"history"`
+			}{q, hist})
+		}
 		return emitJSON(os.Stdout, q)
 	}
 	// Wrap to the terminal width, but only for an interactive terminal: piped
@@ -336,6 +349,9 @@ func cmdShow(args []string) error {
 		commits = append(commits, commitLine{short: short, text: text})
 	}
 	renderShow(os.Stdout, q, width, commits)
+	if history {
+		renderHistory(os.Stdout, hist)
+	}
 	return nil
 }
 

@@ -43,7 +43,7 @@ func TestParseBatch(t *testing.T) {
 	// Two entries; the second's content contains a newline to prove size-based
 	// (not line-based) parsing.
 	buf := []byte("a1 blob 5\nhello\nb2 blob 3\nx\ny\n")
-	got, err := parseBatch(buf, 2)
+	got, err := parseBatch(buf, 2, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,8 +53,16 @@ func TestParseBatch(t *testing.T) {
 }
 
 func TestParseBatchMissingObject(t *testing.T) {
-	if _, err := parseBatch([]byte("deadbeef missing\n"), 1); err == nil {
+	if _, err := parseBatch([]byte("deadbeef missing\n"), 1, false); err == nil {
 		t.Fatal("a missing object must be an error")
+	}
+	// With allowMissing, a missing object yields a nil entry instead of an error.
+	got, err := parseBatch([]byte("deadbeef missing\n"), 1, true)
+	if err != nil {
+		t.Fatalf("allowMissing should not error: %v", err)
+	}
+	if len(got) != 1 || got[0] != nil {
+		t.Fatalf("allowMissing = %v, want [nil]", got)
 	}
 }
 

@@ -92,14 +92,17 @@ func (s *Store) readFilesBatch(tip string, paths []string) ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parseBatch(out, len(paths))
+	return parseBatch(out, len(paths), false)
 }
 
 // parseBatch decodes `git cat-file --batch` output for n requested objects. Each
 // record is a header line "<oid> <type> <size>\n", then exactly <size> content
 // bytes, then a trailing "\n"; a missing object is "<ref> missing\n". Parsing is
 // length-delimited (not line-based) so a blob containing newlines is read whole.
-func parseBatch(out []byte, n int) ([][]byte, error) {
+// When allowMissing is set, a missing object yields a nil entry (History reads a
+// creation commit's parent, where the quest file legitimately does not exist yet);
+// otherwise a missing object is an error.
+func parseBatch(out []byte, n int, allowMissing bool) ([][]byte, error) {
 	res := make([][]byte, 0, n)
 	i := 0
 	for len(res) < n {
@@ -111,6 +114,10 @@ func parseBatch(out []byte, n int) ([][]byte, error) {
 		i += nl + 1
 		fields := strings.Fields(header)
 		if len(fields) == 2 && fields[1] == "missing" {
+			if allowMissing {
+				res = append(res, nil)
+				continue
+			}
 			return nil, fmt.Errorf("cat-file --batch: object %q missing", fields[0])
 		}
 		if len(fields) != 3 {
