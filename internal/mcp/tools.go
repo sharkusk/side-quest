@@ -394,13 +394,18 @@ func (h *handlers) questSetCurrent(ctx context.Context, req *sdk.CallToolRequest
 }
 
 func (h *handlers) questLinkCommit(ctx context.Context, req *sdk.CallToolRequest, in shaIn) (*sdk.CallToolResult, any, error) {
-	if err := h.store.Link(in.SHA); err != nil {
+	res, err := h.store.Link(in.SHA)
+	if err != nil {
 		return nil, nil, err
 	}
+	// Surface skipped (unknown-quest) trailer ids so an agent can correct a typo
+	// instead of assuming the link landed (SQ-0119).
 	return h.jsonResultVoiced(struct {
-		OK  bool   `json:"ok"`
-		SHA string `json:"sha"`
-	}{true, in.SHA}, func(v *voice.Voice) string { return v.Linked(in.SHA) })
+		OK      bool     `json:"ok"`
+		SHA     string   `json:"sha"`
+		Linked  []string `json:"linked,omitempty"`
+		Skipped []string `json:"skipped,omitempty"`
+	}{true, in.SHA, res.Linked, res.Skipped}, func(v *voice.Voice) string { return v.Linked(in.SHA) })
 }
 
 // questRelinkCommit is the inverse-repair for a rebase: the old sha is matched by

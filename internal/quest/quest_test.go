@@ -128,6 +128,15 @@ func TestNormalizeID(t *testing.T) {
 		{"non-numeric bare left alone", "SQ", 4, "abc", "abc"},
 		{"random hex id left alone", "SQ", 4, "SQ-a1b2c3", "SQ-a1b2c3"},
 		{"empty left alone", "SQ", 4, "", ""},
+		// SQ-0119: the unpadded prefixed form used to pass through verbatim and
+		// silently link nothing; the lowercase prefix likewise.
+		{"unpadded prefixed number", "SQ", 4, "SQ-12", "SQ-0012"},
+		{"lowercase prefix folded", "SQ", 4, "sq-0012", "SQ-0012"},
+		{"lowercase unpadded", "SQ", 4, "sq-12", "SQ-0012"},
+		// An all-digit random id (leading zero, at/beyond width) must never be
+		// integer-mangled when given in full prefixed form.
+		{"all-digit random id verbatim", "SQ", 4, "SQ-012345", "SQ-012345"},
+		{"prefixed at-width digits verbatim", "SQ", 4, "SQ-0011", "SQ-0011"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

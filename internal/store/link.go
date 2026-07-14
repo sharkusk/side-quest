@@ -9,6 +9,16 @@ import (
 	"github.com/sharkusk/side-quest/internal/trailer"
 )
 
+// LinkResult reports what Link did: which quest ids the commit was linked to
+// (post-normalization) and which trailer ids named no existing quest. Skipped
+// ids exist so callers can WARN — a silently dropped "Completes:" was the worst
+// failure mode of the old void-returning Link (SQ-0119): the commit-msg hook had
+// accepted the trailer, so the user believed it worked.
+type LinkResult struct {
+	Linked  []string
+	Skipped []string
+}
+
 // Link applies a commit's side-quest trailers to the store: for every
 // Quest:/Confirm:/Completes: trailer in the commit's message, it appends the
 // commit's canonical hash to that quest and moves its status accordingly —
@@ -19,17 +29,18 @@ import (
 // SEPARATE commit on the orphan ref whose own hash nobody has to record.
 //
 // Link is deliberately TOLERANT: a trailer naming a quest that does not exist
-// (a typo, or an id from another clone) is skipped — post-commit must never
-// fail the user's already-made commit over a bad reference. Genuine errors
-// (anything other than "not found") are surfaced.
-func (s *Store) Link(sha string) error {
+// (a typo, or an id from another clone) is reported in Skipped rather than
+// failing — post-commit must never fail the user's already-made commit over a
+// bad reference. Genuine errors (anything other than "not found") are surfaced.
+func (s *Store) Link(sha string) (LinkResult, error) {
+	var res LinkResult
 	full, err := s.git.Run("rev-parse", sha)
 	if err != nil {
-		return err
+		return res, err
 	}
 	msg, err := s.git.Run("show", "-s", "--format=%B", full)
 	if err != nil {
-		return err
+		return res, err
 	}
 	refs, _ := trailer.Parse(msg)
 	for _, r := range refs {
@@ -40,14 +51,20 @@ func (s *Store) Link(sha string) error {
 		case r.Confirms:
 			kind = LinkConfirm
 		}
-		if err := s.AddCommit(r.ID, full, kind); err != nil {
-			if errors.Is(err, ErrNotFound) {
-				continue // unknown id — skip, keep processing other refs
-			}
-			return err
+		id, err := s.canonicalID(r.ID)
+		if err != nil {
+			return res, err
 		}
+		if err := s.AddCommit(id, full, kind); err != nil {
+			if errors.Is(err, ErrNotFound) {
+				res.Skipped = append(res.Skipped, r.ID)
+				continue // unknown id — report, keep processing other refs
+			}
+			return res, err
+		}
+		res.Linked = append(res.Linked, id)
 	}
-	return nil
+	return res, nil
 }
 
 // ResolveCommit canonicalizes a sha or ref to its full commit hash via git, the

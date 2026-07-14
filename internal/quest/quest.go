@@ -116,21 +116,44 @@ type Quest struct {
 }
 
 // NormalizeID canonicalizes a user-supplied quest id so the frontends can accept
-// shorthand. A bare or zero-padded number (11, 0011) becomes
-// prefix + "-" + the number zero-padded to width (SQ-0011). An id that already
-// carries the "prefix-" head, or any non-numeric form (a random hex id, a typo),
-// is returned unchanged. Normalization is idempotent and never fails: an id that
+// shorthand. A bare number (11, 0011, 00011) becomes prefix + "-" + the number
+// zero-padded to width (SQ-0011) — bare-digit shorthand is a sequential-id
+// convenience, so leading zeros are integer-normalized. An id carrying the
+// "prefix-" head — matched case-insensitively, so a hand-typed "sq-11" works —
+// has its prefix case fixed, and a SHORT all-digit suffix padded to width
+// (SQ-12 -> SQ-0012, fixing the trap where the unpadded form passed the hook but
+// linked nothing, SQ-0119); a suffix already at or beyond width is kept VERBATIM
+// so a random-strategy id that is all digits with a leading zero (SQ-012345) is
+// never mangled into SQ-12345. Non-digit suffixes (random hex ids, typos) pass
+// through unchanged. Normalization is idempotent and never fails: an id that
 // resolves to nothing real is caught later by the store's existence check, not
 // here.
 func NormalizeID(prefix string, width int, raw string) string {
 	raw = strings.TrimSpace(raw)
-	if strings.HasPrefix(raw, prefix+"-") {
-		return raw
+	if len(raw) > len(prefix) && strings.EqualFold(raw[:len(prefix)], prefix) && raw[len(prefix)] == '-' {
+		suffix := raw[len(prefix)+1:]
+		if isDigits(suffix) && len(suffix) < width {
+			return prefix + "-" + strings.Repeat("0", width-len(suffix)) + suffix
+		}
+		return prefix + "-" + suffix
 	}
-	if n, err := strconv.Atoi(raw); err == nil && n >= 0 {
+	if n, err := strconv.Atoi(raw); err == nil && n >= 0 && isDigits(raw) {
 		return fmt.Sprintf("%s-%0*d", prefix, width, n)
 	}
 	return raw
+}
+
+// isDigits reports whether s is non-empty and all ASCII digits.
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 const fence = "---"

@@ -167,7 +167,15 @@ func cmdLink(args []string) error {
 	if err != nil {
 		return err
 	}
-	return s.Link(args[0])
+	res, err := s.Link(args[0])
+	// Warn about trailer ids that named no quest BEFORE deciding on err: the
+	// commit-msg hook accepted those trailers, so silence here would let the
+	// user believe they linked (SQ-0119). post-commit runs this command, so the
+	// warning lands on the user's commit output; it never fails the commit.
+	for _, id := range res.Skipped {
+		fmt.Fprintf(os.Stderr, "side-quest: trailer names unknown quest %q — not linked (typo, or a quest from another clone?)\n", id)
+	}
+	return err
 }
 
 // cmdRelink swaps a quest's recorded commit for a new one — the fix for a rebase

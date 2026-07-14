@@ -34,6 +34,38 @@ func commitInWorktree(t *testing.T, s *Store, filename, message string) string {
 	return sha
 }
 
+// TestLinkNormalizesAndReportsSkips (SQ-0119): an unpadded trailer id (SQ-1 for
+// SQ-0001) is canonicalized before lookup — it used to pass the commit-msg hook
+// and then silently link nothing — and a trailer naming no real quest is
+// reported in Skipped instead of vanishing.
+func TestLinkNormalizesAndReportsSkips(t *testing.T) {
+	s := newStore(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Create("near miss", "", "", "", nil) // SQ-0001
+	if err != nil {
+		t.Fatal(err)
+	}
+	unpadded := q.ID[:len(q.ID)-4] + "1" // "SQ-0001" -> "SQ-1"
+	commitInWorktree(t, s, "n.txt", "work\n\nCompletes: "+unpadded+"\nQuest: SQ-9999\n")
+
+	res, err := s.Link("HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Linked) != 1 || res.Linked[0] != q.ID {
+		t.Fatalf("Linked = %v, want [%s]", res.Linked, q.ID)
+	}
+	if len(res.Skipped) != 1 || res.Skipped[0] != "SQ-9999" {
+		t.Fatalf("Skipped = %v, want [SQ-9999]", res.Skipped)
+	}
+	got, _ := s.Get(q.ID)
+	if got.Status != quest.StatusDone {
+		t.Fatalf("unpadded Completes: did not close the quest: %+v", got)
+	}
+}
+
 func TestLinkCompletesClosesQuest(t *testing.T) {
 	s := newStore(t)
 	if err := s.Init(); err != nil {
@@ -45,7 +77,7 @@ func TestLinkCompletesClosesQuest(t *testing.T) {
 	}
 	sha := commitInWorktree(t, s, "a.txt", "work\n\nCompletes: "+q.ID+"\n")
 
-	if err := s.Link("HEAD"); err != nil {
+	if _, err := s.Link("HEAD"); err != nil {
 		t.Fatal(err)
 	}
 	got, err := s.Get(q.ID)
@@ -66,7 +98,7 @@ func TestLinkQuestAppendsWithoutClosing(t *testing.T) {
 	q, _ := s.Create("ongoing", "", "", "", nil)
 	commitInWorktree(t, s, "b.txt", "progress\n\nQuest: "+q.ID+"\n")
 
-	if err := s.Link("HEAD"); err != nil {
+	if _, err := s.Link("HEAD"); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := s.Get(q.ID)
@@ -85,7 +117,7 @@ func TestLinkUnknownIDIsTolerant(t *testing.T) {
 	_ = s.Init()
 	commitInWorktree(t, s, "c.txt", "typo\n\nCompletes: SQ-9999\n")
 	// Referenced quest does not exist; Link must not error (commit already made).
-	if err := s.Link("HEAD"); err != nil {
+	if _, err := s.Link("HEAD"); err != nil {
 		t.Fatalf("Link should tolerate unknown ids, got %v", err)
 	}
 }
@@ -94,7 +126,7 @@ func TestLinkNoTrailerIsNoop(t *testing.T) {
 	s := newStore(t)
 	_ = s.Init()
 	commitInWorktree(t, s, "d.txt", "no trailer here\n")
-	if err := s.Link("HEAD"); err != nil {
+	if _, err := s.Link("HEAD"); err != nil {
 		t.Fatalf("no-trailer commit should be a no-op, got %v", err)
 	}
 }
@@ -136,7 +168,7 @@ func TestLinkIgnoresInheritedIndexFile(t *testing.T) {
 
 	t.Cleanup(func() { os.Unsetenv("GIT_INDEX_FILE") })
 	os.Setenv("GIT_INDEX_FILE", inherited)
-	err = s.Link("HEAD")
+	_, err = s.Link("HEAD")
 	os.Unsetenv("GIT_INDEX_FILE")
 	if err != nil {
 		t.Fatalf("Link failed under inherited GIT_INDEX_FILE: %v", err)

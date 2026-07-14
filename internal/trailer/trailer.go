@@ -27,29 +27,44 @@ type Ref struct {
 // It returns every reference found (a commit may touch several quests) and,
 // separately, whether an explicit `Quest: none` was present — that is NOT a
 // reference but it satisfies the commit-msg check. A trailer is recognized when
-// a line, after trimming surrounding whitespace, begins with the exact key
-// "Quest:", "Confirm:", or "Completes:".
+// a line, after trimming surrounding whitespace, begins with one of the keys —
+// matched case-insensitively, like git's own trailer keys — and its value is a
+// single whitespace-free token (an id, or "none"). That guard keeps prose like
+// "Quest: none of the docs mentioned the hook" from reading as a trailer
+// (SQ-0119). The hooks hand Parse the RAW message file, so it also skips `#`
+// comment lines and stops at git's scissors line — under `git commit -v`
+// everything below the scissors is the staged diff, whose context lines must
+// never be scanned (SQ-0120).
 func Parse(message string) (refs []Ref, explicitNone bool) {
 	for _, line := range strings.Split(message, "\n") {
 		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "#") {
+			if strings.Contains(line, ">8") {
+				break // git scissors line — the diff follows; stop entirely
+			}
+			continue // comment line
+		}
+		key, rawVal, found := strings.Cut(line, ":")
+		if !found {
+			continue
+		}
+		val := strings.TrimSpace(rawVal)
+		if val == "" || strings.ContainsAny(val, " \t") {
+			continue // empty, or prose after the colon — not a trailer value
+		}
 		switch {
-		case strings.HasPrefix(line, "Quest:"):
-			val := strings.TrimSpace(strings.TrimPrefix(line, "Quest:"))
+		case strings.EqualFold(key, "Quest"):
 			if strings.EqualFold(val, "none") {
 				explicitNone = true
 				continue
 			}
-			if val != "" {
-				refs = append(refs, Ref{ID: val})
-			}
-		case strings.HasPrefix(line, "Confirm:"):
-			val := strings.TrimSpace(strings.TrimPrefix(line, "Confirm:"))
-			if val != "" && !strings.EqualFold(val, "none") {
+			refs = append(refs, Ref{ID: val})
+		case strings.EqualFold(key, "Confirm"):
+			if !strings.EqualFold(val, "none") {
 				refs = append(refs, Ref{ID: val, Confirms: true})
 			}
-		case strings.HasPrefix(line, "Completes:"):
-			val := strings.TrimSpace(strings.TrimPrefix(line, "Completes:"))
-			if val != "" && !strings.EqualFold(val, "none") {
+		case strings.EqualFold(key, "Completes"):
+			if !strings.EqualFold(val, "none") {
 				refs = append(refs, Ref{ID: val, Completes: true})
 			}
 		}

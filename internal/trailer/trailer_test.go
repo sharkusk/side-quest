@@ -72,6 +72,34 @@ func TestParseTrimsIndentedTrailer(t *testing.T) {
 	}
 }
 
+// SQ-0119/SQ-0120: prose containing a key must not read as a trailer; comment
+// lines are skipped; scanning stops at git's scissors line (under `git commit -v`
+// the staged diff follows it, and diff context lines must never match).
+func TestParseIgnoresProseCommentsAndDiff(t *testing.T) {
+	// A multi-word value is prose, not a trailer — and must not satisfy `none`.
+	refs, none := Parse("docs\n\nQuest: none of the existing docs mentioned the hook\n")
+	if none || len(refs) != 0 {
+		t.Fatalf("prose line parsed as trailer: refs=%+v none=%v", refs, none)
+	}
+	// Comment lines never match; the scissors line ends scanning entirely.
+	msg := "fix thing\n" +
+		"# Quest: SQ-0001 (comment — ignore)\n" +
+		"# ------------------------ >8 ------------------------\n" +
+		"# Do not modify or remove the line above.\n" +
+		"diff --git a/x b/x\n" +
+		" Quest: SQ-0002\n" + // diff context line — below scissors
+		"+Completes: SQ-0003\n"
+	refs, none = Parse(msg)
+	if none || len(refs) != 0 {
+		t.Fatalf("comment/diff content parsed as trailers: refs=%+v none=%v", refs, none)
+	}
+	// Keys are case-insensitive, like git's trailer keys.
+	refs, _ = Parse("msg\n\ncompletes: SQ-0004\n")
+	if len(refs) != 1 || !refs[0].Completes || refs[0].ID != "SQ-0004" {
+		t.Fatalf("lowercase key not recognized: %+v", refs)
+	}
+}
+
 func TestDecision(t *testing.T) {
 	if Decision("Quest: SQ-1\n", false) != Accept {
 		t.Error("ref present -> Accept")
