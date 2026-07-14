@@ -5,6 +5,7 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -247,10 +248,22 @@ func (s *Store) writeMerge(local, remote string, dryRun bool) (SyncResult, error
 		return SyncResult{}, err
 	}
 	if _, err := s.git.Run("update-ref", Ref, commit, local); err != nil {
+		// A concurrent quest mutation between reading `local` and this guarded
+		// update loses the CAS ("cannot lock ref") — that is a retryable race,
+		// not a fault: surface it as errLocalRace so Sync's loop re-fetches and
+		// re-merges against the fresh tip instead of failing the whole sync
+		// (SQ-0124).
+		if strings.Contains(err.Error(), "cannot lock ref") {
+			return SyncResult{}, errLocalRace
+		}
 		return SyncResult{}, err
 	}
 	return res, nil
 }
+
+// errLocalRace marks a reconcile that lost the live-ref CAS to a concurrent
+// local mutation — retryable by Sync's fetch-merge loop.
+var errLocalRace = errors.New("side-quest: quest ref changed during merge")
 
 // SyncOptions tunes a sync. DryRun computes and reports without writing/pushing;
 // NoVerify skips hooks on the internal quest-ref push (set by the pre-push hook to
@@ -282,6 +295,9 @@ func (s *Store) Sync(remote string, opts SyncOptions) (SyncResult, error) {
 			return SyncResult{}, fmt.Errorf("fetch %s: %w", remote, err)
 		}
 		res, err := s.reconcile(opts.DryRun)
+		if errors.Is(err, errLocalRace) {
+			continue // a local mutation raced the merge — re-fetch and re-merge
+		}
 		if err != nil {
 			return SyncResult{}, err
 		}
@@ -342,16 +358,24 @@ func isMissingRemoteRef(err error) bool {
 	return strings.Contains(err.Error(), "couldn't find remote ref")
 }
 
-// isNonFastForward reports whether err is git's rejection of a diverged push (the
-// retryable case). gitcmd pins LC_ALL=C, so the English text is stable.
+// isNonFastForward reports whether err is git's rejection of a DIVERGED push —
+// the retryable case, where a re-fetch and re-merge can succeed. It must not
+// match a remote-side policy denial ("[remote rejected]", from a pre-receive
+// hook or protected ref): retrying that burns the full retry budget on an error
+// that can never clear and then reports a misleading "stayed contended"
+// (SQ-0124). The old bare "rejected" substring conflated the two. gitcmd pins
+// LC_ALL=C, so the English text is stable.
 func isNonFastForward(err error) bool {
 	if err == nil {
 		return false
 	}
 	m := err.Error()
+	if strings.Contains(m, "remote rejected") {
+		return false // policy denial — permanent, surface it
+	}
 	return strings.Contains(m, "non-fast-forward") ||
 		strings.Contains(m, "fetch first") ||
-		strings.Contains(m, "rejected")
+		strings.Contains(m, "stale info")
 }
 
 // countNew counts ids in `to` that are absent from or differ from `from`.
