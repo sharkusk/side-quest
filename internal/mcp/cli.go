@@ -2,8 +2,10 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sharkusk/side-quest/internal/cli"
@@ -71,10 +73,15 @@ func (h *handlers) cliInstall(ctx context.Context, req *sdk.CallToolRequest, in 
 	}{r.Path, r.Dir, r.OnPath, sqCommand, cmd.Path})
 }
 
-// cliUninstall removes the marked launcher(s) this tool installed.
+// cliUninstall removes the marked launcher(s) this tool installed. A partial
+// failure still reports what WAS removed — discarding that list would tell the
+// agent nothing happened when some launchers are already gone (SQ-0122).
 func (h *handlers) cliUninstall(ctx context.Context, req *sdk.CallToolRequest, in emptyIn) (*sdk.CallToolResult, any, error) {
 	r, err := cli.Uninstall()
 	if err != nil {
+		if len(r.Removed) > 0 {
+			return nil, nil, fmt.Errorf("%v (already removed: %s)", err, strings.Join(r.Removed, ", "))
+		}
 		return nil, nil, err
 	}
 	return jsonResult(struct {

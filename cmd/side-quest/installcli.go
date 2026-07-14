@@ -54,15 +54,18 @@ func cmdUninstallCli(args []string) error {
 	if len(args) != 0 {
 		return &usageErr{"uninstall-cli takes no arguments"}
 	}
+	// Report what DID happen before surfacing any error: Uninstall aggregates
+	// per-launcher failures and its partial result is real work already done
+	// (SQ-0122).
 	r, err := cli.Uninstall()
-	if err != nil {
-		return err
-	}
 	for _, p := range r.Removed {
 		fmt.Printf("side-quest: removed the CLI launcher at %s\n", p)
 	}
 	for _, p := range r.Refused {
 		fmt.Printf("side-quest: left %s in place — not one of our launchers (no %q marker).\n", p, cli.Marker)
+	}
+	if err != nil {
+		return err
 	}
 	if len(r.Removed) == 0 && len(r.Refused) == 0 {
 		fmt.Println("side-quest: no CLI launcher found on PATH — nothing to remove.")

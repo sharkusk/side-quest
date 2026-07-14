@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,22 +39,29 @@ func InstallCommand(dir string) (CommandResult, error) {
 		return CommandResult{Outcome: CmdSkippedNoRepo}, nil
 	}
 	path := filepath.Join(root, ".claude", "commands", "sq.md")
-	if existing, rerr := os.ReadFile(path); rerr == nil {
-		switch {
-		case !strings.Contains(string(existing), commands.ManagedMarker):
-			return CommandResult{Outcome: CmdLeftCustom, Path: path}, nil
-		case string(existing) == commands.Sq:
-			return CommandResult{Outcome: CmdUpToDate, Path: path}, nil
+	existing, rerr := os.ReadFile(path)
+	if rerr != nil {
+		if !os.IsNotExist(rerr) {
+			// Any read failure other than not-exist means the marker cannot be
+			// checked — writing anyway would clobber a file we can't prove is
+			// ours (SQ-0122). Mirrors cli.Install's D8 refusal.
+			return CommandResult{Path: path}, fmt.Errorf("cannot verify %s is our command (not overwriting): %w", path, rerr)
 		}
 		if err := writeCommandFile(path); err != nil {
 			return CommandResult{Path: path}, err
 		}
-		return CommandResult{Outcome: CmdRefreshed, Path: path}, nil
+		return CommandResult{Outcome: CmdInstalled, Path: path}, nil
+	}
+	switch {
+	case !strings.Contains(string(existing), commands.ManagedMarker):
+		return CommandResult{Outcome: CmdLeftCustom, Path: path}, nil
+	case string(existing) == commands.Sq:
+		return CommandResult{Outcome: CmdUpToDate, Path: path}, nil
 	}
 	if err := writeCommandFile(path); err != nil {
 		return CommandResult{Path: path}, err
 	}
-	return CommandResult{Outcome: CmdInstalled, Path: path}, nil
+	return CommandResult{Outcome: CmdRefreshed, Path: path}, nil
 }
 
 func writeCommandFile(path string) error {

@@ -185,7 +185,9 @@ func (h *handlers) questNew(ctx context.Context, req *sdk.CallToolRequest, in ne
 	}
 	if in.SetCurrent {
 		if err := h.store.SetCurrent(q.ID); err != nil {
-			return nil, nil, err
+			// The quest EXISTS at this point — a bare error would hide that and
+			// invite a retry that mints a duplicate (SQ-0122).
+			return nil, nil, fmt.Errorf("quest %s was created, but setting it current failed: %w", q.ID, err)
 		}
 	}
 	res, meta, err := jsonResult(summarize(q))
@@ -342,7 +344,9 @@ func (h *handlers) questUpdate(ctx context.Context, req *sdk.CallToolRequest, in
 	}
 	q, err := h.store.Get(in.ID) // re-read: tags merge, so the result isn't knowable from inputs
 	if err != nil {
-		return nil, nil, err
+		// The Modify above already landed — say so, or a failed re-read reads as
+		// a failed update and invites a duplicate retry (SQ-0122).
+		return nil, nil, fmt.Errorf("update to %s was saved, but re-reading it failed: %w", in.ID, err)
 	}
 	// tags is always present per SQ-0052: render {} (not null) when empty so an
 	// agent can tell "tags are now empty" from "tags weren't touched".

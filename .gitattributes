@@ -6,3 +6,9 @@
 *.md text eol=lf
 
 internal/cli/launcher.cmd text eol=crlf
+
+# The POSIX launcher is embedded into the binary and written verbatim onto the
+# user's PATH; a CRLF checkout (Windows autocrlf) would embed "#!/bin/sh\r" —
+# "bad interpreter" on macOS/Linux — and make LF- and CRLF-built binaries
+# perpetually rewrite each other's installed launcher via Refresh (SQ-0122).
+internal/cli/launcher.sh text eol=lf

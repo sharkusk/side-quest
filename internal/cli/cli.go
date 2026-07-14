@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 //go:embed launcher.sh
@@ -68,16 +69,27 @@ func InstallDirCandidates(home, xdgBinHome string) []string {
 }
 
 // ChooseInstallDir returns the first candidate already on PATH, or "" when none
-// is — pure, so it is testable without touching the real environment.
+// is — pure, so it is testable without touching the real environment. Paths are
+// compared cleaned (a Windows PATH entry commonly carries a trailing separator)
+// and case-folded on Windows, where the filesystem and PATH are case-insensitive
+// — an exact-string match used to miss `C:\Users\bob\go\bin\` vs the candidate
+// `C:\Users\bob\go\bin` and silently fall back to a dir NOT on PATH (SQ-0122).
 func ChooseInstallDir(candidates, pathDirs []string) string {
+	norm := func(p string) string {
+		p = filepath.Clean(p)
+		if runtime.GOOS == "windows" {
+			p = strings.ToLower(p)
+		}
+		return p
+	}
 	on := make(map[string]bool, len(pathDirs))
 	for _, p := range pathDirs {
 		if p != "" {
-			on[p] = true
+			on[norm(p)] = true
 		}
 	}
 	for _, c := range candidates {
-		if c != "" && on[c] {
+		if c != "" && on[norm(c)] {
 			return c
 		}
 	}
@@ -145,8 +157,16 @@ func Install() (InstallResult, error) {
 // Status/Uninstall robust even when the caller's $PATH is the GUI PATH rather than
 // the user's login shell (the MCP server sees that — spec D7).
 func launcherDirs() []string {
+	all := filepath.SplitList(os.Getenv("PATH"))
+	// A failed home lookup (HOME unset — daemon-ish environments) would make the
+	// candidates RELATIVE (".local/bin"), silently scoping Status/Uninstall/
+	// Refresh scans to the process cwd; keep only absolute candidates (SQ-0122).
 	home, _ := os.UserHomeDir()
-	all := append(filepath.SplitList(os.Getenv("PATH")), InstallDirCandidates(home, os.Getenv("XDG_BIN_HOME"))...)
+	for _, c := range InstallDirCandidates(home, os.Getenv("XDG_BIN_HOME")) {
+		if filepath.IsAbs(c) {
+			all = append(all, c)
+		}
+	}
 	seen := make(map[string]bool, len(all))
 	out := make([]string, 0, len(all))
 	for _, d := range all {
@@ -167,9 +187,14 @@ type UninstallResult struct {
 
 // Uninstall removes the marked launcher(s) while the plugin is still installed
 // (the plugin-gone case is the launcher's own self-removal — spec D4.3/D8). It
-// never removes a side-quest lacking Marker.
+// never removes a side-quest lacking Marker. A failed Remove no longer aborts
+// the sweep (SQ-0122): with several marked launchers, one read-only dir used to
+// stop the loop AND make callers report total failure while Removed launchers
+// were already gone — now every dir is attempted and the errors are aggregated
+// alongside the partial result.
 func Uninstall() (UninstallResult, error) {
 	var res UninstallResult
+	var errs []string
 	for _, dir := range launcherDirs() {
 		for _, name := range []string{"side-quest", "side-quest.cmd"} {
 			p := filepath.Join(dir, name)
@@ -182,10 +207,14 @@ func Uninstall() (UninstallResult, error) {
 				continue
 			}
 			if err := os.Remove(p); err != nil {
-				return res, err
+				errs = append(errs, err.Error())
+				continue
 			}
 			res.Removed = append(res.Removed, p)
 		}
+	}
+	if len(errs) > 0 {
+		return res, fmt.Errorf("some launchers could not be removed: %s", strings.Join(errs, "; "))
 	}
 	return res, nil
 }

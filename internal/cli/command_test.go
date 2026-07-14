@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -36,6 +37,39 @@ func TestInstallCommandWritesWhenAbsent(t *testing.T) {
 	}
 	if string(b) != commands.Sq {
 		t.Error("written content is not the embedded command")
+	}
+}
+
+// TestInstallCommandUnreadableExistingRefuses (SQ-0122): a read failure other
+// than not-exist means the marker cannot be checked — InstallCommand must refuse
+// rather than fall through to the "absent" write path and clobber a file it
+// can't prove is managed (write-only mode: readable denied, writable allowed).
+func TestInstallCommandUnreadableExistingRefuses(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("0200 file modes are not enforceable on Windows")
+	}
+	if os.Getuid() == 0 {
+		t.Skip("root ignores file modes")
+	}
+	repo := gitRepo(t)
+	path := filepath.Join(repo, ".claude", "commands", "sq.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	custom := "my own command, no marker\n"
+	if err := os.WriteFile(path, []byte(custom), 0o200); err != nil { // write-only
+		t.Fatal(err)
+	}
+	if _, err := InstallCommand(repo); err == nil {
+		t.Fatal("unreadable existing sq.md must be an error, not an overwrite")
+	}
+	_ = os.Chmod(path, 0o644)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != custom {
+		t.Fatalf("user's file was clobbered: %q", b)
 	}
 }
 
