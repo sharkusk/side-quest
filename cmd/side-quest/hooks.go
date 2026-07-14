@@ -269,10 +269,13 @@ func addRefspec(g *gitcmd.Git) {
 	unsetConfigValue(g, "remote.origin.push", oldRefspec)
 	// Fetch the remote quest ref into the tracking ref sync merges from.
 	ensureConfigContains(g, "remote.origin.fetch", store.FetchRefspec)
-	// Keep pushing the current branch (a configured push refspec disables
-	// push.default, so we restore current-branch push explicitly). The quest ref
-	// is intentionally NOT pushed here — the pre-push hook publishes it.
-	ensureConfigContains(g, "remote.origin.push", "HEAD")
+	// Deliberately NO push refspec (SQ-0121). Since SQ-0031 nothing here disables
+	// push.default (the pre-push hook publishes the quest ref), so the old
+	// `remote.origin.push=HEAD` compensation had no job left — while actively
+	// OVERRIDING the user's push.default repo-wide (upstream/nothing/simple all
+	// change meaning once any push refspec is configured). A HEAD entry an older
+	// version added is left in place: silently removing config the user can see
+	// (and may have set themselves) is worse — the release notes document it.
 }
 
 // unsetConfigValue removes every occurrence of an exact value from a multi-valued

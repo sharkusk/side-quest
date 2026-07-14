@@ -132,11 +132,11 @@ run:
 # Fetch the remote quest ref into a local tracking ref (never clobbers your
 # live quests — sync merges from it):
 git config --add remote.origin.fetch 'refs/side-quest/quests:refs/side-quest-remote/quests'
-
-# Keep pushing your current branch. Do NOT add a quest push refspec — the
-# side-quest pre-push hook publishes refs/side-quest/quests for you.
-git config --add remote.origin.push HEAD
 ```
+
+Do **not** add any push refspec: your `git push` behavior (governed by
+`push.default`) is untouched, and the side-quest `pre-push` hook publishes
+`refs/side-quest/quests` for you (SQ-0121).
 
 - `git fetch` / `git pull` retrieve quest updates into the tracking ref
   `refs/side-quest-remote/quests` (your normal fetch is unchanged).

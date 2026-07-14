@@ -351,15 +351,17 @@ its own document: **[`docs/sync.md`](sync.md)**. Summary of the moving parts, fo
   list and build its tree from an empty base rather than reading a single parent's tree. `Sync`
   then runs a fetch-merge-push loop, retrying on a lost push race the same way `mutate`'s CAS
   loop retries a lost ref-update race.
-- **Two refspecs, split by direction.** The fetch refspec maps the remote quest ref into a
+- **One refspec, fetch-only.** The fetch refspec maps the remote quest ref into a
   *separate* tracking ref, `refs/side-quest-remote/quests` (`store.FetchRefspec`), rather than
   the naive `refs/side-quest/*:refs/side-quest/*`, which would point fetch directly at the live
-  ref and leave it either stale (on divergence) or silently clobbered (on a fast-forward). The
-  push refspec covers only `HEAD` (which `install-hooks` configures as `remote.origin.push`), so
-  a bare `git push` still sends your branch — the quest ref is published by the `pre-push` hook
-  instead, which can guarantee it's fast-forwardable at push time in a way a static refspec
-  cannot. `install-hooks`/`onboard` configure these refspecs idempotently (`addRefspec` in
-  `cmd/side-quest/hooks.go`).
+  ref and leave it either stale (on divergence) or silently clobbered (on a fast-forward). No
+  push refspec is configured at all (SQ-0121): the quest ref is published by the `pre-push`
+  hook — which can guarantee it's fast-forwardable at push time in a way a static refspec
+  cannot — and your `git push` keeps whatever `push.default` behavior you chose. (Earlier
+  versions added `remote.origin.push=HEAD`, which silently overrode `push.default`; a leftover
+  entry from those versions is left in place — remove it by hand if you never set it yourself:
+  `git config --unset-all remote.origin.push '^HEAD$'`.) `install-hooks`/`onboard` configure
+  the fetch refspec idempotently (`addRefspec` in `cmd/side-quest/hooks.go`).
 - **Local-only mode (`local_only`, default off).** When the config flag is set,
   `Sync` short-circuits at its top and returns `UpToDate` without fetching,
   merging, or pushing — quest data stays private to this clone. The gate lives

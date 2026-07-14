@@ -256,8 +256,9 @@ The guarantee sync makes, stated plainly:
   `refs/side-quest/quests:refs/side-quest/quests`, and a non-fast-forward push is *rejected*
   by the remote and retried against a fresh fetch, not overridden — so the remote's quest
   history only ever grows (via fast-forwards and two-parent merge commits), never rewrites.
-- **The one real-branch touchpoint is unrelated to any of the above:** `install-hooks`
-  configures `remote.origin.push = HEAD`, which is what makes a bare `git push` still send
-  *your* current branch (rather than nothing, once a push refspec exists at all — see
-  SQ-0016). That's git's own push-refspec mechanism, set up once at install time; sync's own
-  code never pushes anything but the quest ref.
+- **Your `git push` semantics are untouched.** `install-hooks` configures no push refspec at
+  all (SQ-0121), so a bare `git push` keeps whatever `push.default` behavior you chose; the
+  quest ref rides along via the `pre-push` hook. (Versions before SQ-0121 set
+  `remote.origin.push = HEAD`, which silently overrode `push.default` — if you find a `HEAD`
+  entry you never added yourself, `git config --unset-all remote.origin.push '^HEAD$'`
+  restores your defaults.)

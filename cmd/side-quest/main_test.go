@@ -579,9 +579,11 @@ func TestInstallHooksPushKeepsBranch(t *testing.T) {
 		t.Errorf("a push refspec still configures the quest ref: %q", out)
 	}
 
-	// Bare push: must land the branch, and the pre-push hook publishes the
-	// quest ref alongside it.
-	if _, err := g.Run("push", "origin"); err != nil {
+	// Push the branch the standard way (SQ-0121: install-hooks no longer
+	// configures any push refspec, so git's normal upstream rules apply — the
+	// first push sets the upstream, exactly as git itself suggests). The
+	// pre-push hook must publish the quest ref alongside it.
+	if _, err := g.Run("push", "-u", "origin", "main"); err != nil {
 		t.Fatalf("push: %v", err)
 	}
 	rg := gitcmd.New(remote)
