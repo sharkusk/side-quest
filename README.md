@@ -116,17 +116,18 @@ checksum-verified):
 Using another MCP-capable agent? Follow
 [Manual setup](docs/manual-setup.md) instead.
 
-**2. Enable the terminal CLI (optional)**: Allows you to manage your quests
-from the command line. Ask your agent to enable it (it runs `cli_install`), or
-[install the binary](docs/install.md) yourself.
-
-**3. Onboard each repo you want to track**: creates the quest ref and installs
+**2. Onboard each repo you want to track**: creates the quest ref and installs
 the git hooks; safe to re-run. Ask your agent to run it, or from the root dir
 of your repo use the side-quest command:
 
 ```
 side-quest onboard
 ```
+
+**3. Enable the terminal CLI (optional)**: Allows you to manage your quests
+from the command line. The first *Onboard* command will prompt to install it.
+Alternatively, you can ask your agent to enable it (it runs `cli_install`), or
+[install the binary](docs/install.md) yourself.
 
 **4. Capture your first quest**:
 
