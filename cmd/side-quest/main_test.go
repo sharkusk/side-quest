@@ -287,6 +287,78 @@ func TestPrepareCommitMsgInjectsCurrent(t *testing.T) {
 	}
 }
 
+// TestPrepareCommitMsgVerboseInjectsAboveScissors (SQ-0120): under `git commit
+// -v` the message file ends with git's scissors line and the staged diff, and
+// everything from the scissors down is discarded at cleanup — so a trailer
+// appended at EOF (the old behavior) was silently deleted. It must be injected
+// ABOVE the comment block, and the diff below must not fool the already-present
+// check.
+func TestPrepareCommitMsgVerboseInjectsAboveScissors(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Create("a task", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetCurrent(q.ID); err != nil {
+		t.Fatal(err)
+	}
+	raw := "a change\n" +
+		"\n" +
+		"# Please enter the commit message.\n" +
+		"# ------------------------ >8 ------------------------\n" +
+		"# Do not modify or remove the line above.\n" +
+		"diff --git a/x b/x\n" +
+		" Quest: SQ-0001\n" // diff context line — must not read as an existing trailer
+	msg := filepath.Join(dir, "MSG")
+	if err := os.WriteFile(msg, []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, code := runBin(t, bin, dir, "prepare-commit-msg", msg); code != 0 {
+		t.Fatalf("prepare exit=%d", code)
+	}
+	out, _ := os.ReadFile(msg)
+	text := string(out)
+	ti := strings.Index(text, "Quest: "+q.ID)
+	ci := strings.Index(text, "#")
+	if ti < 0 {
+		t.Fatalf("trailer not injected despite diff content: %q", text)
+	}
+	if ci >= 0 && ti > ci {
+		t.Fatalf("trailer injected below the comment block (would be stripped): %q", text)
+	}
+	if !strings.Contains(text, "diff --git a/x b/x") {
+		t.Fatalf("diff content mangled: %q", text)
+	}
+}
+
+// TestCommitMsgMergeExempt (SQ-0120): a merge in progress (MERGE_HEAD present)
+// is exempt from require_quest — rejecting would abort a `git pull` mid-merge.
+func TestCommitMsgMergeExempt(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetRequireQuest(true); err != nil {
+		t.Fatal(err)
+	}
+	msg := filepath.Join(dir, "MSG")
+	if err := os.WriteFile(msg, []byte("Merge branch 'feature'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".git", "MERGE_HEAD"),
+		[]byte("0123456789012345678901234567890123456789\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, code := runBin(t, bin, dir, "commit-msg", msg); code != 0 {
+		t.Fatalf("merge commit must be exempt from require_quest, got exit %d: %s", code, out)
+	}
+}
+
 // TestPrepareCommitMsgWriteFailureDoesNotBlock locks in the hook's hard
 // invariant: it must never block a commit. Git aborts the commit if
 // prepare-commit-msg exits non-zero, so even a failure to write the injected

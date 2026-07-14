@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/sharkusk/side-quest/internal/config"
+	"github.com/sharkusk/side-quest/internal/gitcmd"
 	"github.com/sharkusk/side-quest/internal/store"
 	"github.com/sharkusk/side-quest/internal/trailer"
 )
@@ -260,6 +261,13 @@ func cmdCommitMsg(args []string) error {
 	if err != nil {
 		return nil // can't read the message -> don't block the commit
 	}
+	// Merge commits are exempt: `git pull`/`git merge` legitimately produce
+	// commits about no quest, and rejecting one aborts the merge mid-flight with
+	// MERGE_HEAD left behind (SQ-0120). No warning noise either — the user did
+	// not author this message shape.
+	if mergeInProgress() {
+		return nil
+	}
 	tone := config.ToneDCC
 	requireQuest := false
 	if s, err := openStore(); err == nil {
@@ -306,13 +314,56 @@ func cmdPrepareCommitMsg(args []string) error {
 	if refs, none := trailer.Parse(string(raw)); len(refs) > 0 || none {
 		return nil // a trailer is already present — don't double-inject
 	}
-	out := string(raw)
-	if !strings.HasSuffix(out, "\n") {
-		out += "\n"
-	}
-	out += "\nQuest: " + cur + "\n" // blank line before the trailer block
+	out := injectTrailer(string(raw), "Quest: "+cur)
 	if err := os.WriteFile(args[0], []byte(out), 0o644); err != nil {
 		return nil // a write failure must not block the commit
 	}
 	return nil
+}
+
+// injectTrailer places trailerLine into a raw commit-message file ABOVE the
+// first `#` line. Appending at EOF — the old behavior — broke `git commit -v`:
+// there the file ends with git's scissors line plus the staged diff, and
+// everything from the scissors down is discarded at cleanup, silently deleting
+// the trailer (SQ-0120). Above the comment block it survives every cleanup mode.
+// When nothing but comments precedes that point (editor-template case, no -m),
+// the message body is still blank — the trailer is placed after a leading blank
+// line so the user's subject goes on line one, exactly where git leaves it.
+func injectTrailer(raw, trailerLine string) string {
+	lines := strings.Split(raw, "\n")
+	cut := len(lines)
+	for i, ln := range lines {
+		if strings.HasPrefix(ln, "#") {
+			cut = i
+			break
+		}
+	}
+	body := strings.TrimRight(strings.Join(lines[:cut], "\n"), "\n")
+	rest := strings.Join(lines[cut:], "\n")
+	var b strings.Builder
+	if body == "" {
+		// No message yet: keep line 1 free for the subject the user will type.
+		b.WriteString("\n\n" + trailerLine + "\n")
+	} else {
+		b.WriteString(body + "\n\n" + trailerLine + "\n")
+	}
+	if cut < len(lines) {
+		b.WriteString(rest)
+		if !strings.HasSuffix(rest, "\n") {
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
+// mergeInProgress reports whether the repository is mid-merge (MERGE_HEAD
+// exists) — the state in which commit-msg must not enforce require_quest.
+// Best-effort: any doubt reads as "not merging" so enforcement still applies.
+func mergeInProgress() bool {
+	p, err := gitcmd.New(".").Run("rev-parse", "--git-path", "MERGE_HEAD")
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(strings.TrimSpace(p))
+	return err == nil
 }
