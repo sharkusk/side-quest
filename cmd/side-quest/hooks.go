@@ -206,7 +206,10 @@ func installOneHook(path, body, version string) (hookOutcome, string, error) {
 
 	text := string(existing)
 	if i := strings.Index(text, hookMarker); i >= 0 {
-		if j := strings.Index(text, hookEndMarker); j >= 0 {
+		// j >= i: a stray end marker BEFORE the start marker (hand-mangled hook)
+		// would make text[i:end] slice out of order and panic (SQ-0123); treat it
+		// as no valid block and fall through to the foreign-hook path.
+		if j := strings.Index(text, hookEndMarker); j >= i {
 			end := j + len(hookEndMarker)
 			if end < len(text) && text[end] == '\n' {
 				end++

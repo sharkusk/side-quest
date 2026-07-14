@@ -73,7 +73,9 @@ func installAgentsGuidance(path, version string) (blockOutcome, string, error) {
 
 	text := string(existing)
 	if i := strings.Index(text, agentsMarker); i >= 0 {
-		if j := strings.Index(text, agentsEndMarker); j >= 0 {
+		// j >= i guards against a stray end marker before the start marker,
+		// which would panic on the out-of-order slice (SQ-0123).
+		if j := strings.Index(text, agentsEndMarker); j >= i {
 			end := j + len(agentsEndMarker)
 			if end < len(text) && text[end] == '\n' {
 				end++
@@ -151,8 +153,11 @@ func cmdOnboard(args []string) error {
 	fs.BoolVar(&withAgents, "agents-md", false, "also merge the side-quest guidance block into the project's AGENTS.md")
 	setUsage(fs, "usage: side-quest onboard [--agents-md]\nper-repo setup: create the quest ref, install hooks, write .mcp.json (add --agents-md to also merge AGENTS.md guidance)")
 	rest, err := parseInterspersed(fs, args)
+	if helpRequested(err) {
+		return nil // -h prints usage and exits 0, like every other command (SQ-0123)
+	}
 	if err != nil {
-		return err
+		return &usageErr{err.Error()}
 	}
 	if len(rest) != 0 {
 		return &usageErr{"onboard takes no positional arguments"}

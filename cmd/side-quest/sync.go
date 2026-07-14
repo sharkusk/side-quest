@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
@@ -11,7 +10,10 @@ import (
 // cmdSync reconciles this clone's quest ref with a remote: fetch into the tracking
 // ref, three-way merge, push. --dry-run reports the plan without writing/pushing.
 func cmdSync(args []string) error {
-	fs := flag.NewFlagSet("sync", flag.ContinueOnError)
+	// newFlagSet discards the flag package's own error printing, so a bad flag
+	// reports once via usageErr (exit 2) instead of twice with exit 1 — matching
+	// every other subcommand (SQ-0123).
+	fs := newFlagSet("sync")
 	dry := fs.Bool("dry-run", false, "show what would merge/push without writing anything")
 	remote := fs.String("remote", "", "remote to sync with (default: origin, or the sole remote)")
 	setUsage(fs, "sync [--dry-run] [--remote <name>]")
@@ -19,7 +21,7 @@ func cmdSync(args []string) error {
 		if helpRequested(err) {
 			return nil
 		}
-		return err
+		return &usageErr{err.Error()}
 	}
 	s, err := openStore()
 	if err != nil {

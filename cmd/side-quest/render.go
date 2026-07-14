@@ -11,6 +11,7 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/term"
 
@@ -103,7 +104,9 @@ func listTitleColumn(quests []*quest.Quest, showTags []string) int {
 	}
 	for _, q := range quests {
 		for i, cell := range listLeadingCells(q, showTags) {
-			if n := len(cell); n > widths[i] {
+			// Rune count, matching tabwriter's own cell measurement (it counts
+			// runes too), so non-ASCII tag values don't skew the column (SQ-0123).
+			if n := utf8.RuneCountInString(cell); n > widths[i] {
 				widths[i] = n
 			}
 		}
@@ -260,7 +263,12 @@ func wrapText(text string, width int) []string {
 	var lines []string
 	cur := words[0]
 	for _, w := range words[1:] {
-		if len(cur)+1+len(w) <= width {
+		// Measure in runes, not bytes: byte length over-counts every non-ASCII
+		// character (é is 2 bytes, я is 2, 中 is 3) and wrapped such titles far
+		// too early (SQ-0123). Rune count is still approximate for double-width
+		// CJK glyphs (2 columns each), an accepted limitation — exact display
+		// width needs a Unicode width table (a dependency) for a cosmetic gain.
+		if utf8.RuneCountInString(cur)+1+utf8.RuneCountInString(w) <= width {
 			cur += " " + w
 		} else {
 			lines = append(lines, cur)

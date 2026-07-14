@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/sharkusk/side-quest/internal/capture"
@@ -214,9 +215,14 @@ func cmdList(args []string) error {
 	fs.BoolVar(&asJSON, "json", false, "emit the matching quests as JSON")
 	fs.BoolVar(&noWrap, "no-wrap", false, "print raw titles without word-wrapping")
 	setUsage(fs, "usage: side-quest list [flags]\nlist quests; simple filters combine with AND, or use --filter for a boolean expression")
-	_, err := parseInterspersed(fs, args)
+	rest, err := parseInterspersed(fs, args)
 	if helpRequested(err) {
 		return nil
+	}
+	if err == nil && len(rest) != 0 {
+		// `list done` silently showed the DEFAULT view — the user believed they
+		// were looking at the done set (SQ-0123). Reject with a pointer instead.
+		return &usageErr{fmt.Sprintf("list takes no positional arguments — did you mean --status %s or --filter %q?", rest[0], rest[0])}
 	}
 	if err != nil {
 		return &usageErr{err.Error()}
@@ -416,23 +422,34 @@ func cmdReclassify(args []string) error {
 	return s.Reclassify(id, quest.Type(typ), quest.Priority(prio))
 }
 
-// editorArgv resolves the editor to launch, honoring VISUAL then EDITOR (the
-// long-standing Unix convention) and falling back to vi. The value may carry
-// arguments (e.g. `code --wait`), split on spaces like git does.
-func editorArgv() []string {
+// editorValue resolves the editor command line, honoring VISUAL then EDITOR
+// (the long-standing Unix convention) and falling back to vi.
+func editorValue() string {
 	for _, env := range []string{"VISUAL", "EDITOR"} {
 		if v := strings.TrimSpace(os.Getenv(env)); v != "" {
-			return strings.Fields(v)
+			return v
 		}
 	}
-	return []string{"vi"}
+	return "vi"
 }
 
 // runEditor opens path in the resolved editor with the terminal attached, so an
-// interactive editor (vi, nano) works normally.
+// interactive editor (vi, nano) works normally. On POSIX the value runs through
+// `sh -c`, exactly like git runs $EDITOR — so a program path containing spaces
+// (`EDITOR="/Applications/Visual Studio Code.app/.../code --wait"`) or quoting
+// works here whenever it works for `git commit` (SQ-0123). Windows has no sh;
+// there the value is split on spaces as before.
 func runEditor(path string) error {
-	argv := append(editorArgv(), path)
-	cmd := exec.Command(argv[0], argv[1:]...)
+	ed := editorValue()
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		argv := append(strings.Fields(ed), path)
+		cmd = exec.Command(argv[0], argv[1:]...)
+	} else {
+		// `sh -c 'ed "$@"' ed <path>`: $0 is the editor string (for error
+		// messages), $1 the file — git's own invocation shape.
+		cmd = exec.Command("sh", "-c", ed+` "$@"`, ed, path)
+	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
 }
@@ -472,14 +489,19 @@ func cmdEdit(args []string) error {
 	}
 
 	if err := runEditor(tmp); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("editor: %w", err)
+		// KEEP the temp file: an editor can exit non-zero after a successful
+		// save (a crash after :w, a flaky `code --wait`), and deleting it here
+		// would destroy a long hand-edit (SQ-0123).
+		return fmt.Errorf("editor: %w (if you saved, your edits are kept at %s)", err, tmp)
 	}
 	edited, err := os.ReadFile(tmp)
 	if err != nil {
-		os.Remove(tmp)
-		return err
+		return fmt.Errorf("%w (your edits, if saved, are kept at %s)", err, tmp)
 	}
+	// A CRLF-saving editor (common on Windows) must not break the round-trip:
+	// the frontmatter fences are matched on "\n", so normalize line endings
+	// before comparing/parsing (SQ-0123).
+	edited = bytes.ReplaceAll(edited, []byte("\r\n"), []byte("\n"))
 	if bytes.Equal(edited, orig) {
 		os.Remove(tmp)
 		fmt.Println("no changes")
@@ -518,9 +540,12 @@ func cmdConfigGet(args []string) error {
 	var asJSON bool
 	fs.BoolVar(&asJSON, "json", false, "emit the configuration as JSON")
 	setUsage(fs, "usage: side-quest config get [flags]\nshow the effective on-ref configuration")
-	_, err := parseInterspersed(fs, args)
+	rest, err := parseInterspersed(fs, args)
 	if helpRequested(err) {
 		return nil
+	}
+	if err == nil && len(rest) != 0 {
+		return &usageErr{"config get takes no positional arguments (did you mean `config set " + rest[0] + " ...`?)"}
 	}
 	if err != nil {
 		return &usageErr{err.Error()}
