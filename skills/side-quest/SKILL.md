@@ -5,10 +5,10 @@ description: Use when a new, unrelated idea, follow-up, bug, or TODO surfaces wh
 
 # Using side-quest
 
-side-quest is a git-backed quest tracker. Its MCP server exposes ten tools for
-capturing, tracking, and closing quests. This skill is about *when* to reach for
-them — most importantly, the reflex to capture a stray idea without derailing your
-current work.
+side-quest is a git-backed quest tracker. Its MCP server exposes tools for
+capturing, tracking, and closing quests (plus a few lifecycle helpers). This skill
+is about *when* to reach for them — most importantly, the reflex to capture a
+stray idea without derailing your current work.
 
 ## Core
 
@@ -84,20 +84,25 @@ message yourself. This is the default: it is always intentional, and nothing is
 sticky, so no unrelated commit can ever be attributed by accident.
 
 - `Quest: SQ-xxxx` — this commit did work on the quest (links it; does not close).
+- `Confirm: SQ-xxxx` — this commit finishes the work but the user should confirm
+  it (links **and** parks the quest in `confirm` for their sign-off).
 - `Completes: SQ-xxxx` — this commit finishes the quest (links **and** closes it).
 - `Quest: none` — a genuine chore, deliberately linked to nothing.
 
 Multiple commits per quest is normal: each in-progress commit carries
-`Quest: SQ-xxxx`; the final one carries `Completes: SQ-xxxx`.
+`Quest: SQ-xxxx`; the final one carries `Completes: SQ-xxxx` (or
+`Confirm: SQ-xxxx` when the user should judge it first).
 
-## The current quest (optional convenience)
+## The current quest
 
 `quest_set_current` points the worktree at a quest so that commits **without an
-explicit trailer** auto-link to it (when auto-trailer is on, the default). You author your own commit messages, so you
-usually don't need it — prefer explicit trailers. Reach for it only to tee up a
-*human's* (or a non-message-authoring agent's) upcoming commits.
+explicit trailer** auto-link to it (when auto-trailer is on, the default). Per the
+core guidance: work one at a time and make the quest you're on current, so the
+hooks attribute your commits without you touching hashes. An explicit trailer in
+a commit message always takes precedence over the pointer, so writing
+`Completes:`/`Confirm:` yourself composes fine with it.
 
-If you do use it: it is **sticky** until you change it. Clear it
+It is **sticky** until you change it. Clear it
 (`quest_set_current { "clear": true }`) or switch it the moment focus changes, and
 use `Quest: none` on any one-off unrelated commit made while it's set. Use
 `quest_get_current` to see what the worktree currently points at.
@@ -106,17 +111,17 @@ use `Quest: none` on any one-off unrelated commit made while it's set. Use
 worktree's git dir, never on the ref), so a fresh `git worktree` or clone doesn't
 inherit the main tree's current quest — `quest_get_current` returns empty until
 you set one there. The quests themselves are shared across worktrees (they live on
-the ref); only this pointer is local. Since you author trailers explicitly, this
-costs you nothing — but if you were leaning on auto-linking, re-run
-`quest_set_current` after switching into the worktree.
+the ref); only this pointer is local. Re-run `quest_set_current` after switching
+into the worktree (or write explicit trailers, which need no pointer).
 
 ## Closing a quest
 
 - **Preferred:** put `Completes: SQ-xxxx` in the finishing commit — one move links
   the commit and closes the quest.
 - **Fallback — `quest_set_status`** — when there's no commit to carry a trailer:
-  `done` (finished, uncommitted), `discarded` (rejected idea), `deferred`
-  (postponed), or `partial` (advanced but not done).
+  `done` (finished, uncommitted), `confirm` (finished, awaiting the user's
+  sign-off), `discarded` (rejected idea), `deferred` (postponed), or `partial`
+  (advanced but not done).
 - **After closing, clear the current quest** if it pointed there
   (`quest_set_current { "clear": true }`) or switch it to the next one — otherwise a
   later commit auto-links to the quest you just finished.
@@ -127,8 +132,8 @@ Allowed values (these are the complete sets):
 
 - `type`: `bug` | `feature` — defaults to `feature`.
 - `priority`: `high` | `low` — defaults to `low`.
-- `status`: `open` | `partial` | `done` | `deferred` | `discarded` — new quests
-  start `open`.
+- `status`: `open` | `partial` | `confirm` | `done` | `deferred` | `discarded` —
+  new quests start `open`.
 
 Set `type`/`priority` at capture when you know them; otherwise reclassify later with
 `quest_reclassify { id, type?, priority? }` (supply at least one). Append findings
@@ -136,17 +141,18 @@ you learn with `quest_note { id, text }`. Edit the title with
 `quest_update { id, title? }`.
 
 **Tags** are free-form `key → value` pairs, not a fixed set. `quest_update`'s `tags`
-**merges** into the existing tags (an empty value deletes a key). Tags are **not
-searchable** — `quest_list` filters by `status`/`type`/`priority` only; a quest's
-tags show in its details (`quest_show`) but you can't query by them. So treat a tag
-as a note-to-self on one quest, reach for `type`/`priority` first, and use tags
-sparingly.
+**merges** into the existing tags (an empty value deletes a key). Tags **are
+queryable**: `quest_list`'s `tags` filter matches quests carrying every given
+key=value pair (AND), which makes a shared tag a good way to group work — e.g.
+tagging a release's scope. Reach for `type`/`priority` first for the built-in
+dimensions, and tags for everything else.
 
 ## Reviewing quests
 
-`quest_list { status?, type?, priority? }` — filters combine with AND; an unknown
-filter value returns a tool error. `quest_show { id }` — the full quest, including
-its tags, notes, and linked commits.
+`quest_list { status?, type?, priority?, tags? }` — filters combine with AND; an
+unknown filter value returns a tool error. `quest_show { id }` — the full quest,
+including its tags, notes, and linked commits. `quest_history { id }` — the
+quest's change log (who changed what, when), for historical questions.
 
 ## Intent → tool
 
@@ -159,10 +165,11 @@ its tags, notes, and linked commits.
 | Mark a status directly (no commit) | `quest_set_status` |
 | Close via a commit | `Completes: SQ-xxxx` trailer |
 | Link a commit without closing | `Quest: SQ-xxxx` trailer |
-| Tee up a human's commits | `quest_set_current` |
+| Make the quest you're working on current (hooks link your commits) | `quest_set_current` |
 | See the current quest | `quest_get_current` |
 | Browse / filter quests | `quest_list` |
 | Read one quest fully | `quest_show` |
+| Ask when/who/what changed a quest | `quest_history` |
 | Apply a commit's trailers after the fact | `quest_link_commit` |
 
 ## This skill does not
@@ -170,7 +177,9 @@ its tags, notes, and linked commits.
 - **Change configuration** (`require_quest`, `auto_trailer`, `id_strategy`, `tone`)
   — those are the project owner's decisions; no tool exposes them.
 - **Start captured work.** Capturing a quest is not permission to begin it.
-- **Apply any voice/tone.** Tool responses are neutral JSON by design.
+- **Suppress the tracker's voice.** A mutation's first content block is neutral
+  JSON, but a second, tone-flavored line may ride beside it — relay that line to
+  the user verbatim (see the core guidance's "Relay the flavor").
 
 ## Plugin lifecycle (Claude Code)
 

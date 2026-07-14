@@ -23,8 +23,8 @@ Setup
 
 Quests
   new [--type --priority --context --tag k=v --current --json] <title>
-  list [--status --type --priority --json]   list quests (filters combine)
-  show <id> [--history] [--json]  show one quest (--history adds its change log)
+  list [--status --type --priority --tag --all --filter --show-tag --json]
+  show <id> [--full --history --json] show one quest (--history adds its change log)
   status <id> <status>            set a quest's status
   note <id> <text>                append a note to a quest
   edit <id>                       open a quest in $EDITOR and write it back
@@ -53,7 +53,7 @@ Advanced
 values:
   type      bug|feature (default feature)
   priority  high|low (default low)
-  status    open|partial|done|deferred|discarded (new quests start open)`
+  status    open|partial|confirm|done|deferred|discarded (new quests start open)`
 
 // version is overwritten at release build time via -ldflags "-X main.version=<tag>".
 // A plain `go build` / `go install` leaves it as "dev".

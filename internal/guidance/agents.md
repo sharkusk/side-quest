@@ -55,34 +55,36 @@ Commits link to quests through message trailers, read by a `post-commit` hook:
 
 - `Quest: SQ-0001` — link this commit to SQ-0001 (advances an open quest to
   partial; never closes it).
+- `Confirm: SQ-0001` — link it and park SQ-0001 in `confirm` for the user's
+  sign-off (finished work the user should judge).
 - `Completes: SQ-0001` — link it and mark SQ-0001 done.
 - `Quest: none` — an explicit opt-out for a genuine chore.
 
-Prefer explicit, per-commit trailers over implicit state — nothing is sticky, so
-unrelated commits are never mis-attributed.
+An explicit trailer in the message always wins over the current-quest pointer,
+so the two compose: the pointer covers routine commits, a trailer states intent
+precisely (close, confirm, opt out).
 
 ## The current quest
 
 Each worktree can have one "current" quest (`quest_set_current`). When
 `auto_trailer` is on (the default), the `prepare-commit-msg` hook injects that
-quest's `Quest:` trailer automatically. Setting a current quest is optional and
-mainly useful when teeing up a human's commits; agents should prefer writing the
-trailer explicitly. If you do set one, clear it (`quest_set_current { "clear": true }`)
-or switch it once that quest is done, so a later commit doesn't auto-link to a
-finished quest.
+quest's `Quest:` trailer automatically. Per the core guidance, work one at a
+time and make the quest you're on current, so the hooks attribute your commits.
+Clear it (`quest_set_current { "clear": true }`) or switch it once that quest is
+done, so a later commit doesn't auto-link to a finished quest; use `Quest: none`
+on a one-off unrelated commit made while it's set.
 
 **Worktrees start with no current quest.** The pointer is worktree-local — it
 lives in that worktree's git dir, not on the ref — so a new `git worktree` (or a
 fresh clone) does *not* inherit the main tree's current quest. The quest data
 itself is shared (it rides the ref, so every worktree sees the same quests), but
-the "current" pointer does not travel. If you move into a worktree and rely on
-auto-linking, re-run `quest_set_current` there; otherwise commits won't
-auto-link until you do. As an agent, the robust habit is to write the `Quest:`/
-`Completes:` trailer explicitly, which works identically in every worktree with
-no pointer to set.
+the "current" pointer does not travel. When you move into a worktree, re-run
+`quest_set_current` there (or write the `Quest:`/`Confirm:`/`Completes:` trailer
+explicitly — a trailer works identically in every worktree with no pointer to
+set).
 
 ## Triage values
 
 `type` is `bug` or `feature` (default `feature`); `priority` is `high` or `low`
-(default `low`); `status` is `open`, `partial`, `done`, `deferred`, or
-`discarded` (new quests start `open`). Tags are free-form annotations.
+(default `low`); `status` is `open`, `partial`, `confirm`, `done`, `deferred`,
+or `discarded` (new quests start `open`). Tags are free-form annotations.

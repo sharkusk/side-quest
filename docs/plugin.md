@@ -60,8 +60,11 @@ equally good ways to do it; pick either:
   `~/go/bin` that is already on your `PATH` (falling back to `~/.local/bin`, with a
   note to add it). The launcher only resolves and runs the binary the plugin
   already provisioned — **nothing is downloaded** — and it self-heals across plugin
-  updates. To remove it later, ask the agent to run `cli_uninstall`, or run
-  `side-quest uninstall-cli` yourself.
+  updates. It also drops a project-level `/sq` command into the repo's
+  `.claude/commands/`, so you get the bare `/sq` alongside the plugin's namespaced
+  `/side-quest:sq` (SQ-0107/0108; marker-managed — your own edits to it are left
+  alone). To remove the launcher later, ask the agent to run `cli_uninstall`, or
+  run `side-quest uninstall-cli` yourself.
 
 - **Install the binary yourself.** Follow [installation](install.md) to put
   `side-quest` on your `PATH` the usual way — a prebuilt binary, `go install`, or a

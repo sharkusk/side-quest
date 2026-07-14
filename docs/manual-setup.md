@@ -23,7 +23,7 @@ default — add `--agents-md` to also merge the guidance block in place (see
 ```
 side-quest init            # create the quest ref
 side-quest install-hooks   # install git hooks + the refs/side-quest/quests fetch refspec
-side-quest sync            # syncronizes quests from remote repository
+side-quest sync            # pull+push sync (onboard's own built-in sync is pull-only)
 ```
 
 `init` creates the orphan ref (`refs/side-quest/quests`) that stores quests, off
@@ -92,7 +92,8 @@ start.
 The server exposes quest tools — `quest_new`, `quest_list`, `quest_show`,
 `quest_update`, `quest_note`, `quest_set_status`, `quest_reclassify`,
 `quest_set_current`, `quest_get_current`, `quest_link_commit`,
-`quest_relink_commit`, `quest_unlink_commit` — plus CLI-lifecycle tools
+`quest_relink_commit`, `quest_unlink_commit`, `quest_history` (a quest's change
+log), `server_info` (the running build's version) — plus CLI-lifecycle tools
 `cli_status`, `cli_install`, `cli_uninstall`, `cli_dismiss` that manage the
 terminal `side-quest` launcher (their main use is under the
 [Claude Code plugin](plugin.md#run-side-quest-from-your-own-terminal)). Responses

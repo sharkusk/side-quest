@@ -33,8 +33,8 @@ tags:
 Working through an agent, just ask it to tag the quest — it calls `quest_update`
 and you never touch the file.
 
-**See what's still outstanding for the release.** A bare `list` shows only open
-and partial quests, so filtering by the tag gives you exactly the unfinished
+**See what's still outstanding for the release.** A bare `list` shows only outstanding quests
+(open, partial, and confirm), so filtering by the tag gives you exactly the unfinished
 launch work — your burn-down:
 
 ```

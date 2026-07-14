@@ -240,7 +240,7 @@ func TestUsageListsEnumValues(t *testing.T) {
 	for _, want := range []string{
 		"bug|feature",
 		"high|low",
-		"open|partial|done|deferred|discarded",
+		"open|partial|confirm|done|deferred|discarded",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("usage missing enum values %q\n%s", want, out)

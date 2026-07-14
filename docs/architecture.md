@@ -240,12 +240,14 @@ collapses duplicate env keys keeping the last value, so the store's scratch
 
 **Where the shims land, and composing with existing hooks:** install-hooks
 honors `core.hooksPath` when set, otherwise writes to `<common-git-dir>/hooks`.
-Each shim calls the installing binary by absolute path, normalized to forward
-slashes so it runs under Git-for-Windows' MSYS sh (a `C:\…` path would break;
-`C:/…` works — SQ-0021). That path fix was unit-tested on Unix only until the
-`ci` workflow added a `windows-latest` job that runs the end-to-end hook test
-under real Git-for-Windows MSYS sh, verifying the extensionless shims actually
-execute and invoke the `.exe` (SQ-0034). Each shim is a marker-guarded block
+Each shim is **PATH-relative** (SQ-0058): it runs `command -v side-quest` and
+skips cleanly when the binary isn't found, so no path is baked in, the installed
+block is byte-identical across machines, and upgrading or moving the binary
+never strands a shim (earlier versions embedded the installing binary's absolute
+path and went stale when it moved). The shims run under Git-for-Windows' MSYS sh
+too — the `ci` workflow's `windows-latest` job runs the end-to-end hook test
+under real MSYS sh, verifying the extensionless shims actually execute and
+invoke the `.exe` (SQ-0034). Each shim is a marker-guarded block
 (`# >>> side-quest >>>` … `# <<< side-quest <<<`): installing into an existing
 hook **appends** our block and leaves the rest intact, and re-installing replaces
 only our block
@@ -253,9 +255,9 @@ only our block
 (`# side-quest-version: <v>`, the installing binary's `main.version`) between the
 markers — the markers themselves stay version-free so a block written by any
 version is still matched and replaced (SQ-0045). Because the shims are thin
-delegators, upgrading the binary in place upgrades behavior with no hook change;
-but when the binary **moves** (a new path) or the shim format itself changes
-between versions, the shims go stale until you re-run `install-hooks`. Re-running
+PATH-relative delegators, upgrading or moving the binary changes nothing in the
+hooks; only when the shim format itself changes between versions do they go
+stale until you re-run `install-hooks`. Re-running
 is safe and now reports what it did per hook: a byte-identical block is a true
 no-op, while a refreshed block prints the version transition (`v0.1.0 → v0.2.0`,
 or "predated version stamping"), so an upgrader can see the stale shims were
@@ -325,9 +327,10 @@ The flip side of worktree-locality is a workflow wrinkle: a **new worktree (or
 clone) starts with no current quest** — the pointer isn't inherited, because it
 lives in the per-worktree git dir, not on the shared ref. Quests are all visible
 there (they ride the ref), but auto-linking is off until `quest_set_current` is
-run *in that worktree*. Agent guidance (`agents.md`, `SKILL.md`) tells agents to
-prefer explicit `Quest:`/`Completes:` trailers, which sidestep the pointer
-entirely and behave identically in every worktree.
+run *in that worktree*. The agent guidance (core brief, `agents.md`, `SKILL.md`)
+has agents set the quest they're working on current so the hooks attribute
+commits; an explicit `Quest:`/`Confirm:`/`Completes:` trailer always overrides
+the pointer and behaves identically in every worktree.
 
 ## Sync
 
@@ -442,7 +445,7 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   same-named files but touches nothing else, so re-export is idempotent
   (`cmd/side-quest/export.go`, SQ-0101).
 - `config get` / `config set <key> <value>` — read config; set `require_quest`,
-  `auto_trailer`, `local_only`, or `id_strategy`.
+  `auto_trailer`, `local_only`, `tone`, or `id_strategy`.
 - `onboard` — one-shot per-repo setup: `init` + `install-hooks`, and — unless the
   Claude Code plugin is active (`CLAUDE_PLUGIN_DATA` set, or the binary runs from
   under `~/.claude/plugins/`) — write a project `.mcp.json` if absent; when the
@@ -534,7 +537,7 @@ version and its parent's) are read in one `cat-file --batch`. Surfaced by the CL
 `side-quest serve` runs a stdio MCP server (JSON-RPC over stdin/stdout) built on
 `github.com/modelcontextprotocol/go-sdk`. `cmd/side-quest/serve.go` is a thin
 frontend: it opens the store for the cwd and hands it to `internal/mcp.NewServer`,
-which registers fourteen tools:
+which registers eighteen tools:
 
 - `quest_new`, `quest_list`, `quest_show`, `quest_history`, `quest_get_current` (capture/read)
 - `quest_set_status`, `quest_reclassify`, `quest_update`, `quest_note`,
@@ -543,6 +546,9 @@ which registers fourteen tools:
 - `server_info` — reports the running server's build version, so an agent can verify
   the server is current after a plugin update (the running process keeps the old
   binary until restarted); the MCP-advertised version tracks `side-quest version`.
+- `cli_status`, `cli_install`, `cli_uninstall`, `cli_dismiss` — the terminal-CLI
+  lifecycle tools (see [Packaging](#packaging--distribution-phase-7) for the
+  launcher mechanics and the one-time enable offer).
 
 Each handler decodes typed params (the SDK infers each tool's JSON-Schema from a
 Go struct), calls one store method, and returns neutral JSON of the
@@ -552,7 +558,7 @@ ahead of the store: `quest_list` validates its filter values, and the closed
 string domains (status/type/priority) are declared as JSON-Schema **enums** on
 the relevant tools (via `enumSchema`), so a client's bad value is rejected at the
 boundary before it reaches a handler. `quest_new` auto-records mechanical
-context (branch/HEAD/cwd/current-quest, via `internal/capture.Mechanical`) ahead
+context (branch/HEAD/cwd/current-quest, via `internal/capture.Body`) ahead
 of the agent's narrative note, and only moves the current-quest pointer when
 `set_current:true`. stdout carries only JSON-RPC; diagnostics go to stderr.
 
@@ -587,7 +593,7 @@ to the body), `SetTitle`, and `MergeTags` (empty value deletes a key) — live i
 | `internal/quest` | The `Quest` model + Markdown/YAML-frontmatter (de)serialization; id = filename | pure |
 | `internal/config` | On-ref `_config.yaml` model; `Unmarshal` fills missing keys from `Default()` | pure |
 | `internal/store` | Orphan-ref CRUD + the `mutate`/`buildCommit`/`cas` machinery + id allocation | git plumbing |
-| `internal/trailer` | Parse Quest:/Completes: trailers + the commit-msg decision | pure |
+| `internal/trailer` | Parse Quest:/Confirm:/Completes: trailers + the commit-msg decision | pure |
 
 **CRUD** — Create, Read, Update, Delete — the basic persistence operations. Today the store
 implements Create (`Create`), Read (`Get`/`List`), and Update (`SetStatus`/`SetType`/

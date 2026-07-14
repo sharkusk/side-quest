@@ -153,7 +153,7 @@ CLI command:
 
 ```
 side-quest new "Fix the flaky parser test" --type bug --priority high
-side-quest list                    # outstanding work: open + partial quests
+side-quest list                    # outstanding: open, partial + confirm quests
 side-quest list --all              # every status, including done/deferred/discarded
 side-quest list --filter "bug and not (done or deferred)"
 side-quest show SQ-0001
@@ -285,8 +285,10 @@ working offline). To wire the refspec by hand instead of via `onboard`, see
   end-user reference (`side-quest serve`, resolved on `PATH`), so the MCP server
   runs whatever `side-quest` is installed — not your working tree. To point it and
   the git hooks at HEAD, run `make dev`: it `go install`s HEAD to your `GOBIN`
-  (the binary both resolve to), re-points the hook shims at it, and links the
-  plugin's `/sq` command into `.claude/commands/`. Re-run `make dev` (or just
+  (the binary both resolve to), refreshes the hook shims, and links the
+  plugin's `/sq` command into `.claude/commands/`. (The shims are PATH-relative —
+  they run whatever `side-quest` is first on `PATH` — so installing to `GOBIN` is
+  what points them at HEAD.) Re-run `make dev` (or just
   `make install`) after code changes, then **restart the MCP server** so it
   reloads the new binary. There's no separate MCP artifact to update — `serve`
   *is* the binary. `make` builds self-stamp the version from `git describe`, so
@@ -295,15 +297,15 @@ working offline). To wire the refspec by hand instead of via `onboard`, see
   your cue you skipped the restart.
 - **Dogfooding your dev build on another repo:** `make install` puts HEAD on your
   `PATH` (via `GOBIN`), and `PATH` is global — so a dev build is available in any
-  repo. In the *other* repo, once: run `~/go/bin/side-quest onboard` (use the
-  `GOBIN` binary explicitly so the hook shims bake in that stable path, which
-  `make install` keeps refreshing). That creates the quest ref, installs hooks,
+  repo. In the *other* repo, once: run `side-quest onboard` (any copy works —
+  the hook shims are PATH-relative, so they always run whatever `side-quest` is
+  first on `PATH`, which `make install` keeps current). That creates the quest ref, installs hooks,
   writes `.mcp.json`, and merges the guidance into that repo's `AGENTS.md` as a
   marker-wrapped block it can later refresh in place; add `/sq` by
   installing the plugin globally or symlinking `commands/sq.md` into that repo's
   `.claude/commands/`. Steady state: edit side-quest → `make install` here →
-  **restart the MCP server** there (hooks need no re-install — they point at
-  `GOBIN/side-quest`). Prefer a scratch `git init` repo over a live project for a
+  **restart the MCP server** there (hooks need no re-install — they resolve
+  `side-quest` from `PATH` at run time). Prefer a scratch `git init` repo over a live project for a
   work-in-progress build: side-quest only ever writes `refs/side-quest/*` and
   `.git/hooks` (never your branches/index/worktree), so your code is safe, but a
   buggy build could still corrupt *quest* data.
