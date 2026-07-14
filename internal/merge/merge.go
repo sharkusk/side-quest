@@ -116,8 +116,14 @@ func Merge(base, local, remote Side) (Result, []Event) {
 	sort.SliceStable(pendingLosers, func(i, j int) bool {
 		return bytes.Compare(canonical(pendingLosers[i]), canonical(pendingLosers[j])) < 0
 	})
+	// The merged config must be decided BEFORE collision renames so the rename
+	// prefix is side-independent: using the pre-merge local prefix would let two
+	// clones merging the same divergence mint different loser ids when one side
+	// had (unsynced) changed id_prefix, breaking the package's determinism
+	// guarantee.
+	res.Config = mergeConfig(base.Config, local.Config, remote.Config, local.ConfigTouch, remote.ConfigTouch)
 	for _, lose := range pendingLosers {
-		newID := collisionID(local.Config.IDPrefix, lose, taken)
+		newID := collisionID(res.Config.IDPrefix, lose, taken)
 		taken[newID] = true
 		old := lose.ID
 		reassigned := *lose // copy; do not mutate the input Side's quest
@@ -127,7 +133,6 @@ func Merge(base, local, remote Side) (Result, []Event) {
 		events = append(events, Event{Kind: Renamed, ID: newID,
 			Detail: "renamed from " + old + " (id collision)"})
 	}
-	res.Config = mergeConfig(base.Config, local.Config, remote.Config, local.ConfigTouch, remote.ConfigTouch)
 	return res, events
 }
 
@@ -235,25 +240,51 @@ func earliest(qs ...*quest.Quest) time.Time {
 	return out
 }
 
-// unionCommits merges commit lists preserving base order, then appends shas new
-// to either side (deduped, deterministic order: local's new before remote's).
+// unionCommits merges commit lists element-wise three-way: a base sha survives
+// only while BOTH sides still carry it — a side that dropped it (unlink, or a
+// relink after a rebase) made a deliberate removal, and re-seeding from base
+// would silently resurrect it on the next conflicting sync. Shas new to either
+// side are appended. Deterministic order: base survivors in base order, then
+// local's additions, then remote's (deduped).
 func unionCommits(b, l, r *quest.Quest) []string {
+	has := func(q *quest.Quest, sha string) bool {
+		if q == nil {
+			return false
+		}
+		for _, c := range q.Commits {
+			if c == sha {
+				return true
+			}
+		}
+		return false
+	}
 	seen := map[string]bool{}
 	out := []string{}
-	add := func(q *quest.Quest) {
+	keep := func(sha string) {
+		if !seen[sha] {
+			seen[sha] = true
+			out = append(out, sha)
+		}
+	}
+	if b != nil {
+		for _, sha := range b.Commits {
+			if has(l, sha) && has(r, sha) {
+				keep(sha)
+			}
+		}
+	}
+	addNew := func(q *quest.Quest) {
 		if q == nil {
 			return
 		}
 		for _, sha := range q.Commits {
-			if !seen[sha] {
-				seen[sha] = true
-				out = append(out, sha)
+			if !has(b, sha) {
+				keep(sha)
 			}
 		}
 	}
-	add(b)
-	add(l)
-	add(r)
+	addNew(l)
+	addNew(r)
 	return out
 }
 
