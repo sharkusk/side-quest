@@ -292,3 +292,46 @@ func TestWrapText(t *testing.T) {
 		})
 	}
 }
+
+// A context carrying embedded newlines — what `side-quest new` writes, since it
+// captures a branch/head/cwd block ahead of the user's note — must keep those
+// line breaks. Before SQ-0127 the whole value went to wrapText, whose
+// strings.Fields+space-rejoin flattened them, running the block together as
+// "branch: main head: abc1234 cwd: /tmp". Checked at a terminal width and at
+// width 0 (piped / --no-wrap), which take different paths through wrapText.
+func TestRenderShowKeepsNewlinesInContext(t *testing.T) {
+	const multiline = "branch: main\nhead: a1a8a36\ncwd: /tmp/x\n\nwhy it came up"
+	for _, width := range []int{80, 0} {
+		q := &quest.Quest{
+			ID:       "SQ-0001",
+			Title:    "T",
+			Status:   quest.StatusOpen,
+			Type:     quest.TypeFeature,
+			Priority: quest.PriorityLow,
+			Created:  time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC),
+			Context:  multiline,
+		}
+		var b bytes.Buffer
+		renderShow(&b, q, width, nil)
+		out := b.String()
+
+		// The env fields must not run together onto one line.
+		for _, joined := range []string{"branch: main head:", "head: a1a8a36 cwd:"} {
+			if strings.Contains(out, joined) {
+				t.Errorf("width %d: flattened newline (%q) in:\n%s", width, joined, out)
+			}
+		}
+		// Each physical line survives, and the continuations hang at the value
+		// column rather than sitting flush left where they read as new fields.
+		indent := strings.Repeat(" ", showLabelPad+1)
+		for _, want := range []string{"context:   branch: main", indent + "head: a1a8a36", indent + "cwd: /tmp/x", indent + "why it came up"} {
+			if !strings.Contains(out, want+"\n") {
+				t.Errorf("width %d: missing line %q in:\n%s", width, want, out)
+			}
+		}
+		// The blank separator stays blank — no line of trailing indent spaces.
+		if strings.Contains(out, indent+"\n") {
+			t.Errorf("width %d: blank line padded with indent whitespace in:\n%s", width, out)
+		}
+	}
+}

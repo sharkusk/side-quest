@@ -125,14 +125,29 @@ const showLabelPad = 10
 
 // showField prints one "label: value" line, word-wrapping value to width when
 // width > 0. Continuation lines are indented to the value column so the field
-// reads as a hanging block. A width <= 0 (piped output, or --no-wrap) prints the
-// value verbatim, preserving the original single-line layout.
+// reads as a hanging block. A value carrying embedded newlines keeps them: each
+// physical line is wrapped on its own, because handing the whole value to
+// wrapText flattens its newlines into spaces (strings.Fields splits on them and
+// the words rejoin with a space), running a captured branch/head/cwd block
+// together into one line (SQ-0127). A width <= 0 (piped output, or --no-wrap)
+// skips the word-wrapping, but still lays the value out as a hanging block.
 func showField(w io.Writer, label, value string, width int) {
 	prefix := fmt.Sprintf("%-*s ", showLabelPad, label+":") // value starts at col 11
-	lines := wrapText(value, width-len(prefix))
+	var lines []string
+	for _, para := range strings.Split(value, "\n") {
+		if para == "" {
+			lines = append(lines, "") // a blank separator line, kept as-is
+			continue
+		}
+		lines = append(lines, wrapText(para, width-len(prefix))...)
+	}
 	fmt.Fprintf(w, "%s%s\n", prefix, lines[0])
 	indent := strings.Repeat(" ", len(prefix))
 	for _, ln := range lines[1:] {
+		if ln == "" {
+			fmt.Fprintln(w) // no trailing indent on a blank line
+			continue
+		}
 		fmt.Fprintf(w, "%s%s\n", indent, ln)
 	}
 }
