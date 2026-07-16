@@ -147,6 +147,16 @@ straight back into what you were doing. It's capture-only, on purpose: that's th
 back 2 weeks later it can help prime your memory on what you were doing when
 you thought of the quest.
 
+That last part is what costs `/sq` a turn of the conversation: restating the idea
+and noting *why it came up* both need the session's context to write. When you
+already know the words and would rather not touch the conversation at all,
+capture from your own terminal instead — or with a leading `!` inside Claude
+Code, which runs it without a model turn:
+
+```
+side-quest new "Fix the flaky parser test" --context "surfaced while fixing the timer refactor"
+```
+
 Everything else — list, show, status, link, note —
 runs through your agent's `side-quest serve` MCP tools, and every action is also a
 CLI command:
