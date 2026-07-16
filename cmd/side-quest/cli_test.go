@@ -233,9 +233,9 @@ func TestUsageListsEnumValues(t *testing.T) {
 	bin := buildBinary(t)
 	dir := t.TempDir()
 
-	out, code := runBin(t, bin, dir) // no args -> usage on stderr, exit 2
-	if code != 2 {
-		t.Fatalf("bare invocation should exit 2, got %d\n%s", code, out)
+	out, code := runBin(t, bin, dir, "help") // usage on stdout, exit 0
+	if code != 0 {
+		t.Fatalf("help should exit 0, got %d\n%s", code, out)
 	}
 	for _, want := range []string{
 		"bug|feature",

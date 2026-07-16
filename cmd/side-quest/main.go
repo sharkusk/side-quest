@@ -18,6 +18,8 @@ import (
 
 const usage = `usage: side-quest <command> [args]
 
+A bare "side-quest" runs list; "side-quest <id>" runs show for that quest.
+
 Setup
   onboard [--agents-md]           set up or refresh this repo (ref + hooks + .mcp.json)
 
@@ -67,11 +69,12 @@ func helpText() string {
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, helpText())
-		os.Exit(2)
+	// A bare `side-quest` lists quests; the subcommand is optional.
+	args := os.Args[1:]
+	if len(args) == 0 {
+		args = []string{"list"}
 	}
-	switch os.Args[1] {
+	switch args[0] {
 	case "version", "--version", "-v":
 		fmt.Println(version)
 		return
@@ -79,7 +82,7 @@ func main() {
 		fmt.Println(helpText())
 		return
 	}
-	if err := run(os.Args[1], os.Args[2:]); err != nil {
+	if err := run(args[0], args[1:]); err != nil {
 		var ue *usageErr
 		if errors.As(err, &ue) {
 			fmt.Fprintln(os.Stderr, "side-quest:", ue.msg)
@@ -141,6 +144,15 @@ func run(cmd string, args []string) error {
 	case "serve":
 		return cmdServe(args)
 	default:
+		// A first arg that isn't a subcommand is taken as a quest id to show:
+		// `side-quest SQ-0001` == `side-quest show SQ-0001`. Flags (leading '-')
+		// are never ids, so they still get the unknown-command error instead of
+		// being handed to show. A bare word that is neither a subcommand nor a
+		// real quest falls through show's own "quest not found" — we can't tell a
+		// typo from a random-strategy id (arbitrary hex) here, so we try to show it.
+		if !strings.HasPrefix(cmd, "-") {
+			return cmdShow(append([]string{cmd}, args...))
+		}
 		return fmt.Errorf("unknown command %q\n%s", cmd, usage)
 	}
 }

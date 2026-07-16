@@ -33,15 +33,6 @@ func TestHelpShowsVersion(t *testing.T) {
 	if !strings.Contains(out, "side-quest 9.9.9") {
 		t.Errorf("help output missing version header:\n%s", out)
 	}
-
-	// no args -> usage on stderr, exit 2.
-	uout, ucode := runBin(t, bin, t.TempDir())
-	if ucode != 2 {
-		t.Fatalf("no-arg exit=%d, want 2\n%s", ucode, uout)
-	}
-	if !strings.Contains(uout, "side-quest 9.9.9") {
-		t.Errorf("no-arg usage missing version header:\n%s", uout)
-	}
 }
 
 // A release build injects the version via ldflags; the binary must report it.

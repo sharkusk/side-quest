@@ -710,7 +710,7 @@ func TestInstallHooksWarnsWhenComposing(t *testing.T) {
 // are demoted under an "Advanced" grouping — still listed (they stay valid).
 func TestUsageDemotesInitAndInstallHooks(t *testing.T) {
 	bin := buildBinary(t)
-	out, _ := runBin(t, bin, t.TempDir()) // no args -> usage on stderr, exit 2
+	out, _ := runBin(t, bin, t.TempDir(), "help") // usage on stdout
 
 	adv := strings.Index(out, "Advanced")
 	if adv < 0 {
@@ -732,7 +732,7 @@ func TestUsageDemotesInitAndInstallHooks(t *testing.T) {
 // install-cli / uninstall-cli are discoverable in the usage text.
 func TestUsageListsCliCommands(t *testing.T) {
 	bin := buildBinary(t)
-	out, _ := runBin(t, bin, t.TempDir())
+	out, _ := runBin(t, bin, t.TempDir(), "help")
 	for _, want := range []string{"install-cli", "uninstall-cli"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("usage missing %q:\n%s", want, out)
@@ -750,4 +750,40 @@ func countLine(s, want string) int {
 		}
 	}
 	return n
+}
+
+// The bare and single-arg forms are dispatch shortcuts: `side-quest` runs list,
+// `side-quest <id>` runs show, while flags and real subcommands are untouched.
+func TestBareAndIDDispatchShortcuts(t *testing.T) {
+	bin := buildBinary(t)
+	dir, s := newRepo(t)
+	q, err := s.Create("a dispatch target", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Bare `side-quest` == `list`: the outstanding quest shows up.
+	out, code := runBin(t, bin, dir)
+	if code != 0 || !strings.Contains(out, q.ID) || !strings.Contains(out, "STATUS") {
+		t.Fatalf("bare invocation should list; exit=%d out=%q", code, out)
+	}
+
+	// `side-quest <id>` == `show <id>`: the detail view, not the table.
+	out, code = runBin(t, bin, dir, q.ID)
+	if code != 0 || !strings.Contains(out, "title:") || !strings.Contains(out, "a dispatch target") {
+		t.Fatalf("id invocation should show; exit=%d out=%q", code, out)
+	}
+
+	// A leading flag is never an id: it still gets the unknown-command error.
+	out, code = runBin(t, bin, dir, "--oops")
+	if code == 0 || !strings.Contains(out, "unknown command") {
+		t.Fatalf("leading flag should be unknown-command; exit=%d out=%q", code, out)
+	}
+
+	// A non-flag word that is neither subcommand nor real quest falls through
+	// show's own not-found (we can't distinguish it from a random-strategy id).
+	out, code = runBin(t, bin, dir, "lst")
+	if code == 0 || !strings.Contains(out, "not found") {
+		t.Fatalf("unknown non-flag word should reach show's not-found; exit=%d out=%q", code, out)
+	}
 }
