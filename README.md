@@ -263,6 +263,20 @@ the merge works, or run `side-quest sync` to reconcile without pushing (e.g. aft
 working offline). To wire the refspec by hand instead of via `onboard`, see
 [Sharing quests across machines](docs/manual-setup.md#sharing-quests-across-machines).
 
+## Show it off
+
+Tracking your work with side-quest? Add a badge to your project's README:
+
+[![Made with Side-Quest](https://img.shields.io/badge/Made%20with-Side--Quest-f97316)](https://github.com/sharkusk/side-quest)
+
+```md
+[![Made with Side-Quest](https://img.shields.io/badge/Made%20with-Side--Quest-f97316)](https://github.com/sharkusk/side-quest)
+```
+
+The doubled hyphen in `Side--Quest` is deliberate — [shields.io](https://shields.io)
+reads a single `-` as a field separator, so a literal hyphen has to be escaped as
+`--`. Swap the trailing `f97316` for any hex colour to match your palette.
+
 ## Development
 
 - **Requirements:** Go ≥ 1.25; the system `git` binary (used as a subprocess);
