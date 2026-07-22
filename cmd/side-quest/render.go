@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/sharkusk/side-quest/internal/brief"
 	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/quest"
 	"github.com/sharkusk/side-quest/internal/store"
@@ -291,6 +292,224 @@ func wrapText(text string, width int) []string {
 		}
 	}
 	return append(lines, cur)
+}
+
+// renderBrief prints the human "resume" view: a header (branch + last activity),
+// a one-line tally, then the CURRENT quest expanded, the OUTSTANDING backlog, and
+// the RECENTLY CLOSED quests. It is tone-neutral — a data display, never routed
+// through voice — and follows the list/show layout (borderless, tabwriter-aligned,
+// wrapped to width; width <= 0 prints stable unwrapped rows for pipes/--no-wrap).
+func renderBrief(w io.Writer, d brief.Data, branch string, commits []commitLine, width int) {
+	parts := []string{"side-quest brief"}
+	if branch != "" {
+		parts = append(parts, branch)
+	}
+	if !d.LastActivity.IsZero() {
+		parts = append(parts, "last activity "+brief.HumanizeSince(d.Now, d.LastActivity))
+	}
+	fmt.Fprintln(w, strings.Join(parts, " · "))
+	curCount := 0
+	if d.Current != nil {
+		curCount = 1
+	}
+	fmt.Fprintf(w, "%d current · %d outstanding · %d recently closed\n",
+		curCount, len(d.Outstanding), len(d.Closed))
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "CURRENT")
+	if d.Current == nil {
+		fmt.Fprintln(w, "  (none set — pick one with `side-quest current <id>`)")
+	} else {
+		renderBriefCurrent(w, d.Current, commits, width)
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "OUTSTANDING (%d)\n", len(d.Outstanding))
+	if len(d.Outstanding) == 0 {
+		fmt.Fprintln(w, "  (nothing outstanding)")
+	} else {
+		renderBriefRows(w, d.Outstanding, width, func(q *quest.Quest) []string {
+			return []string{q.ID, string(q.Status), string(q.Type) + "/" + string(q.Priority)}
+		})
+	}
+
+	if len(d.Closed) > 0 {
+		fmt.Fprintln(w)
+		if d.ClosedTotal > len(d.Closed) {
+			fmt.Fprintf(w, "RECENTLY CLOSED (%d of %d)\n", len(d.Closed), d.ClosedTotal)
+		} else {
+			fmt.Fprintf(w, "RECENTLY CLOSED (%d)\n", len(d.Closed))
+		}
+		renderBriefRows(w, d.Closed, width, func(q *quest.Quest) []string {
+			return []string{q.ID, string(q.Status), brief.HumanizeSince(d.Now, brief.ClosedTime(q))}
+		})
+	}
+}
+
+// renderBriefCurrent prints the featured current quest: id + type/priority/status,
+// the title, the "why" narrative (mechanical capture lines stripped), any running
+// notes, and the linked commits (subject only), each block wrapped to width.
+func renderBriefCurrent(w io.Writer, q *quest.Quest, commits []commitLine, width int) {
+	fmt.Fprintf(w, "  %s  %s/%s  %s\n", q.ID, q.Type, q.Priority, q.Status)
+	for _, ln := range wrapText(q.Title, width-2) {
+		fmt.Fprintf(w, "  %s\n", ln)
+	}
+	if why := brief.Narrative(q.Context); why != "" {
+		writeBriefField(w, "why", why, width)
+	}
+	if body := strings.TrimRight(q.Body, "\n"); body != "" {
+		writeBriefField(w, "notes", body, width)
+	}
+	if len(commits) > 0 {
+		fmt.Fprintln(w, "  commits:")
+		for _, c := range commits {
+			subject, _, _ := strings.Cut(c.text, "\n")
+			for _, ln := range wrapText(c.short+"  "+subject, width-4) {
+				fmt.Fprintf(w, "    %s\n", ln)
+			}
+		}
+	}
+}
+
+// writeBriefField prints a 2-space-indented "label: value" block, wrapping to
+// width and hanging continuation lines under the value. Embedded newlines are
+// preserved (each physical line wrapped on its own), so a multi-line notes body
+// keeps its structure instead of flattening into one paragraph (cf. SQ-0127).
+func writeBriefField(w io.Writer, label, value string, width int) {
+	prefix := "  " + label + ": "
+	indent := strings.Repeat(" ", len(prefix))
+	first := true
+	for _, para := range strings.Split(value, "\n") {
+		if para == "" {
+			fmt.Fprintln(w)
+			continue
+		}
+		for _, ln := range wrapText(para, width-len(prefix)) {
+			lead := indent
+			if first {
+				lead, first = prefix, false
+			}
+			fmt.Fprintf(w, "%s%s\n", lead, ln)
+		}
+	}
+}
+
+// renderBriefRows prints quests as aligned, 2-space-indented rows with the title
+// last so a long title wraps under its column (the renderList continuation
+// trick). meta returns the leading cells (id/status/…) for a quest.
+func renderBriefRows(w io.Writer, quests []*quest.Quest, width int, meta func(*quest.Quest) []string) {
+	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
+	titleCol := briefTitleColumn(quests, meta)
+	for _, q := range quests {
+		cells := meta(q)
+		lines := []string{q.Title}
+		if width > 0 {
+			lines = wrapText(q.Title, width-titleCol)
+		}
+		fmt.Fprintf(tw, "  %s\t%s\n", strings.Join(cells, "\t"), lines[0])
+		blank := "  " + strings.Repeat("\t", len(cells))
+		for _, cont := range lines[1:] {
+			fmt.Fprintf(tw, "%s%s\n", blank, cont)
+		}
+	}
+	tw.Flush()
+}
+
+// briefTitleColumn reports the terminal column where the title cell begins under
+// renderBriefRows' tabwriter layout (2-space indent + each leading cell's widest
+// value + 2-space padding), so continuation lines hang under the title.
+func briefTitleColumn(quests []*quest.Quest, meta func(*quest.Quest) []string) int {
+	if len(quests) == 0 {
+		return 0
+	}
+	widths := make([]int, len(meta(quests[0])))
+	for _, q := range quests {
+		for i, cell := range meta(q) {
+			if n := utf8.RuneCountInString(cell); n > widths[i] {
+				widths[i] = n
+			}
+		}
+	}
+	col := 2 // the leading "  " indent, measured by tabwriter as part of cell 0
+	for _, wd := range widths {
+		col += wd + 2 // tabwriter padding
+	}
+	return col
+}
+
+// renderBriefMarkdown prints the same content as headed Markdown sections with
+// absolute (RFC3339 / date) times — the shape pasted into or injected as an
+// agent's context. Neutral, like the human render.
+func renderBriefMarkdown(w io.Writer, d brief.Data, branch string, commits []commitLine) {
+	fmt.Fprintln(w, "# side-quest brief")
+	fmt.Fprintln(w)
+	meta := []string{}
+	if branch != "" {
+		meta = append(meta, "branch `"+branch+"`")
+	}
+	if !d.LastActivity.IsZero() {
+		meta = append(meta, "last activity "+d.LastActivity.Format(time.RFC3339))
+	}
+	curCount := 0
+	if d.Current != nil {
+		curCount = 1
+	}
+	meta = append(meta, fmt.Sprintf("%d current · %d outstanding · %d recently closed",
+		curCount, len(d.Outstanding), len(d.Closed)))
+	fmt.Fprintln(w, "_"+strings.Join(meta, " · ")+"_")
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "## Current")
+	fmt.Fprintln(w)
+	if d.Current == nil {
+		fmt.Fprintln(w, "_None set._")
+	} else {
+		q := d.Current
+		fmt.Fprintf(w, "**%s** — %s _(%s, %s/%s)_\n", q.ID, q.Title, q.Status, q.Type, q.Priority)
+		if why := brief.Narrative(q.Context); why != "" {
+			fmt.Fprintln(w)
+			fmt.Fprintln(w, why)
+		}
+		if body := strings.TrimRight(q.Body, "\n"); body != "" {
+			fmt.Fprintln(w)
+			fmt.Fprintln(w, "Notes:")
+			fmt.Fprintln(w)
+			fmt.Fprintln(w, body)
+		}
+		if len(commits) > 0 {
+			fmt.Fprintln(w)
+			fmt.Fprintln(w, "Commits:")
+			for _, c := range commits {
+				subject, _, _ := strings.Cut(c.text, "\n")
+				fmt.Fprintf(w, "- `%s` %s\n", c.short, subject)
+			}
+		}
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "## Outstanding (%d)\n", len(d.Outstanding))
+	fmt.Fprintln(w)
+	if len(d.Outstanding) == 0 {
+		fmt.Fprintln(w, "_Nothing outstanding._")
+	} else {
+		for _, q := range d.Outstanding {
+			fmt.Fprintf(w, "- **%s** _(%s, %s/%s)_ — %s\n", q.ID, q.Status, q.Type, q.Priority, q.Title)
+		}
+	}
+
+	if len(d.Closed) > 0 {
+		fmt.Fprintln(w)
+		if d.ClosedTotal > len(d.Closed) {
+			fmt.Fprintf(w, "## Recently closed (%d of %d)\n", len(d.Closed), d.ClosedTotal)
+		} else {
+			fmt.Fprintf(w, "## Recently closed (%d)\n", len(d.Closed))
+		}
+		fmt.Fprintln(w)
+		for _, q := range d.Closed {
+			fmt.Fprintf(w, "- **%s** _(%s, closed %s)_ — %s\n",
+				q.ID, q.Status, brief.ClosedTime(q).Format("2006-01-02"), q.Title)
+		}
+	}
 }
 
 // renderConfig prints the effective on-ref configuration as aligned key: value

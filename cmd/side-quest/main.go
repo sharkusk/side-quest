@@ -27,6 +27,7 @@ Quests
   new [--type --priority --context --tag k=v --current --json] <title>
   list [--status --type --priority --tag --all --filter --show-tag --json]
   show <id> [--full --history --json] show one quest (--history adds its change log)
+  brief [--markdown --closed N --json]  resume view: current quest + backlog + recently closed
   status <id> <status>            set a quest's status
   note <id> <text>                append a note to a quest
   edit <id>                       open a quest in $EDITOR and write it back
@@ -103,6 +104,8 @@ func run(cmd string, args []string) error {
 		return cmdList(args)
 	case "show":
 		return cmdShow(args)
+	case "brief":
+		return cmdBrief(args)
 	case "status":
 		return cmdStatus(args)
 	case "note":

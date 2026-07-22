@@ -419,6 +419,19 @@ Beside the git-hook subcommands (`link`, `current`, `commit-msg`,
   affects the human render only — `--json` stays the raw quest. `--history`
   appends the quest's **change log** (see below); with `--json` it emits
   `{"quest": …, "history": […]}` instead of the bare quest.
+- `brief` — a read-only **resume view**: assembles the current quest (in
+  full), the outstanding backlog, and the most-recently-closed quests (a fixed
+  `--closed N`, default 5 — a count, not a time window, so the length is
+  predictable) into one digest for picking work back up after a break, a new
+  session, or a move to a new machine — the mirror of "capture without
+  derailing". Human-formatted and tone-neutral by default (borderless,
+  terminal-wrapped, `--no-wrap`/non-TTY stable, exactly like `list`/`show`);
+  `--markdown` emits headed sections with absolute times for pasting into — or
+  auto-injecting as — an agent's context; `--json` emits the assembled structs.
+  Nothing is persisted: the brief is a pure projection of the store at read time,
+  so it can never be stale. The partitioning lives in the pure `internal/brief`
+  package, shared with the MCP `quest_brief` tool so both can never drift
+  (SQ-0132).
 - `status <id> <status>` — set the lifecycle status.
 - `note <id> <text>` — append a note to a quest (the note text is every
   argument after the id, joined with spaces).
@@ -537,9 +550,12 @@ version and its parent's) are read in one `cat-file --batch`. Surfaced by the CL
 `side-quest serve` runs a stdio MCP server (JSON-RPC over stdin/stdout) built on
 `github.com/modelcontextprotocol/go-sdk`. `cmd/side-quest/serve.go` is a thin
 frontend: it opens the store for the cwd and hands it to `internal/mcp.NewServer`,
-which registers eighteen tools:
+which registers nineteen tools:
 
-- `quest_new`, `quest_list`, `quest_show`, `quest_history`, `quest_get_current` (capture/read)
+- `quest_new`, `quest_list`, `quest_show`, `quest_history`, `quest_get_current`,
+  `quest_brief` (capture/read) — `quest_brief` returns the resume view (current
+  quest in full + outstanding + recently-closed summaries) in one call, assembled
+  by the shared `internal/brief` package; a read, so it never voices (SQ-0132)
 - `quest_set_status`, `quest_reclassify`, `quest_update`, `quest_note`,
   `quest_set_current`, `quest_link_commit`, `quest_relink_commit`,
   `quest_unlink_commit` (mutation)
@@ -594,6 +610,7 @@ to the body), `SetTitle`, and `MergeTags` (empty value deletes a key) — live i
 | `internal/config` | On-ref `_config.yaml` model; `Unmarshal` fills missing keys from `Default()` | pure |
 | `internal/store` | Orphan-ref CRUD + the `mutate`/`buildCommit`/`cas` machinery + id allocation | git plumbing |
 | `internal/trailer` | Parse Quest:/Confirm:/Completes: trailers + the commit-msg decision | pure |
+| `internal/brief` | Pure assembly of the resume view (current + outstanding + recently-closed) shared by CLI `brief` and MCP `quest_brief` | pure |
 
 **CRUD** — Create, Read, Update, Delete — the basic persistence operations. Today the store
 implements Create (`Create`), Read (`Get`/`List`), and Update (`SetStatus`/`SetType`/

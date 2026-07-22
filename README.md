@@ -167,6 +167,7 @@ side-quest list                    # outstanding: open, partial + confirm quests
 side-quest list --all              # every status, including done/deferred/discarded
 side-quest list --filter "bug and not (done or deferred)"
 side-quest show SQ-0001
+side-quest brief                   # resume view: current quest + backlog + recently closed
 side-quest status SQ-0001 done
 side-quest note SQ-0001 "flaky since the timer refactor"
 side-quest edit SQ-0001            # open the quest in $EDITOR, save to write it back
@@ -180,8 +181,11 @@ A bare `list` shows only outstanding quests (open, partial, and confirm); `--all
 includes every status, and `--filter` takes a boolean expression over bare enum
 values (`bug`, `high`, `done`, …) and `key=value` tags with `and`/`or`/`not`/parens
 — e.g. `--filter "not (done or deferred)"`. `show --history` prints a quest's
-change log — who changed what, and when. Add `--json` to `new`, `list`, `show`, or
-`config get` for machine-readable output. Flags may appear before or after the
+change log — who changed what, and when. `brief` is a read-only **resume view** —
+the current quest, the outstanding backlog, and the last few closed quests in one
+digest, for picking work back up after a break or on a new machine (add
+`--markdown` for a form you can paste into an agent's context). Add `--json` to
+`new`, `list`, `show`, `brief`, or `config get` for machine-readable output. Flags may appear before or after the
 title/id positional; `<id>` accepts shorthand (`side-quest show 1` = `SQ-0001`);
 and every command prints its own help with `side-quest <command> -h`.
 

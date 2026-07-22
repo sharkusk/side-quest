@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/sharkusk/side-quest/internal/brief"
 	"github.com/sharkusk/side-quest/internal/capture"
 	"github.com/sharkusk/side-quest/internal/config"
 	"github.com/sharkusk/side-quest/internal/quest"
@@ -33,6 +34,7 @@ func (h *handlers) register(s *sdk.Server) {
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_show", Description: "Show one quest by id."}, h.questShow)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_history", Description: "Return a quest's change history to answer historical questions about it: one entry per commit that touched the quest, oldest first, each with the date, author (who/email), and what changed (created, status x→y, type/priority x→y, note added, linked/unlinked commit, title/tags/body edited)."}, h.questHistory)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_get_current", Description: "Return this worktree's current quest id (empty if none)."}, h.questGetCurrent)
+	sdk.AddTool(s, &sdk.Tool{Name: "quest_brief", Description: "Return a resume-oriented snapshot of the project's state in one call: the current quest (full), the outstanding backlog, and the most-recently-closed quests (with a total count). Call it at the start of a session — especially on a fresh clone or new machine — to orient without reading quests one by one. Read-only."}, h.questBrief)
 	sdk.AddTool(s, &sdk.Tool{Name: "server_info", Description: "Report the running side-quest MCP server's build version. Use it to verify the server is current after a plugin install or update: compare this version to the latest release (or to `side-quest version` for the provisioned binary). If it's older, the server is still running the previous binary — restart it from /mcp so it reloads the new build."}, h.serverInfo)
 	sdk.AddTool(s, &sdk.Tool{Name: "quest_set_status", Description: "Set a quest's lifecycle status (open|partial|confirm|done|deferred|discarded). Use confirm when you've finished a change but want the user to confirm it before the quest is done — it stays outstanding until they close it.",
 		InputSchema: enumSchema[statusIn](map[string][]string{"status": statuses})}, h.questSetStatus)
@@ -261,6 +263,55 @@ func (h *handlers) questGetCurrent(ctx context.Context, req *sdk.CallToolRequest
 	return jsonResult(struct {
 		Current string `json:"current"`
 	}{cur})
+}
+
+type briefIn struct {
+	ClosedShown *int `json:"closed_shown,omitempty" jsonschema:"how many recently-closed quests to include; defaults to 5, 0 for none"`
+}
+
+// briefPayload is the neutral machine shape for quest_brief: the current quest in
+// full (an agent resuming wants its context/body) and the outstanding/closed
+// quests as the same compact summaries quest_list returns, plus a total closed
+// count and the last-activity time. Assembly is shared with the CLI via
+// internal/brief. Read-only — reads never voice.
+type briefPayload struct {
+	Current      *quest.Quest   `json:"current"`
+	Outstanding  []questSummary `json:"outstanding"`
+	Closed       []questSummary `json:"closed"`
+	ClosedTotal  int            `json:"closed_total"`
+	LastActivity *time.Time     `json:"last_activity,omitempty"`
+}
+
+func (h *handlers) questBrief(ctx context.Context, req *sdk.CallToolRequest, in briefIn) (*sdk.CallToolResult, any, error) {
+	quests, err := h.store.List()
+	if err != nil {
+		return nil, nil, err
+	}
+	cur, _ := h.store.Current() // best-effort: no pointer just means no current quest
+	closedN := brief.DefaultClosedShown
+	if in.ClosedShown != nil {
+		closedN = *in.ClosedShown
+	}
+	d := brief.Build(quests, cur, time.Now(), closedN)
+	payload := briefPayload{
+		Current:     d.Current,
+		Outstanding: summarizeAll(d.Outstanding),
+		Closed:      summarizeAll(d.Closed),
+		ClosedTotal: d.ClosedTotal,
+	}
+	if !d.LastActivity.IsZero() {
+		la := d.LastActivity
+		payload.LastActivity = &la
+	}
+	return jsonResult(payload)
+}
+
+func summarizeAll(qs []*quest.Quest) []questSummary {
+	out := make([]questSummary, 0, len(qs))
+	for _, q := range qs {
+		out = append(out, summarize(q))
+	}
+	return out
 }
 
 type statusIn struct {

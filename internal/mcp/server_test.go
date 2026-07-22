@@ -95,18 +95,18 @@ func TestServerAdvertisesGivenVersion(t *testing.T) {
 	}
 }
 
-func TestListToolsExposesEighteen(t *testing.T) {
+func TestListToolsExposesNineteen(t *testing.T) {
 	cs, ctx := dialTest(t, newTestStore(t))
 	lt, err := cs.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(lt.Tools) != 18 {
+	if len(lt.Tools) != 19 {
 		names := make([]string, len(lt.Tools))
 		for i, tl := range lt.Tools {
 			names[i] = tl.Name
 		}
-		t.Fatalf("want 18 tools, got %d: %v", len(lt.Tools), names)
+		t.Fatalf("want 19 tools, got %d: %v", len(lt.Tools), names)
 	}
 }
 
@@ -536,6 +536,55 @@ func TestGetCurrentEmpty(t *testing.T) {
 	}
 	if res.IsError {
 		t.Fatalf("get_current errored: %s", contentText(t, res))
+	}
+}
+
+// TestQuestBriefTool (SQ-0132): quest_brief returns the current quest, the
+// outstanding backlog, and recently-closed quests in one read, and never voices.
+func TestQuestBriefTool(t *testing.T) {
+	cs, ctx := dialTest(t, newTestStore(t))
+	mk := func(title string) string {
+		res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_new", Arguments: map[string]any{"title": title}})
+		if err != nil || res.IsError {
+			t.Fatalf("quest_new %q: err=%v out=%s", title, err, contentText(t, res))
+		}
+		var q questSummary
+		if err := json.Unmarshal([]byte(contentText(t, res)), &q); err != nil {
+			t.Fatal(err)
+		}
+		return q.ID
+	}
+	a, b, c := mk("alpha"), mk("beta"), mk("gamma")
+
+	if r, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_set_status", Arguments: map[string]any{"id": c, "status": "done"}}); err != nil || r.IsError {
+		t.Fatalf("set_status: err=%v out=%s", err, contentText(t, r))
+	}
+	if r, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_set_current", Arguments: map[string]any{"id": a}}); err != nil || r.IsError {
+		t.Fatalf("set_current: err=%v out=%s", err, contentText(t, r))
+	}
+
+	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "quest_brief", Arguments: map[string]any{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("quest_brief error: %s", contentText(t, res))
+	}
+	if len(res.Content) != 1 {
+		t.Errorf("quest_brief is a read and must not voice; got %d content blocks", len(res.Content))
+	}
+	var p briefPayload
+	if err := json.Unmarshal([]byte(contentText(t, res)), &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Current == nil || p.Current.ID != a {
+		t.Fatalf("Current = %v, want %s", p.Current, a)
+	}
+	if len(p.Outstanding) != 1 || p.Outstanding[0].ID != b {
+		t.Errorf("Outstanding = %+v, want just %s", p.Outstanding, b)
+	}
+	if p.ClosedTotal != 1 || len(p.Closed) != 1 || p.Closed[0].ID != c {
+		t.Errorf("Closed = %+v (total %d), want just %s", p.Closed, p.ClosedTotal, c)
 	}
 }
 
