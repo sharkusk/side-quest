@@ -28,10 +28,10 @@ follow-up you manage through these tools, not by editing files.
 - Finished a change the user should judge — not one tests or an obvious check
   settle? Set it to confirm (quest_set_status, or a "Confirm: SQ-1234" trailer);
   it stays outstanding till they accept or reopen it. Else complete it.
-- Active work is open, partial, and confirm — treat them alike as outstanding. List
-  it with quest_list; read one with quest_show.
-- Relay the flavor. A tool may append a flavored line beside its JSON; show it to
-  the user verbatim — it's the tracker's voice.
+- Outstanding = open, partial, confirm. quest_list lists them, quest_show reads one,
+  quest_brief snapshots the state — call it first when resuming.
+- Relay the flavor: a tool may append a flavored line beside its JSON — show it
+  verbatim; it's the tracker's voice.
 
 ## First-run setup (if the repo isn't tracked yet)
 
@@ -153,6 +153,9 @@ dimensions, and tags for everything else.
 unknown filter value returns a tool error. `quest_show { id }` — the full quest,
 including its tags, notes, and linked commits. `quest_history { id }` — the
 quest's change log (who changed what, when), for historical questions.
+`quest_brief { closed_shown? }` — a one-shot resume snapshot (current quest in
+full, the outstanding backlog, the most-recently-closed quests); call it at the
+start of a session to orient without paging through quests one by one.
 
 ## Intent → tool
 
@@ -170,6 +173,7 @@ quest's change log (who changed what, when), for historical questions.
 | Browse / filter quests | `quest_list` |
 | Read one quest fully | `quest_show` |
 | Ask when/who/what changed a quest | `quest_history` |
+| Orient at session start (current + backlog + recently closed) | `quest_brief` |
 | Apply a commit's trailers after the fact | `quest_link_commit` |
 
 ## This skill does not
