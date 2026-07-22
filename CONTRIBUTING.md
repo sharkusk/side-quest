@@ -42,7 +42,7 @@ change), just proceed — the hook is a reminder, not a gate.
 
 Dependencies:
 
-- **Go ≥ 1.22**
+- **Go ≥ 1.25**
 - **`git` ≥ 2.13** (invoked as a subprocess; floor set by `rev-parse --absolute-git-dir` —
   see [`docs/architecture.md`](docs/architecture.md) → Dependencies for the full table)
 - **`gopkg.in/yaml.v3`**
